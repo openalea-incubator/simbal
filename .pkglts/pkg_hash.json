@@ -1,0 +1,64 @@
+{
+  ".gitignore": {
+    "git": "8uAZ4LvdRTxMsEWlfZsVWgJE90o2l2p9OEbwxbuPTcrf+qDJ+rly/IrbhP1R5wvzqZ2N1IZUpSgXYn08+NjK2A=="
+  },
+  ".travis.yml": {
+    "travis": "8EYmUGVuqpXP0Rx+e6aOAF0xYje1JfZvpgTHxW0Vt/CinkJbNs2ESrpnd++m4U1u+99Jf2JE5KMtXDw1pDw2fA==",
+    "travis.addons": "qA98wmBu9uVHTpax5SDBfs9DLw2ppWa9FXBEEwz7VI8Q2Sn/tXgwCN94ttB9B9EJv/utGZjLgwnszsfk0/yBOg==",
+    "travis.after": "Jz9lf1EmkzQNjR8fWiV657tnb36Yh7m3nhWrAITunAVi46kxU3YkgFIhaIZ+/yrMCkziJAahjNhDgvhJing2mg==",
+    "travis.install": "yL6TXWvPQQvwCyyPt4IgCKEuee/y/8uGQHgaYAONPVJvpLHjrpUe0gfCO3gCxlz96bZrMFI/pPMIRecbAo57Mw==",
+    "travis.script": "qj1gr+V/f64/2mkg9Jy8K5+J2Y4JQEwF4rJLtZJWEBPLPQfbAaqMWutlVGONPL/RuG9PS+X5Z2T4xB7B9W7IHA=="
+  },
+  "AUTHORS.rst": {
+    "doc.authors": "IGywJPpRs1NL0zujywVvKXCCBao8BYGRssgNxPE63T6Bq2T+2sxgNQp7DxM6J333B0jJBr1D4hMILyYel9yTHg==",
+    "doc.contributors": "2e/0eQxYxy38PD0SGmLBF8o4u6uXvDF3r2lJ5hG8wx9Il/UeJB2GWlHcBdZkz4FORArveMllysMzw9gxsgCtVg=="
+  },
+  "CONTRIBUTING.rst": {},
+  "HISTORY.rst": {},
+  "LICENSE": {
+    "license": "RbGRVVjgGPhWaPWhqwtq7HHev/U1DkppBYjGN39HbDZ2BDejFc2exfwAH1MiY2HHn+3TgxlvBkg/s/x9hs3aOA=="
+  },
+  "MANIFEST.in": {
+    "pysetup": "8DY56AGZWMjTMdLoLpVQZN3oQQOtMMHvIbv478ScAZGV//KX41S578YS9bOPTa1qN+gqb0sfemd4JL1sICcZNg=="
+  },
+  "README.rst": {
+    "doc": "d5GmgIgWOiPbzv60vYHOZTvXUxvJtkntAlIjZd5DYVbBMyHFDy1QdC+DXfqlWTKb4se2cXMIxtGLmnrEQgAZ0g=="
+  },
+  "doc/_static/nonempty.txt": {},
+  "doc/conf.py": {
+    "sphinx": "AyAOWqmW9kSdFSkKPF9mPZqpD+iMSZ7mWIF7pp7+XRdpQbiARXCyAxiPZ10F6xO8Z2GCJdDyUAzzKkkWjkHAvQ=="
+  },
+  "doc/make.bat": {
+    "sphinx": "E9sFsnXAm9uPYBn7f0Qb6edct0UKizsXRIJyjZISRCjHbT2HldXK4GIj1yO69R/OVSfnmdAX5lzXQ4wONQNFgA=="
+  },
+  "requirements.txt": {
+    "reqs": "hlw7xIVtX1vBSQB8nfV2UWSygENZ2tB0V6XJyTsFqk6iazypGJFyztrkkVwUzS31zxbF1bWuYtASsp6QrXBHFg=="
+  },
+  "requirements_minimal.txt": {
+    "reqs": "AWuoxM/eZa+Zy1+ouKN+Lrc/SBs640mRZm3y4E/rbAOGZuvR7CtvYjlndWAzxwLd5fQj99R6tu0YJ/9TeDcx9w=="
+  },
+  "setup.cfg": {
+    "sphinx": "mYLeHXWNqXwTk9eWxY4wTrltnDTrAHQvl0l+kosuIfAgrbAuhWMgySq4WR2Y855Q5HDAtGZY7Pnt+BAU6niXIg==",
+    "test.nose": "vmiIOMqGhuXJBom/KrWFzvETfJmbSMcLkvZ6XDTcFWl7XRHJgu1tcb4eHn97TgcziEqpfD96M5qO0DV3z3S+CQ==",
+    "test.pytest": "R5P5XMaQxSXsNQJ3hXYY45iLvnl8Mbec6XuIaFTum52gym+wTM2TfEbW/N2doHNaCkpdAWg07oblbYi15AwQkA==",
+    "wheel": "vUJZkCvbK4LQuEURneKnX/SNIwhJ9/9EaT5T6Uw1K1fauKFFiHnq1DTDES7cgBD0OANelyvwCCZO/rV4Iok+ag=="
+  },
+  "setup.py": {
+    "pysetup.call": "t30iIuCMd/sWxStR2XNYb8bCBgwanhKt8YYn2VKACyAqL5cKFRUWpVRIpAR+uxXUZ9PYYy2csMmECcONnRZE8w==",
+    "pysetup.kwds": "WVYsdBL10Ue2pK0kOAacnVDBLRBlT8oxb61kLtETcJbYGZ1GF/OubnZaP0fgw4r668KrgbKTLSVF2UxVuHFQhA=="
+  },
+  "src/caracol/__init__.py": {
+    "src": "L2dZgUBRC5qv3o09+1CbMcgYfQtR1ZNSvP8KlP8REQazZiAQAktALjpCC2ijdxvKPv/tN9KsZrzNW+lZMszSfg==",
+    "version": "skSCnavrYKIlfN9Mpi+cANbU8gXulaKdlHryvkjkoSSpsag1I66dM+6JHm1aOdmKYU0rZNNgcIamCMbIL7IeMg=="
+  },
+  "src/caracol/version.py": {
+    "version": "ChxhlyhR0GFnHl3e5vJS6mvz6gYMS2QnceNaEE/jcFvPLXGhSf74BMF8STfW5+gNx4J53YYaImI+8WUEt+XhHA=="
+  },
+  "test/conftest.py": {
+    "test.pytest_addoption": "I/hswVryIEYvZRBcFqkfRBxLP6eZCwZSbQuPclkOkjHw4MApBst5h7H0ejnMMe4bmwHXMXR5DCSxOMj/FcCnjQ==",
+    "test.pytest_cmdline_preparse": "Lid4ojpVpBIIn1jpCe1fmfeSeAgYhmIu4K5huJGEMv87/LruGeI0PjWNyONDNXlZrL0CL0BPTKvXlOkEj3jIWA==",
+    "test.pytest_collection": "a/3h30sLUHJ7xWsOrmfCInOOVXvm660dS+RxHwcDUcae2jHqDLRGhq/v8zgC+FSzN3pXaEaJ1QBJ9MNLOUBuCA==",
+    "test.pytest_configure": "SjyTXdrRadJNWhVFYkAvXekjOqNtovwqKNizWD35oZ9XVmsdB/B+lQDzXNPZQ0D5flFpSEURUiGqIvifgEKZ9Q==",
+    "test.pytest_import": "2ox6A0szNpUYZR5cJJRSW3OwEWR558BOiUMjC/OVkTPT++CF/OCgGSELCPL+7YHWaJGQKMw2rtCXmOMeSK5ZJA=="
+  }
+}
