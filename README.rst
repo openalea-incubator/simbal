@@ -12,28 +12,27 @@ caracol
 
 Caracol is a FSPM model for agroecological simulation
 
-# TO DO 
-an above-ground environment module : <ag_environment.py> 
+--------------------------
+Model layout
+--------------------------
+
+**environment.py** : an above-ground environment module 
 - spatial light model distribution
 - temperature 
-
-an above-ground envt / plant interaction module : <ag_interaction.py> 
 - spatialized light acquisition
 - degree day cumulation 
 
-a below-ground environment module : <bg_environment.py> 
+**soilN.py** (or soil.py) a below-ground envt / plant interaction module 
+- spatialized N acquisition 
 - N spatial distribution and disponibility
 
-a below-ground envt / plant interaction module : <bg_interaction.py> 
-- spatialized N acquisition 
-
-a C,N balance module : <balanceCN.py>
+**balanceCN.py**: a C,N balance module : 
 - check C and N stocks
 - check C and N acquired
 - remobilize C,N from senescing organs 
 - distribute C,N among organs of the plant according to rules and hypothesis
 
-a developing module : <simulation.py>
+**simulation.py** : a  module that
 - integrate C,N dispo and thermal time 
 - modify organs properties : size, growth rate, senescence state
 - modify number of organs : apical growth 
@@ -41,5 +40,5 @@ a developing module : <simulation.py>
     no leaf after floral transition but flower 
     flower give fruits after fruit transition
 
-a visualisation of the plant development
+**plot.py**:  visualisation of the plant development
 
