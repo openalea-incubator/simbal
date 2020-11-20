@@ -37,8 +37,8 @@ Model layout
 - modify organs properties : size, growth rate, senescence state
 - modify number of organs : apical growth 
 - modify organs relations : 
-    no leaf after floral transition but flower 
-    flower give fruits after fruit transition
+    * no leaf after floral transition but flower 
+    * flower give fruits after fruit transition
 
 **plot.py**:  visualisation of the plant development
 
