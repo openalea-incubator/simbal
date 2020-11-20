@@ -34,6 +34,7 @@ def param_R0(R0):
     return R0
 
 def param_S0(S0):
+    """" Initialisation of the initial stem """
     S0.r = 0.25
     S0.l = 2
     S0.area = 2 * np.pi * S0.r * S0.l
@@ -41,6 +42,7 @@ def param_S0(S0):
     return(S0)
 
 def param_L0(L0):
+    """ initialisation of the initial leaf """
     L0.area = 2
     L0.age = 0
     return(L0)
@@ -72,10 +74,12 @@ def light_model(X):
     return(X) #PPFDi in micromole
 
 def destock_C(stock_C):
+    """ Remobilize C stored the previous time step """
     a=0.99
     return(a*stock_C)
 
 def destock_N(stock_N):
+    """ Remobilize N stored the previous time step """
     a = 0.99
     return(a*stock_N)
 
@@ -83,17 +87,19 @@ def acquis_N(X):
     """ Takes the list of the root segment and estimates
     N absorbtion"""
     tot_rootA = 0
-    for i in range(len(X)):
-        tot_rootA = tot_rootA + X[i].area
+    for segment in X:
+        tot_rootA = tot_rootA + segment.area
     N_acquis = tot_rootA*0.014
     return(N_acquis)
 
 def sum_organs(X,organ,var):
+    """ Inside the aerial-part plant object "X", for the organ "organ", 
+    sum the variable "var" """
+
     correspondance = ["stem", "leaf", "apbud"]
     for u in range(len(correspondance)):
         if correspondance[u]== organ:
             org = u
-
     tot = 0
     # if the organ is the apical bud :
     if org ==2 : 
@@ -104,6 +110,7 @@ def sum_organs(X,organ,var):
     return(tot)
 
 def sum_phytom(X,var):
+    """ Inside the aerial-part plant object "X", sum the variable "var" """
     n_phyto = len(X)
     tot = 0
     for i in range(n_phyto):
@@ -112,19 +119,26 @@ def sum_phytom(X,var):
     return(tot)
     
 def light_weight(X):
+    """ Compute the weight in terms of light interception, 
+    of each organ compared to the total plant light interception """
+
     PPFDi_tot = sum_phytom(X, "PPFD")
-    for i in range(len(X)):
-        for j in range(len(X[i])):
-            X[i][j].w = X[i][j].PPFD / PPFDi_tot
+    for phyt in X:
+        for org in phyt:
+            org.w = org.PPFD / PPFDi_tot
     return(X)
 
 def demand_N_aer(X, N_offer):
-    for i in range(len(X)):
-        for j in range(len(X[i])):
-            X[i][j].N = X[i][j].w * N_offer
+    """ Compute N demand of each organ according to the hypothesis that 
+    the more the light intercepted, the more N they will drive tw them"""
+    for phyt in X:
+        for org in phyt:
+            org.N = org.w * N_offer
     return(X)
 
 def sfqn(organ):
+    """ Give the coefficient of the linear relation between N and leaf surface. 
+    This coeff is called sfqn and is in mgN.cm-2"""
     NS = 0.1
     NL = 0.25 #mgN.cm-2 for a leaf ... 
     NB = 0.1
@@ -136,6 +150,10 @@ def sfqn(organ):
         return(NB)
 
 def growth_aer(X, coeff):
+    """ surface variation of each aerial organ according to 
+    N potentially received and N-cost of surfaces. 
+    coeff : satisfaction coefficient. Reduce growth if offer < demand"""
+
     dS_tot = 0
     for i in range(len(X)):
         for j in range(len(X[i])):
@@ -145,12 +163,18 @@ def growth_aer(X, coeff):
     return(X, dS_tot)
 
 def acquis_C(X):
+    """ Give C acquired by aerial part according to light interception and
+    radiation use efficiency """
+
     RUE = 6 # mg of Fresh Weight / mole
     PPFDi_tot = sum_organs(X,"leaf","PPFD")
     C_acquis = PPFDi_tot * RUE 
     return(C_acquis) #PPFDi in micromole
 
 def growth_root(X,coeff):
+    """ surface variation of each root segment. 
+    coeff : satisfaction coefficient. Reduce growth if offer < demand"""
+
     dr = 0.05 # radial growth
     dl = 0.08 # elongation rate
     dv_tot = 0
@@ -165,6 +189,8 @@ def growth_root(X,coeff):
 
 ######### TIME STEP #########
 def time(root, aer, C_stock, N_stock): 
+    """ Balance C and N offer and demand. 
+    Allocate C and N among organs """
     # Calculating the variables : 
     C_destock = destock_C(C_stock)
     N_destock = destock_N(N_stock)
@@ -226,6 +252,7 @@ def time(root, aer, C_stock, N_stock):
     return(root, aer, C_stock, N_stock)
 
 def new_phyt(aer):
+    """ Create new phytomer """
     n = len(aer)
     aer_new = aer[0:n-1] + [aer[n-1][0:2]]
     AP_old = aer[n-1][2]
@@ -238,7 +265,7 @@ def new_phyt(aer):
     return(aer_new)
 
 
-### RUNNING the code####
+### RUNNING the code ####
 ### Parameters to set ###
 apbud_threshold = 0.02
 cost.root_N = 0.01
@@ -246,7 +273,7 @@ cost.root_C = 0.08
 cost.aer_N = 0.03
 cost.aer_C = 0.07
 
-### Inital plant ###
+### Initial plant ###
 S0 = stem ; L0 = leaf ; APB0=apbud
 S0 = param_S0(S0) ; L0 = param_L0(L0) ; APB0.area = 0.01
 aer = [[S0, L0, APB0]]
