@@ -27,10 +27,10 @@ Model layout
 - N spatial distribution and disponibility
 
 **balanceCN.py**: a C,N balance module : 
-- check C and N stocks
-- check C and N acquired
-- remobilize C,N from senescing organs 
-- distribute C,N among organs of the plant according to rules and hypothesis
+- check available N : stored, acquired, remobilized
+- distribute N among organs according to rules and hypothesis 
+- check available C : stored, acquired, remobilized 
+- distribute C among organs according to rules and hypothesis
 
 **simulation.py** : a  module that
 - integrate C,N dispo and thermal time 
