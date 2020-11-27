@@ -107,3 +107,27 @@ def all_scales(g):
     g = g.insert_scale(inf_scale=1, partition=partition_axis, default_label='A')
     g = g.insert_scale(inf_scale=1, partition=partition_plant, default_label='P')
     return g
+
+
+def init_N_randomly(g, N=10.):
+    max_scale = g.max_scale()
+    stems = [vid for vid in g.vertices(scale=max_scale) if g.label(vid) =='S']
+    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid) =='L']
+
+    ns = len(stems)
+    nl = len(leaves)
+
+    Natomic = N/(2*nl + ns)
+    for vid in stems:
+        nid = g.node(vid)
+        nid.N = Natomic
+
+    for vid in leaves:
+        nid = g.node(vid)
+        nid.N = 2*Natomic
+
+    print('N total', sum(g.property('N').values()))
+    print('N init', N)
+
+    return g
+
