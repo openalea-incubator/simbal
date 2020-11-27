@@ -52,7 +52,7 @@ def aerial_plant():
     < : successor
     + : ramification
     """
-    g = MTG()
+    g = mtg.MTG()
     vid = g.add_component(g.root, label='Plant')
     vid = g.add_component(vid, label='Axis')
     vid = g.add_component(vid, label='Metamer')
