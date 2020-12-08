@@ -13,6 +13,7 @@ A module that
 
 import numpy as np
 from openalea.mtg import mtg
+from soilN import *
 
 """ List of all organs and their attributes. 
 For above-ground organs, phytomers are constitued of 
@@ -20,24 +21,48 @@ stem, leaf, axillary bud and apical bud.
 Surfaces are in cm2 and C,N quantities in mg or mg/cm2.  """
 
 ###############################################################################
-def destock_C(stock_C):
-    """ Remobilize C stored the previous time step """
-    a=0.99
-    return(a*stock_C)
-
+# N
 def destock_N(stock_N):
     """ Remobilize N stored the previous time step """
     a = 0.99
     return(a*stock_N)
 
-def acquis_N(X):
-    """ Takes the list of the root segment and estimates
-    N absorbtion"""
-    tot_rootA = 0
-    for segment in X:
-        tot_rootA = tot_rootA + segment.area
-    N_acquis = tot_rootA*0.014
-    return(N_acquis)
+def remobilized_N(organs, Coeff_remob):
+    for org in organs : 
+        N += N * Coeff_remob
+    return(N)
+
+def growth_root_pot(root_area):
+    """ surface variation of global root network. 
+    coeff : satisfaction coefficient. Reduce growth if offer < demand"""
+    growth_rate = np.random.rand()
+    return(pot_growth = root_area(1+growh_rate))
+
+def sfqn_root():
+    """ N (mg.cm2) needed for root surface growth """
+    return(0.05)
+
+root_N_need = growth_root_pot(root_area) * sfqn_root()
+N_disp_aer = destock_N(stock_N) + remobilizedN(organs, Coeff_remob) + soilN.N_acquisition() - root_N_need
+
+## H1 ##
+def light_weight(X):
+    """ Compute the weight in terms of light interception, 
+    of each organ compared to the total plant light interception """
+    PPFDi_tot = sum_phytom(X, "PPFD")
+    for phyt in X:
+        for org in phyt:
+            org.w = org.PPFD / PPFDi_tot
+    return(X)
+
+#####
+
+def destock_C(stock_C):
+    """ Remobilize C stored the previous time step """
+    a=0.99
+    return(a*stock_C)
+
+
 
 def sum_organs(X,organ,var):
     """ Inside the aerial-part plant object "X", for the organ "organ", 
@@ -65,15 +90,7 @@ def sum_phytom(X,var):
             tot = tot + X[i][j].__dict__[var]
     return(tot)
     
-def light_weight(X):
-    """ Compute the weight in terms of light interception, 
-    of each organ compared to the total plant light interception """
 
-    PPFDi_tot = sum_phytom(X, "PPFD")
-    for phyt in X:
-        for org in phyt:
-            org.w = org.PPFD / PPFDi_tot
-    return(X)
 
 def demand_N_aer(X, N_offer):
     """ Compute N demand of each organ according to the hypothesis that 
@@ -118,21 +135,7 @@ def acquis_C(X):
     C_acquis = PPFDi_tot * RUE 
     return(C_acquis) #PPFDi in micromole
 
-def growth_root(X,coeff):
-    """ surface variation of each root segment. 
-    coeff : satisfaction coefficient. Reduce growth if offer < demand"""
 
-    dr = 0.05 # radial growth
-    dl = 0.08 # elongation rate
-    dv_tot = 0
-    for i in range(len(X)):
-        dv1 = (np.pi * (X[i].r + dr)**2 *(X[i].l+dl))-(np.pi * X[i].r **2 *X[i].l) 
-        dv2 = (np.pi * (X[i].r+dr) **2 *dl)
-        X[i].r = X[i].r + dr 
-        X[i].l = X[i].l + dl
-        dv = dv1 + dv2 
-        dv_tot = dv_tot + dv
-    return(X, dv_tot)
 
 ######### TIME STEP #########
 def time(root, aer, C_stock, N_stock): 
