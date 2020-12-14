@@ -35,7 +35,7 @@ def StartEach():
 
 pI = ParameterSet(area = 0.05 * r)
 Axiom: Internode(pI)[&(120)Petiole(ParameterSet(length = 0))Leaf(ParameterSet(Ei = 1,age = 0, area = 0.8, N = 0.8, C = 0.8))]Apex(ParameterSet(age = 0, alpha = 0))
-derivation length: 150
+derivation length: 12
 
 production:
 Apex(p):

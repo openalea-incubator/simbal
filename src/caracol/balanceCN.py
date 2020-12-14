@@ -38,6 +38,10 @@ def remobilized_N(organs, Coeff_remob):
 def root_N_need():
     return()
 
+def N_disp_aer():
+    """ should be the difference between destockN, remobilized and root need """
+    return(0.1)
+    
 def CN_organ(irr, N_disp_aer = 0.13, what = True):
     """ distributes N between organs according to intercepted light = Leight weight = wi"""
     if sum(irr['Ei']) !=0 : 

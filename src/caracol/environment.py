@@ -34,3 +34,4 @@ def PS_irradiance(df, lstring, org_list, aggregate = False):
     if aggregate : 
         f = f.apply(numpy.mean)
     return f
+
