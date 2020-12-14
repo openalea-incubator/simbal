@@ -38,8 +38,15 @@ def RUE():
 
 def BT():
     """ Threshold of N storage in the apex to iniate a new leaf """
-    return(0.5)
+    return(0.25)
 
 def IoL():
     """ (N for Internode / N for Leaf) repartition ratio """
     return 0.3
+
+def RoH(area):
+    """ return the height and radius of a cylinder of given area """
+    r_h = 0.3 #np.random.random()
+    h = sqrt(area / 2*np.pi * r_h)
+    r = r_h * h
+    return r,h
