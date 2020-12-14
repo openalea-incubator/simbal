@@ -19,92 +19,65 @@ from openalea.plantgl.all import *
 from morpho import *
 from soilN import *
 from environment import *
+from balanceCN import *
+
+# Development (derivation) if resources and thermaltime #
+"""derive(lstring, corresponding iteration number, nb of iterations to apply) """
+
+###################################################################################################
+""" Define first plant"""
 #### Phenological parameters ####
 transition1 = 50 #rosette -> bolting (degree days) Jullien et al. 2011
 transition2 = 300#bolting -> flower (days)
 transition3 = 345 #flower -> fruits (days)
 phyllochrone1 = 10
-#### 1st stage of the plantule ####
-parameter = {'Lmax_Internode':0.5}
-l = Lsystem('plant.lpy', parameter)
+l = Lsystem('interpret.lpy')
+# Define Axiom :
+pI = ParameterSet(area = 0.3)
+pP = ParameterSet(length = 0.01)
+pL = ParameterSet(area = 1)
+pA = ParameterSet(age = 0)
+lstring = Lsystem('plant3.lpy', {'pI':pI, 'pP':pP, 'pL':pL}).axiom +Lsystem('Bud.lpy', {'pA':pA}).axiom
+tt,i = 1,0
+plant = balance(lstring, 0)
+plant = plant.loc[:, ['area','rank', 'Organ']]   
+plant.loc[:,'Ntot'] = 0.13
 
+###################################################################################################
+biblio = []
+init = False
+for k in range(5):
+    # balance N
+    N_disp_aer = 0.13
+    step = balance(lstring, N_disp_aer)
+    plant = pandas.concat([plant, step.loc[:,['N_attr']] ], axis = 1)
+    plant.loc[:,'Ntot'] =plant['Ntot'] + plant['N_attr']
+    plant = plant.loc[:, ['area', 'rank', 'Organ', 'Ntot']]
 
-# Development (derivation) if resources and thermaltime #
-"""derive(lstring, corresponding iteration number, nb of iterations to apply) """
-## rosette ###
-lstring1, tt, i = l.axiom, 1, 0
-while tt < transition1 : 
-    scene = l.sceneInterpretation(lstring1)
-    cscene, raw, agg = light_plant(scene)
-    _, _=cscene.plot(raw, maxval = 1.01)
-    # total BM obtained
-    irr = leaf_irradiance(agg, lstring1, leaf_name = 'Leaf')
-    # S variation : 
-    dS_tot = N_acquisition()/sfqn() #cm2
-    nb_tot = len(irr)
-    dS_i = dS_tot / nb_tot
-    # Compare if Ccost : 
-    BM =  irr.apply(sum)['Ei'] * 0.7  # RUE W.cm-2 *
-    #apply : 
-    l = Lsystem('plant.lpy', {'GRL':dS_i})
-    lstring1 = l.derive(lstring1,i,1) 
-    #modify lstring
-    tt+=1
-    i+=1  
-l.plot(lstring1)
+    # surface growth
+    plant.loc[:,'dS'] = (plant['Ntot'] * NgNt())/sfqn()
 
-## transition to bolting ###
-if tt == transition1 : 
-    variables = {'tip_Leaf':0.1, 'RGRa':0.01}
-    l = Lsystem('caracolpy\colza_shape_v1.lpy', variables)
-
-lstring2 = lstring1
-while tt<transition2 : 
-    lstring2 = l.derive(lstring2,0,1)    
-    # graphical interpretation
-    tt +=1
-l.plot(lstring2)
-l.plot(lstring1+lstring2)
-
-## transition to flourishing ###
-if tt == transition3 : 
-    variables = {'dl':0.1, 'RGRa':0.01}
-    l = Lsystem('caracolpy\colza_shape_v1.lpy', variables)
-
-lstring2 = lstring1
-while tt<transition2 : 
-    lstring2 = l.derive(lstring2,0,1)    
-    # graphical interpretation
-    tt +=1
-l.plot(lstring2)
-l.plot(lstring1+lstring2)
-
-### simulation : light on the plant ###
-lsys, lstring, lscene = run_lsystem('plant.lpy', {'derivation length'})
-lsys.plot(lstring)
-cscene, raw, agg = illuminate(lscene, scene_unit= 'cm')
-_, _=cscene.plot(raw, maxval = 1.01)
-
-# total BM obtained
-irr = leaf_irradiance(agg, lstring, leaf_name = 'Leaf')
-C_acquired =  irr.apply(sum)['Ei'] * RUE #W.cm-2 * 
-
-def organs(lstring):
-    for mod in enumerate(lstring):
-        if len(mod[1].name)>1: # select only the organs
-            #do
-            return()
-
-def leaves(lstring):
-    for mod in enumerate(lstring):
-        if len(mod[1].name)=='Leaf': # select only the organs
-            #do
-            return()
-
-
-
-
-for i in enumerate(l.axiom):
-    a = i[1]
-    print(type(a), openalea.lpy.__lpy_kernel__.ParamModule.setParameter(a, length, 4))
-pass
+    # leaf initiation
+    N4bud = plant[plant['Organ']=='Apex'].iloc[0]['Ntot']
+    if N4bud >= BT() : 
+        # create new lines in df with increase
+        newI = dict(zip(plant.columns,[0, max(plant['rank'])+1, 'Internode', IoL()*N4bud]))
+        newL = dict(zip(plant.columns,[0, max(plant['rank'])+1, 'Leaf',(1-IoL())*N4bud]))
+        plant = plant.append(newI, ignore_index = True)
+        plant = plant.append(newL, ignore_index = True)
+        plant.loc[plant['Organ']=='Apex','Ntot']=0
+        init = True
+    # lstring actualisation
+    p=[]
+    j= l.axiom #empty AxialTree 
+    for i in range(max(plant['rank'])): 
+        for org in plant['Organ']:
+            a = plant[plant['Organ']==org].iloc[i]['dS'] + plant[plant['Organ']==org].iloc[i]['area'] *1e4
+            p += [ ParameterSet(area = a) ]
+        pI, pL, pA = p
+        j += Lsystem('plant3.lpy', {'pI':pI, 'pP':pP, 'pL':pL}).axiom
+    if init : 
+        j+= Lsystem('Bud.lpy', {'pA':pA}).axiom
+    
+    lstring = j
+    biblio +=[j]

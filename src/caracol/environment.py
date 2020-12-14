@@ -7,22 +7,12 @@ An above-ground environment module
 * degree day cumulation
 """
 import pandas
-import numpy
+import numpy as np
 from openalea.plantscan3d import *
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.light import light_source
 
 """ copié collé de light_it.py """
-
-def run_lsystem(lsystem, parameters=None):
-    if parameters : 
-        lsys = Lsystem(lsystem, {'parameters' : parameters})
-    else : 
-        lsys = Lsystem(lsystem)
-    lstring = lsys.iterate()
-    lscene = lsys.sceneInterpretation(lstring)
-    return lsys, lstring, lscene
-
 def illuminate(scene, light = None, pattern = None, scene_unit = 'cm'):
     infinite = False
     if pattern is not None:
@@ -32,12 +22,15 @@ def illuminate(scene, light = None, pattern = None, scene_unit = 'cm'):
     return(cs, raw['Ei'], pandas.DataFrame(agg))
 
 # light received by the leaves ##
-def leaf_irradiance(df, lstring, leaf_name = 'Leaf', aggregate = False):
-    leaves = [pid for pid,m in enumerate(lstring) if m.name ==leaf_name]
-    if len(leaves) > 0:
-        df = df.loc[df.index.isin(leaves),:]
-        df.loc[:, 'leaf_rank'] = range(1, len(leaves)+1)
+def PS_irradiance(df, lstring, org_list, aggregate = False):
+    f = pandas.DataFrame([])
+    for name in org_list : 
+        organs = [pid for pid,m in enumerate(lstring) if m.name ==name]
+        if len(organs) > 0:
+            temp = df.loc[df.index.isin(organs),:].copy()
+            temp.loc[:, 'rank'] = range(1, len(organs)+1)
+            temp.loc[:, 'Organ'] = name
+        f = pandas.concat([f, temp])
     if aggregate : 
-        df = df.apply(numpy.mean)
-    return df
-
+        f = f.apply(numpy.mean)
+    return f

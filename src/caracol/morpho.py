@@ -1,6 +1,7 @@
 """
 part of caracol model
 Logistic growth function of organs
+Parameters of growth : Cost of surface in N, C ... + production of C / surface 
 """
 
 from math import *
@@ -11,12 +12,34 @@ def growth_logistic(ttime, finalsize, tip, b):
     """ A: size max, tip: time at inflexion point, b: slope parameter"""
     return finalsize / (1+exp(-(ttime-tip)/b ))
 
-
 def growth_rate(ttime, finalsize, tip, b):
     g = exp(-(ttime-tip)/b)
     return(finalsize * g) / (b*pow((1+g), 2))
 
-def sfqn():
-    """ values between wich sfqn is """
-    L = range(10, 25, 1)
-    return np.random.choice(L)/100
+def sfqn(random = False):
+    """ values between which sfqn is. To calibrate  """
+    if random : 
+        L = range(10, 25, 1)
+        return np.random.choice(L)/100
+    else : 
+        return(0.18)
+
+def NgNt():
+    """ Proportion of stored N dedicated to growth """
+    return(0.3)
+
+def CostC():
+    """ Cost C for cm² of photosynthetic surface. To calibrate"""
+    return 0.4
+
+def RUE():
+    """ gBM produce per Energy intercepted by leaf. To calibrate """ 
+    return(50)
+
+def BT():
+    """ Threshold of N storage in the apex to iniate a new leaf """
+    return(0.5)
+
+def IoL():
+    """ (N for Internode / N for Leaf) repartition ratio """
+    return 0.3
