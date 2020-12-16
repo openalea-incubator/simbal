@@ -60,11 +60,11 @@ def CN_organ(irr, N_disp_aer = 0.13, what = True):
 
 # Zoom 1 : Balance CN for shoots # 
 def balance(lstring, N_disp_aer = 0.13):
-    l = Lsystem('interpret.lpy')
+    l = Lsystem('plant4.lpy')
     scene = l.sceneInterpretation(lstring)
     cscene, raw, agg = illuminate(scene)
     #_, _ = cscene.plot(raw, maxval = 1.01)
-    irr = PS_irradiance(agg, lstring, ['Internode', 'Leaf', 'Apex'])
+    irr = PS_irradiance(agg, lstring, ['Internode','Petiole','Leaf', 'Apex'])
     # N repartition according to light 
     irr = CN_organ(irr, N_disp_aer) # we get the N attributed to the organ
     return(irr)

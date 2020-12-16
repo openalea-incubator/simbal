@@ -12,6 +12,7 @@ module Apex(paramA)
 module Internode(paramI)
 module Leaf(paramL)
 module Petiole(paramP)
+module Senesce(paramS)
 
 ttime = 1
 Lmax_Petiole = 0.05

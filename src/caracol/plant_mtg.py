@@ -131,3 +131,16 @@ def init_N_randomly(g, N=10.):
 
     return g
 
+def phytomere():
+    """ Return a phytomere.
+    Note: 
+        - < : successor
+        + : ramification
+    """
+    g = MTG()
+    stem_id = g.add_component(g.root, label='Internode') 
+    pet_id = g.add_child(stem_id, label = 'Petiole', edge_type='+')
+    leaf_id = g.add_child(pet_id, label = 'Leaf', edge_type='<')
+    bud = g.add_child(parent=stem_id, edge_type='<', label='Apex')
+    fat_mtg(g)
+    return g
