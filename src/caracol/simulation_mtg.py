@@ -28,11 +28,18 @@ from openalea.mtg.io import lpy2mtg, mtg2lpy
 ###################################################################################################
 """ Define first plant"""
 #### plant, lstring, mtg ####
-l = Lsystem('plant4.lpy', )
+l = Lsystem('plant4.lpy')
 lstring = l.axiom
-g = lpy2mtg(lstring, l)
+#g = lpy2mtg(lstring, l)
+
+lstring = ite(lstring)
+l.plot(lstring)
+
+for i in range(30):
+    lstring = ite(lstring)
 ###################################################################################################
-for tt in range(1,3):
+def ite(lstring):
+    g = lpy2mtg(lstring, l)
     # get N available for shoots : 
     N4shoot = N_disp_aer()
     # allocate N between organs according hypothesis : 
@@ -73,16 +80,20 @@ for tt in range(1,3):
                     P.area += satC * P.N4growth / sfqn()
                     P.Nmob -= satC * P.N4growth 
 
-            # new phytomere initiation :     
-            if g.property('parameters')[g._id].N4growth >= BT():
-                # Add a new metamer with a bud
-                P = g.property('parameters')[g._id]
-                id_li = g._parent[g._id] # id of the last internode
-                g.remove_vertex(g._id) # removing the apical bud --> internode + leaf
-                id_ni = g.add_child(id_li, label='Internode', edge_type='<', parameters = ParameterSet(Nmob = P.N4growth * IoL() ) )
-                id_ni = g.add_child(id_ni, label = 'Petiole', edge_type='+')
-                id_ni = g.add_child(id_ni, label = 'Leaf', edge_type='<', parameters = ParameterSet(Nmob = P.N4growth * (1-IoL()) ) )
-                g.add_child(id_li, label = 'Apex', edge_type = '<', parameters = ParameterSet(Nmob = P.Nmob - P.N4growth, age = P.age))
+        # new phytomere initiation :     
+        if g.property('parameters')[g._id].N4growth >= BT():
+            # Add a new metamer with a bud
+            P = g.property('parameters')[g._id]
+            if P.alpha <360: alpha = P.alpha +90
+            else : alpha = 0
+            id_li = g._parent[g._id] # id of the last internode
+            g.remove_vertex(g._id) # removing the apical bud --> internode + leaf
+            id_ni = g.add_child(id_li, label='Internode', edge_type='<', parameters = ParameterSet(Nmob = P.N4growth * IoL(), radius = 0.03, height = 0.01) )
+            id_ni = g.add_child(id_ni, label = 'Petiole', edge_type='+', parameters = ParameterSet(Nmob = 0, length=0.1, alpha = P.alpha))
+            id_ni = g.add_child(id_ni, label = 'Leaf', edge_type='<', parameters = ParameterSet(Nmob = P.N4growth * (1-IoL()), area = 0.1) )
+            g.add_child(id_li, label = 'Apex', edge_type = '<', parameters = ParameterSet(Nmob = P.Nmob - P.N4growth, age = P.age, alpha = alpha))
+            
     else : pass
     # mtg to lstring 
     lstring = mtg2lpy(g, l)
+    return(lstring)
