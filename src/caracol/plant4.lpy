@@ -9,7 +9,7 @@ module Petiole(parameters):scale = 1
 module Apex(parameters): scale = 1
 
 pI = ParameterSet(Nmob = 0.1, radius = 0.03, height = 0.06)
-pL = ParameterSet(Nmob = 0.1, area = 1)
+pL = ParameterSet(Nmob = 0.1, area = 0.5)
 pP = ParameterSet(Nmob = 0, length = 0.1,alpha = 0)
 pA = ParameterSet(Nmob = 0.05, age = 0, alpha = 90)
 

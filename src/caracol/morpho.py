@@ -25,7 +25,7 @@ def sfqn(random = False):
         return(0.18) 
 
 def NgNt():
-    """ Proportion of "stored" N dedicated to growth """
+    """ Proportion of "easily mobilisable" N dedicated to growth """
     return(0.3)
 
 def CostC():
@@ -46,7 +46,11 @@ def IoL():
 
 def RoH(area):
     """ return the height and radius of a cylinder of given area """
-    r_h = 0.3 #np.random.random()
-    h = sqrt(area / 2*np.pi * r_h)
-    r = r_h * h
+    #r_h = 0.3 #np.random.random()
+    r = 0.03
+    h = area / (2*np.pi * r)
     return r,h
+
+def ST():
+    """ Threshold of N easily remobilizable necessary in the leaf for it to grow """
+    return (0.02)
