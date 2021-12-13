@@ -1,8 +1,29 @@
-###This script allows to calculate the allocation of C and N in a plant constituted of 3 class: 1 leaf, 1 stem and 1 root.
-#Each function is defined for a given class.
+""" License Cecill-C
+
+This module compute the allocation of C and N on a shoot and root model.
+allocation_CN.py is part of caracol model
+
+:TODO: Modify the documentation
+A module that 
+    (1) Check available N: store, acquired, remobilized
+    (2) Distribute N among organs according to rules and hypothesis
+        (H1) lux --> N --> dS
+        (H2) dvt --> dS --> N
+    (3) Check available C : store, acquired, remobilized
+    (4) Distribute C among organs according to rules
+
+#TODO : define the roadmap
+* Separate parameters from functions (C/N) from script.
+"""
+
+
+
+###This script allows to calculate the allocation of C and N in a plant constituted of 3 class: 
+# 1 leaf, 1 stem and 1 root.
+# Each function is defined for a given class.
 
 #import numpy #for loading the entire package
-from numpy import pi #for loading only pi function from package numpy
+from math import (pi, exp) #for loading only pi function from package numpy
 
 ### Parameters:
 k = 1 # speed of N uptake by roots in gN.cm-2.s-1
@@ -15,8 +36,7 @@ k = -0.88 # extinction coefficient in Beer Lambert law
 RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
 C_remob_rate = 1 # C remobilization rate in gC.gC-1
 
-### Definition of class objects
-
+### Definition of architecture
 
 class root(object):
     # we define initial properties of standard root as a cylinder:
