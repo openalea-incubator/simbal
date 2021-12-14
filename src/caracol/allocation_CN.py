@@ -69,9 +69,9 @@ def f_N_potential_root_demand(delta_volume=1, Ndensity=1):
     :return: N root potential demand in gN
     N root potential demand is printed
     """
-    N_potential_root_demand = delta_volume * Ndensity
-    print("N potential root demand is", N_potential_root_demand, "gN")
-    return N_potential_root_demand
+    _N_potential_root_demand = delta_volume * Ndensity
+    print("N potential root demand is", _N_potential_root_demand, "gN")
+    return _N_potential_root_demand
 
 
 def f_C_potential_root_demand(delta_volume=1, Cdensity=1):
