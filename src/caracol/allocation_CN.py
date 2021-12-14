@@ -89,7 +89,7 @@ def f_C_potential_root_demand(delta_volume=1, Cdensity=1):
 # Calculation of N offer for the plant
 
 
-def f_N_available(element, Nsoil, Nstock, time_step):
+def f_N_available(element, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate):
     """
     Calculation of N available to the plant (in gN), in function of N uptake by roots (in g) and N remobilized
     from stock (in g)
@@ -225,7 +225,7 @@ def f_intercepted_PAR(initial_leaf_area, k, e_amax):
     :return: intercepted PAR in MJ.cm-2
     Intercepted PAR is printed
     """
-    PAR_intercepted = e_amax * (1 - (k * leaf_area0)) #regarder le package pour faire exponentielle
+    PAR_intercepted = e_amax * exp(1 - (k * initial_leaf_area)) #exp is defined in math
     print("Intercepted PAR is", PAR_intercepted, "MJ.cm-2")
     return PAR_intercepted
 
