@@ -154,8 +154,8 @@ class Plant:
     Some usefull functions can be defined as proxies.
     
     """
-    def __init__(self, above=None, below=None):
-        
+    def __init__(self, name='', above=None, below=None):
+        self.name = name
         self.above = self.init_above_mtg() if above is None else above
         self.below = self.init_below_mtg() if below is None else below
 
@@ -189,7 +189,7 @@ class Plant:
         
         # Last scale
         vid = g.add_component(vid, label='Segment')
-
+    
         fat_mtg(g)
         return g
 

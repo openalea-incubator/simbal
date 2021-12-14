@@ -60,8 +60,26 @@ class stem(object):
 ### Functions:
 # Calculation of potential C and N demand for the root
 
+def delta_volume(below):
 
-def N_potential_root_demand(delta_volume=1, Ndensity=1):
+    # Traverse all root segments
+    g = below
+    length = g.property('length')
+    dlength = g.property('dlength')
+    radius = g.property('radius')
+    dradius = g.property('dradius')
+
+    def seg_delta_volume(vid, below=below):
+        dV = length.get(vid,0) * dradius.get(vid,0) + dlength.get(vid,0) * radius.get(vid,0)
+        return dV
+    
+    max_scale = g.max_scale()
+    segments = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Segment']
+    
+    _delta_volume = sum(seg_delta_volume(segment) for segment in segments)
+    return _delta_volume
+
+def N_potential_root_demand(delta_volume, Ndensity=1):
     """
     Calculation of N potential root demand (in gN) in function of the root volume and root N density
     :param delta_volume: root volume in cm3
@@ -69,6 +87,7 @@ def N_potential_root_demand(delta_volume=1, Ndensity=1):
     :return: N root potential demand in gN
     N root potential demand is printed
     """
+    
     _N_potential_root_demand = delta_volume * Ndensity
     print("N potential root demand is", _N_potential_root_demand, "gN")
     return _N_potential_root_demand
@@ -89,7 +108,7 @@ def C_potential_root_demand(delta_volume=1, Cdensity=1):
 # Calculation of N offer for the plant
 
 
-def N_available(element, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate, SNU=SNU):
+def N_available(below, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate, SNU=SNU):
     """
     Calculation of N available to the plant (in gN), in function of N uptake by roots (in g) and N remobilized
     from stock (in g)
@@ -103,11 +122,23 @@ def N_available(element, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate, SN
     N remobilized is printed
     N available to the plant is printed
     """
+
+    g = below
+    max_scale = g.max_scale()
+    length = g.property('length')
+    radius = g.property('radius')
+    def seg_surface(vid):
+        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
+        return dS
+    
+    segments = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Segment']
+    root_surface = sum(seg_surface(vid) for vid in segments)
+
      # calculation of root surface on which depends N uptake by roots:
-    element.surface = 2 * pi * element.radius * element.length
-    print("Root surface is", element.surface, "cm²")
+    #element.surface = 2 * pi * element.radius * element.length
+    #print("Root surface is", element.surface, "cm²")
     # calculation of root N uptake in function of soil N, root surface and speed of N uptake per unit of root surface
-    N_root_uptake = SNU * Nsoil * element.surface * time_step
+    N_root_uptake = SNU * Nsoil * time_step * root_surface
     print("N root uptake is", N_root_uptake, "gN")
     N_plant_remobilized = N_remob_rate * Nstock
     print("N remobilized is", N_plant_remobilized, "gN")
@@ -283,25 +314,94 @@ starting_time=0
 end_time=10
 time_step=2
 
+# Create the plant
+rapeseed = Plant(name='Rapeseed')
+above = rapeseed.above
+below = rapeseed.below
+
+def root_potential_growth(below, dl, dr):
+    """ External function
+    Can be define by the modeller for each plant? or a varity or all the plants?
+    """
+
+    # 1. Query all the segments
+    g = below
+    max_scale = g.max_scale()
+    segments = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid) =='Segment']
+    growing_segments = [vid for vid in segments if g.is_leaf(vid)]
+    
+    # Init properties
+    length = g.properties().setdefault('length',{}) # state
+    dlength = g.properties().setdefault('dl',{})    # rate
+    
+    radius = g.properties().setdefault('radius',{}) # state
+    dradius = g.properties().setdefault('dr',{})    # rate
+
+    # Select all the segments that are connected to a bud
+    
+    for sid in growing_segments:
+        length[sid] = length.get(sid, 0.)
+        dlength[sid] = dl
+        
+
+    for sid in segments:
+        radius[sid] = radius.get(sid, 0.)
+        dradius[sid] = dr
+        
+        #volume[sid] = 2 * pi * radius[sid] * length[sid]
+    
+
+def shoot_potential_growth(above, dl, dS):
+    """ The same function but for above ground. 
+    """
+    
+    # 1. Query all the segments
+    g = above
+    max_scale = g.max_scale()
+
+    shoots = [vid for vid in g.vertices_iter(scale=max_scale)]
+    internodes = [vid for vid in shoots if g.label(vid) == 'Internode']
+    leaves = [vid for vid in shoots if g.label(vid) == 'Leaf']
+    growing_internodes = [g.parent(vid) for vid in shoots if (g.label(vid) == 'Bud') and (g.edge_type(vid)=='<')]
+
+    # Init properties
+    length = g.properties().setdefault('length',{})
+    dlength = g.properties().setdefault('dlength',{})
+
+    area = g.properties().setdefault('area',{}) # or surface
+    darea = g.properties().setdefault('darea',{}) # rate
+    radius = g.properties().setdefault('radius',{})
+ 
+    for vid in internodes:
+        radius[vid] = 1.
+
+    for vid in growing_internodes:
+        length[vid] = length.get(vid, 0.)
+        dlength[vid] = dl
+
+    for vid in leaves:
+        area[vid] = area.get(vid, 0.)
+        darea[vid] = dS
+
+
 for t in range(starting_time,end_time,time_step):
     print("Time is", t)
     # Elements are growing:
-    root_element.length = root_element.length+time_step/10
-    print("Root length is", root_element.length,"cm")
-    leaf_area0 = leaf_element.area
-    print("Previous leaf area is", leaf_area0, "cm2")
-    leaf_element.area = leaf_element.area + alpha * time_step
-    print("Leaf area is", leaf_element.area, "cm2")
-    stem_element.length = stem_element.length+time_step/10
-    print("Stem length is", stem_element.length, "cm")
-    root_element.volume = pi * (root_element.radius)**2 * root_element.length
-    Root_Volume=root_element.volume
-    #element.volume=v
+    
+    root_potential_growth(dl=time_step/10, dr=time_step/50)
+    shoot_potential_growth(dl=time_step/10, dS=alpha * time_step)
+
+
+
     # Calculate potential C and N demand for total root
-    _N_potential_root_demand = N_potential_root_demand(delta_volume=Root_Volume, Ndensity=1)
-    _C_potential_root_demand = C_potential_root_demand(delta_volume=Root_Volume, Cdensity=1)
+    dV = delta_volume(below)
+    _N_potential_root_demand = N_potential_root_demand(dV, Ndensity=1)
+    _C_potential_root_demand = C_potential_root_demand(dV, Cdensity=1)
+    
     # Calculate N available to shoot and root
-    _N_available = N_available(element=root_element, Nsoil=20, Nstock=5, time_step=time_step, SNU=SNU)
+    _N_available = N_available(below, Nsoil=20, Nstock=5, time_step=time_step, SNU=SNU)
+
+
     # Calculate N potential demand of shoot, leaf and stem
     _N_shoot_potential_demand = N_shoot_potential_demand(_N_available=_N_available, _N_potential_root_demand=_N_potential_root_demand)
     tau = leaf_stem_surface_ratio(element1=leaf_element, element2=stem_element)
