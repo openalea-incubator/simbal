@@ -15,51 +15,28 @@ A module that
 #TODO : define the roadmap
 * Separate parameters from functions (C/N) from script.
 """
-
-
-
-###This script allows to calculate the allocation of C and N in a plant constituted of 3 class: 
-# 1 leaf, 1 stem and 1 root.
-# Each function is defined for a given class.
-
-#import numpy #for loading the entire package
-from math import (pi, exp) #for loading only pi function from package numpy
-
 ### Parameters:
+Ndensity = 1
+Cdensity = 1 
 SNU = 1 # speed of N uptake by roots in gN.cm-2.s-1
 N_remob_rate = 1 # N remobilization rate in gN.gN-1
-coef_N_leaf_area = 0.046 # leaf area = f(leaf N quantity) coefficient in cm2.g-1
-coef_N_stem_area = 0.005 # stem area = f(stem N quantity) coefficient in cm2.g-1
+coef_N_leaf_surface = 0.046 # leaf surface = f(leaf N quantity) coefficient in cm2.g-1
+coef_N_stem_surface = 0.005 # stem surface = f(stem N quantity) coefficient in cm2.g-1
 alpha = 0.002 # increase of leaf area per unit of time in cm2.day-1
 e_amax = 0.95 # maximum of radiation interception
 k = -0.88 # extinction coefficient in Beer Lambert law
 RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
 C_remob_rate = 1 # C remobilization rate in gC.gC-1
 
-### Definition of architecture
 
-class root(object):
-    # we define initial properties of standard root as a cylinder:
-    def __init__(self):
-        self.radius = 10 # in cm
-        self.length = 1 #in cm
+#import numpy #for loading the entire package
+from math import (pi, exp) #for loading only pi function from package numpy
 
-
-class leaf(object):
-    # leaf surface is provided by the architectural model:
-    def __init__(self):
-        self.area = 1  # in cm2
-
-
-class stem(object):
-    # we define initial properties of standard stem as a cylinder:
-    def __init__(self):
-        self.radius = 12  # in cm
-        self.length = 7  # in cm
 
 ### Functions:
-# Calculation of potential C and N demand for the root
 
+##Root architecture
+#Calculation of potential variation of volume for roots
 def delta_volume(below):
 
     # Traverse all root segments
@@ -79,50 +56,7 @@ def delta_volume(below):
     _delta_volume = sum(seg_delta_volume(segment) for segment in segments)
     return _delta_volume
 
-def N_potential_root_demand(delta_volume, Ndensity=1):
-    """
-    Calculation of N potential root demand (in gN) in function of the root volume and root N density
-    :param delta_volume: root volume in cm3
-    :param Ndensity: N root density in gN.cm-3
-    :return: N root potential demand in gN
-    N root potential demand is printed
-    """
-    
-    _N_potential_root_demand = delta_volume * Ndensity
-    print("N potential root demand is", _N_potential_root_demand, "gN")
-    return _N_potential_root_demand
-
-
-def C_potential_root_demand(delta_volume=1, Cdensity=1):
-    """
-    Calculation of C potential root demand (in gC) in function of the root segment volume and root C density
-    :param delta_volume: root volume in cm3
-    :param Cdensity: C root density in gC.cm-3
-    :return: C root potential demand in gC
-    C root potential demand is printed
-    """
-    _C_potential_root_demand = delta_volume * Cdensity
-    print("C potential root demand is", _C_potential_root_demand, "gC")
-    return _C_potential_root_demand
-
-# Calculation of N offer for the plant
-
-
-def N_available(below, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate, SNU=SNU):
-    """
-    Calculation of N available to the plant (in gN), in function of N uptake by roots (in g) and N remobilized
-    from stock (in g)
-    :param element: root object
-    :param Nsoil: N quantity in soil in gN
-    :param Nstock: N stock in the plant in gN
-    :param time_step: time step of the simulation in day
-    :return: N available to the plant in gN
-    Root surface is printed
-    Root N uptake is printed
-    N remobilized is printed
-    N available to the plant is printed
-    """
-
+def root_surface(below):
     g = below
     max_scale = g.max_scale()
     length = g.property('length')
@@ -132,82 +66,181 @@ def N_available(below, Nsoil, Nstock, time_step, N_remob_rate=N_remob_rate, SNU=
         return dS
     
     segments = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Segment']
-    root_surface = sum(seg_surface(vid) for vid in segments)
+    _root_surface = sum(seg_surface(vid) for vid in segments)
+    return _root_surface
 
-     # calculation of root surface on which depends N uptake by roots:
-    #element.surface = 2 * pi * element.radius * element.length
-    #print("Root surface is", element.surface, "cm²")
-    # calculation of root N uptake in function of soil N, root surface and speed of N uptake per unit of root surface
-    N_root_uptake = SNU * Nsoil * time_step * root_surface
-    print("N root uptake is", N_root_uptake, "gN")
-    N_plant_remobilized = N_remob_rate * Nstock
-    print("N remobilized is", N_plant_remobilized, "gN")
-    _N_available = N_root_uptake + N_plant_remobilized
-    print("N available to the plant is", _N_available, "gN")
-    return _N_available
+##Shoot architecture
+#Calculation of leaf surface
+def leaf_surface(above):
+    g = above
+    max_scale = g.max_scale()
+    length = g.property('length')
+    radius = g.property('radius')
+    def leaf_surface(vid):
+        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
+        return dS
+    
+    leaves = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Leaf']
+    _leaf_surface = sum(leaf_surface(vid) for vid in leaves)
+    return _leaf_surface
+
+#Calculation of stem surface
+def stem_surface(above):
+    g = above
+    max_scale = g.max_scale()
+    length = g.property('length')
+    radius = g.property('radius')
+    def stem_surface(vid):
+        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
+        return dS
+    
+    stems = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Stem']
+    _stem_surface = sum(stem_surface(vid) for vid in stems)
+    return _stem_surface
+
+def leaf_stem_surface_ratio(_leaf_surface,_stem_surface):
+    """
+    Calculation of the surface ratio between leaf and stem (in cm².cm-²)
+    """
+    tau = _leaf_surface / (_leaf_surface + _stem_surface)
+    return tau
+
+
+## N uptake by root
+def potential_N_root_uptake(_root_surface, Nsoil=Nsoil, time_step, SNU=SNU):
+    """
+    Calculation of N potential uptake by roots
+    :param _root_surface: root object
+    :param Nsoil: N quantity in soil in gN
+    :param time_step: time step of the simulation in day
+    :param SNU:
+    :return: potential N uptake by roots
+    """
+    _potential_N_root_uptake = SNU * Nsoil * time_step * _root_surface
+    print("N root uptake is", _potential_N_root_uptake, "gN")
+    return _potential_N_root_uptake
+
+
+## Photosynthesis by shoot
+# Intercepted radiation by shoot
+def intercepted_PAR(projected_leaf_area, k, e_amax):
+    """
+    Calculation of PAR intercepted by the plant with Beer Lambert law
+    :param projected_leaf_area: projected leaf area at the beginning of the time step in cm2
+    :param k: extinction coefficient
+    :param e_amax: maximum intercepted radiation
+    :return: intercepted PAR in MJ.cm-2
+    Intercepted PAR is printed
+    """
+    _intercepted_PAR = e_amax * (1 - exp(k * projected_leaf_area)) #exp is defined in math
+    return _intercepted_PAR
+
+# Transform radiation intercepted into biomass
+def producted_biomass(_intercepted_PAR, RUE):
+    """
+
+    :param PAR_intercepted: PAR intercepted by the plant
+    :param RUE: Radiation use efficiency
+    :return: 
+    """
+    _producted_biomass = RUE * _intercepted_PAR
+    return _producted_biomass
+
+
+## N remobilized from storage by the plant 
+def potential_N_remobilized(N_remob_rate=N_remob_rate, Nstock):
+    """
+    Calculation of N remobilized from stock (in g)
+    :param Nstock: N stock in the plant in gN
+    :param N_remob_rate:
+    :return: N remobilized by the plant in gN
+    """   
+    _N_plant_remobilized = N_remob_rate * Nstock
+    print("N remobilized is", _N_plant_remobilized, "gN")
+    return _N_plant_remobilized
+
+
+## C remobilized from storage by the plant 
+def potential_C_remobilized(C_remob_rate=C_remob_rate, Cstock):
+    """
+    Calculation of C remobilized from storage (in g)
+    :param Cstock: N storage in the plant in gC
+    :param C_remob_rate:
+    :return: C remobilized by the plant in gC
+    """   
+    _C_plant_remobilized = C_remob_rate * Cstock
+    print("C remobilized is", _C_plant_remobilized, "gC")
+    return _C_plant_remobilized
+
+
+## CN allocation
+
+# Calculation of potential C and N demand for the root
+def N_potential_root_demand(_delta_volume, Ndensity=Ndensity):
+    """
+    Calculation of N potential root demand (in gN) in function of the root volume and root N density
+    :param delta_volume: potential increase of root volume in cm3
+    :param Ndensity: N root density in gN.cm-3
+    :return: N root potential demand in gN
+    """
+    _N_potential_root_demand = _delta_volume * Ndensity
+    print("N potential root demand is", _N_potential_root_demand, "gN")
+    return _N_potential_root_demand
+
+def C_potential_root_demand(_delta_volume, Cdensity=Cdensity):
+    """
+    Calculation of C potential root demand (in gC) in function of the root segment volume and root C density
+    :param delta_volume: potential increase of root volume in cm3
+    :param Cdensity: C root density in gC.cm-3
+    :return: C root potential demand in gC
+    """
+    _C_potential_root_demand = _delta_volume * Cdensity
+    print("C potential root demand is", _C_potential_root_demand, "gC")
+    return _C_potential_root_demand
+
+
+# Calculation of N offer for the plant
+def N_potential_offer(_potential_N_root_uptake, _N_plant_remobilized, _N_respiration):
+    """
+    Calculation of N available to the plant (in gN), in function of N uptake by roots (in g) and N remobilized
+    from stock (in g) and cost of respiration
+    :return: _N_potential_offer to the plant in gN
+    """
+    _N_potential_offer = _potential_N_root_uptake + _N_plant_remobilized - _N_respiration
+    print("N available to the plant is", _N_potential_offer, "gN")
+    return _N_potential_offer
+
 
 # Calculation of potential N demand for shoot, leaf and stem
-
-def N_shoot_potential_demand(_N_available, _N_potential_root_demand):
+def N_potential_shoot_demand(_N_potential_offer, _N_potential_root_demand):
     """
     Calculation of the potential shoot demand (gN) in function of N available to the plant (gN)
     and potential root N demand (gN)
-    :param N_available: N available to the plant in gN
+    :param _N_potential_offer: N offer to the plant in gN
     :param N_potential_root_demand: potential root N demand in gN
     :return: N shoot potential demand in gN
-    N shoot potential demand is printed
     """
-    _N_shoot_potential_demand = _N_available - _N_potential_root_demand
-    print("N potential shoot demand is", _N_shoot_potential_demand, "gN")
-    return _N_shoot_potential_demand
+    _N_potential_shoot_demand = _N_potential_offer - _N_potential_root_demand
+    print("N potential shoot demand is", _N_potential_shoot_demand, "gN")
+    return _N_potential_shoot_demand
 
-def leaf_stem_surface_ratio(element1,element2):
+def N_potential_leaf_stem_demand(tau, _N_potential_shoot_demand):
     """
-    Calculation of the surface ratio between leaf and stem (in cm².cm-²)
-    :param element1: leaf object
-    :param element2: stem object
-    :return: surface ratio between leaf and stem in cm².cm-²
-    Leaf and stem surface are printed
-    """
-    # calculation of leaf surface:
-    print("Leaf surface is", element1.area, "cm²")
-    # calculation of stem surface:
-    element2.area = 2 * pi * element2.radius * element2.length
-    print("Stem surface is", element2.area, "cm²")
-    tau = element1.area / (element1.area + element2.area)
-    return tau
-
-def N_leaf_potential_demand(tau, _N_shoot_potential_demand):
-    """
-    Calculation of leaf N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
+    Calculation of leaves and stems N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
     and potential shoot N demand (in gN)
     :param tau: leaf stem surface ratio in cm².cm-²
     :param N_shoot_potential_demand: potential shoot N demand in gN
-    :return: leaf potential N demand in gN
-    Leaf surface is printed
-    Potential leaf N demand is printed
+    :return: leaf and stem potential N demand in gN
     """
-    _N_leaf_potential_demand = tau * _N_shoot_potential_demand
-    print("N potential leaf demand is", _N_leaf_potential_demand, "gN")
-    return _N_leaf_potential_demand
+    _N_potential_leaf_demand = tau * _N_potential_shoot_demand
+    print("N potential leaf demand is", _N_potential_leaf_demand, "gN")
+    _N_potential_stem_demand = (1-tau) * _N_potential_shoot_demand
+    print("N potential stem demand is", _N_potential_stem_demand, "gN")
+    return _N_potential_leaf_demand, _N_potential_stem_demand
 
-def N_stem_potential_demand(tau, _N_shoot_potential_demand):
-    """
-    Calculation of stem N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
-    and potential shoot N demand (in gN)
-    :param tau: leaf stem surface ratio in cm².cm-²
-    :param N_shoot_potential_demand: potential shoot N demand in gN
-    :return: stem potential N demand in gN
-    Stem surface is printed
-    Potential stem N demand is printed
-    """
-    _N_stem_potential_demand=(1-tau) * _N_shoot_potential_demand
-    print("N potential stem demand is", _N_stem_potential_demand, "gN")
-    return _N_stem_potential_demand
 
 # Potential C demand of leaf, stem and shoot
-
-def potential_leaf_area(_N_leaf_potential_demand, coef_N_leaf_area):
+def potential_leaf_area(_N_potential_leaf_demand, coef_N_leaf_surface):
     """
     Calculation of potential leaf area (cm2) in function of potential N leaf demand (gN)
     and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
@@ -216,9 +249,9 @@ def potential_leaf_area(_N_leaf_potential_demand, coef_N_leaf_area):
     :return: potential leaf area in cm2
     Potential leaf area is printed
     """
-    _potential_leaf_area = coef_N_leaf_area * _N_leaf_potential_demand
-    print("potential leaf area is", _potential_leaf_area, "cm2")
-    return _potential_leaf_area
+    _potential_leaf_surface = coef_N_leaf_surface * _N_potential_leaf_demand
+    print("potential leaf surface is", _potential_leaf_surface, "cm2")
+    return _potential_leaf_surface
 
 def potential_stem_area(_N_stem_potential_demand, coef_N_stem_area):
     """
@@ -245,20 +278,8 @@ def C_potential_shoot_demand(potential_photosynthetic_area, Cdensity=1):
     print("C potential shoot demand is", _C_potential_shoot_demand, "gC")
     return _C_potential_shoot_demand
 
-# Calculation of C offer for the plant
 
-def intercepted_PAR(initial_leaf_area, k, e_amax):
-    """
-    Calculation of PAR intercepted by the plant with Beer Lambert law
-    :param initial_leaf_area: leaf area the previous day in cm2
-    :param k: extinction coefficient
-    :param e_amax: maximum intercepted radiation
-    :return: intercepted PAR in MJ.cm-2
-    Intercepted PAR is printed
-    """
-    _intercepted_PAR = e_amax * (1 - exp(k * initial_leaf_area)) #exp is defined in math
-    print("Intercepted PAR is", _intercepted_PAR, "MJ.cm-2")
-    return _intercepted_PAR
+# Calculation of C offer for the plant
 
 def C_available(_intercepted_PAR, RUE, Cstock, time_step):
     """
