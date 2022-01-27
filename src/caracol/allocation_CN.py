@@ -28,6 +28,9 @@ k = -0.88 # extinction coefficient in Beer Lambert law
 RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
 C_remob_rate = 1 # C remobilization rate in gC.gC-1
 
+###Costs
+_C_respiration
+_C_rhizodeposition
 
 #import numpy #for loading the entire package
 from math import (pi, exp) #for loading only pi function from package numpy
@@ -200,13 +203,13 @@ def C_potential_root_demand(_delta_volume, Cdensity=Cdensity):
 
 
 # Calculation of N offer for the plant
-def N_potential_offer(_potential_N_root_uptake, _N_plant_remobilized, _N_respiration):
+def N_potential_offer(_potential_N_root_uptake, _N_plant_remobilized):
     """
     Calculation of N available to the plant (in gN), in function of N uptake by roots (in g) and N remobilized
     from stock (in g) and cost of respiration
     :return: _N_potential_offer to the plant in gN
     """
-    _N_potential_offer = _potential_N_root_uptake + _N_plant_remobilized - _N_respiration
+    _N_potential_offer = _potential_N_root_uptake + _N_plant_remobilized
     print("N available to the plant is", _N_potential_offer, "gN")
     return _N_potential_offer
 
@@ -224,7 +227,7 @@ def N_potential_shoot_demand(_N_potential_offer, _N_potential_root_demand):
     print("N potential shoot demand is", _N_potential_shoot_demand, "gN")
     return _N_potential_shoot_demand
 
-def N_potential_leaf_stem_demand(tau, _N_potential_shoot_demand):
+def N_potential_leaves_stem_demand(tau, _N_potential_shoot_demand):
     """
     Calculation of leaves and stems N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
     and potential shoot N demand (in gN)
@@ -232,14 +235,27 @@ def N_potential_leaf_stem_demand(tau, _N_potential_shoot_demand):
     :param N_shoot_potential_demand: potential shoot N demand in gN
     :return: leaf and stem potential N demand in gN
     """
-    _N_potential_leaf_demand = tau * _N_potential_shoot_demand
-    print("N potential leaf demand is", _N_potential_leaf_demand, "gN")
-    _N_potential_stem_demand = (1-tau) * _N_potential_shoot_demand
-    print("N potential stem demand is", _N_potential_stem_demand, "gN")
-    return _N_potential_leaf_demand, _N_potential_stem_demand
+    _N_potential_leaves_demand = tau * _N_potential_shoot_demand
+    print("N potential leaves demand is", _N_potential_leaves_demand, "gN")
+    _N_potential_stems_demand = (1-tau) * _N_potential_shoot_demand
+    print("N potential stems demand is", _N_potential_stems_demand, "gN")
+    return _N_potential_leaves_demand, _N_potential_stems_demand
 
+##### n'importe quoi ici####
+def N_potential_leaf_demand(_N_potential_leaves_demand, light_intercepted_leaf):
+    """
+    Calculation of leaves and stems N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
+    and potential shoot N demand (in gN)
+    :param tau: leaf stem surface ratio in cm².cm-²
+    :param N_shoot_potential_demand: potential shoot N demand in gN
+    :return: leaf and stem potential N demand in gN
+    """
+    _N_potential_leaf_demand = light_intercepted_leaf * _N_potential_leaves_demand
+    return _N_potential_leaf_demand
 
-# Potential C demand of leaf, stem and shoot
+### N_potential_stems_demand distribitued equally between every segments = N_potential_stem_demand
+
+# Potential C demand of leaf, stem and shoot calculated from N available to each compartment
 def potential_leaf_area(_N_potential_leaf_demand, coef_N_leaf_surface):
     """
     Calculation of potential leaf area (cm2) in function of potential N leaf demand (gN)
@@ -253,7 +269,7 @@ def potential_leaf_area(_N_potential_leaf_demand, coef_N_leaf_surface):
     print("potential leaf surface is", _potential_leaf_surface, "cm2")
     return _potential_leaf_surface
 
-def potential_stem_area(_N_stem_potential_demand, coef_N_stem_area):
+def potential_stem_surface(_N_potential_stem_demand, coef_N_stem_surface):
     """
     Calculation of potential stem area (cm2) in function of potential N stem demand (gN)
     and the coefficient of the relationship of stem area - stem N quantity (cm2.g-1)
@@ -262,11 +278,12 @@ def potential_stem_area(_N_stem_potential_demand, coef_N_stem_area):
     :return: potential stem area in cm2
     Potential stem area is printed
     """
-    _potential_stem_area = coef_N_stem_area * _N_stem_potential_demand
-    print("potential stem area is", _potential_stem_area, "cm2")
-    return _potential_stem_area
+    _potential_stem_surface = coef_N_stem_surface * _N_potential_stem_demand
+    print("potential stem surface is", _potential_stem_surface, "cm2")
+    return _potential_stem_surface
 
-def C_potential_shoot_demand(potential_photosynthetic_area, Cdensity=1):
+### should be projected surface####
+def C_potential_shoot_demand(_potential_leaf_surface, _potential_stem_surface):
     """
     Calculation of C potential shoot demand (in gC) in function of the potential photosynthetic area and shoot N density
     :param potential_photosynthetic_area: potential photosynthetic area in cm2
@@ -274,34 +291,36 @@ def C_potential_shoot_demand(potential_photosynthetic_area, Cdensity=1):
     :return: C root potential demand in gC
     C shoot potential demand is printed
     """
-    _C_potential_shoot_demand = potential_photosynthetic_area * Cdensity
+    _C_potential_shoot_demand = _potential_leaf_surface + _potential_stem_surface
     print("C potential shoot demand is", _C_potential_shoot_demand, "gC")
     return _C_potential_shoot_demand
 
+# Calculation of C actual offer for the plant
 
-# Calculation of C offer for the plant
-
-def C_available(_intercepted_PAR, RUE, Cstock, time_step):
+def C_actual_offer(_producted_biomass, _C_plant_remobilized, _C_respiration):
     """
     Calculation of C available to the plant (in gC), in function of C uptake (in g) and C remobilized
     from stock (in g)
     :param PAR_intercepted: PAR intercepted by the plant
     :param RUE: Radiation use efficiency
-    :param Cstock: C stock in the plant in gC
-    :param time_step: time step of the simulation in day
-    :return: C available to the plant in gC
-    C uptake is printed
-    C remobilized is printed
-    C available to the plant is printed
     """
-    # calculation of C uptake by the plant
-    C_uptake = RUE * _intercepted_PAR * time_step
-    print("C uptake is", C_uptake, "gC")
-    C_plant_remobilized = C_remob_rate * Cstock
-    print("C remobilized is", C_plant_remobilized, "gC")
-    _C_available = C_uptake + C_plant_remobilized
-    print("C available to the plant is", _C_available, "gC")
-    return _C_available
+    _C_actual_offer = _producted_biomass + _C_plant_remobilized - _C_respiration
+    print("C available to the plant is", _C_actual_offer, "gC")
+    return _C_actual_offer
+
+# Actual C uptake resulting in confrontation between C actual offer and potential demand
+def C_actual_uptake(_C_actual_offer, _C_potential_shoot_demand):
+    """
+    Calculation of C available to the plant (in gC), in function of C uptake (in g) and C remobilized
+    from stock (in g)
+    :param PAR_intercepted: PAR intercepted by the plant
+    :param RUE: Radiation use efficiency
+    """
+    _C_actual_uptake = _C_actual_offer - _C_potential_shoot_demand
+    return _C_actual_uptake
+
+#if C actual uptake < 0, then C actual uptake = _C_actual_offer
+#
 
 
 ############################################################################
