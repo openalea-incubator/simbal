@@ -278,6 +278,15 @@ def N_potential_leaf_demand(above, _N_potential_leaves_demand, light_intercepted
     return _N_potential_leaf_demand
 
 ### N_potential_stems_demand distribitued equally between every segments = N_potential_stem_demand
+def N_potential_stem_demand(above, _N_potential_stems_demand):
+    g = above
+    # select internodes only
+    max_scale = g.max_scale() # I select the organ scale 
+    internodes = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid)=='Internode']
+    n = len(internodes)
+    _N_potential_stem_demands = dict((sid, _N_potential_stems_demand/n) for sid in internodes)
+    return _N_potential_stem_demands
+
 
 # Potential C demand of leaf, stem and shoot calculated from N available to each compartment
 def potential_leaf_area(_N_potential_leaf_demand, coef_N_leaf_surface):
@@ -289,7 +298,9 @@ def potential_leaf_area(_N_potential_leaf_demand, coef_N_leaf_surface):
     :return: potential leaf area in cm2
     Potential leaf area is printed
     """
-    _potential_leaf_surface = coef_N_leaf_surface * _N_potential_leaf_demand
+    _potential_leaf_surface = {}
+    for lid in _N_potential_leaf_demand:
+        _potential_leaf_surface = coef_N_leaf_surface * _N_potential_leaf_demand[lid] 
     print("potential leaf surface is", _potential_leaf_surface, "cm2")
     return _potential_leaf_surface
 
@@ -302,6 +313,7 @@ def potential_stem_surface(_N_potential_stem_demand, coef_N_stem_surface):
     :return: potential stem area in cm2
     Potential stem area is printed
     """
+    _potential_stem_surface = 
     _potential_stem_surface = coef_N_stem_surface * _N_potential_stem_demand
     print("potential stem surface is", _potential_stem_surface, "cm2")
     return _potential_stem_surface
