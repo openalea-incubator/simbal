@@ -24,7 +24,7 @@ coef_N_leaf_surface = 0.046 # leaf surface = f(leaf N quantity) coefficient in c
 coef_N_stem_surface = 0.005 # stem surface = f(stem N quantity) coefficient in cm2.g-1
 alpha = 0.002 # increase of leaf area per unit of time in cm2.day-1
 e_amax = 0.95 # maximum of radiation interception
-k = -0.88 # extinction coefficient in Beer Lambert law
+k = 0.88 # extinction coefficient in Beer Lambert law
 RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
 C_remob_rate = 1 # C remobilization rate in gC.gC-1
 
@@ -126,16 +126,17 @@ def potential_N_root_uptake(_root_surface, Nsoil=Nsoil, time_step, SNU=SNU):
 
 ## Photosynthesis by shoot
 # Intercepted radiation by shoot
-def intercepted_PAR(projected_leaf_area, k, e_amax):
+def intercepted_PAR(projected_leaf_area, k, e_amax, PAR):
     """
     Calculation of PAR intercepted by the plant with Beer Lambert law
     :param projected_leaf_area: projected leaf area at the beginning of the time step in cm2
     :param k: extinction coefficient
     :param e_amax: maximum intercepted radiation
+    :param PAR: photosynthetically active radiation at beginning of time step in MJ
     :return: intercepted PAR in MJ.cm-2
     Intercepted PAR is printed
     """
-    _intercepted_PAR = e_amax * (1 - exp(k * projected_leaf_area)) #exp is defined in math
+    _intercepted_PAR = e_amax * (1 - exp(-k * projected_leaf_area)) * PAR #exp is defined in math
     return _intercepted_PAR
 
 # Transform radiation intercepted into biomass
@@ -241,6 +242,9 @@ def N_potential_leaves_stem_demand(tau, _N_potential_shoot_demand):
     print("N potential stems demand is", _N_potential_stems_demand, "gN")
     return _N_potential_leaves_demand, _N_potential_stems_demand
 
+# parcourir toutes les feuilles, en croissance ou non
+#darea par feuille, chaque feuille a une certaine demande, bilan sur toutes les feuilles
+
 ##### n'importe quoi ici####
 def N_potential_leaf_demand(_N_potential_leaves_demand, light_intercepted_leaf):
     """
@@ -328,11 +332,11 @@ def C_actual_uptake(_C_actual_offer, _C_potential_shoot_demand):
 
 # initializing
 
-root_element=root()
-leaf_element=leaf()
-stem_element=stem()
+#root_element=root()
+#leaf_element=leaf()
+#stem_element=stem()
 #root_element1.volume=pi*(root_element1.radius)**2*root_element1.length
-root_element.name="Jean_Paul"
+#root_element.name="Jean_Paul"
 #print(root_element1.radius)
 #print(root_element1.volume)
 
@@ -361,18 +365,18 @@ below = rapeseed.below
 
 def root_potential_growth(below, dl, dr):
     """ External function
-    Can be define by the modeller for each plant? or a varity or all the plants?
+    Can be define by the modeller for each plant? or a variety or all the plants?
     """
 
     # 1. Query all the segments
     g = below
     max_scale = g.max_scale()
     segments = [vid for vid in g.vertices_iter(scale=max_scale) if g.label(vid) =='Segment']
-    growing_segments = [vid for vid in segments if g.is_leaf(vid)]
+    growing_segments = [vid for vid in segments if g.is_leaf(vid)]#is_leaf corresponds to root segment without children, thus that are the extremity. Here, we select only growing segments.
     
-    # Init properties
-    length = g.properties().setdefault('length',{}) # state
-    dlength = g.properties().setdefault('dl',{})    # rate
+    # Init properties = create a property and be sure that it exists
+    length = g.properties().setdefault('length',{}) # state 
+    dlength = g.properties().setdefault('dl',{})    # rate 
     
     radius = g.properties().setdefault('radius',{}) # state
     dradius = g.properties().setdefault('dr',{})    # rate
@@ -380,7 +384,7 @@ def root_potential_growth(below, dl, dr):
     # Select all the segments that are connected to a bud
     
     for sid in growing_segments:
-        length[sid] = length.get(sid, 0.)
+        length[sid] = length.get(sid, 0.) # if radius is not defined, 0 is assigned. get = way to initialize
         dlength[sid] = dl
         
 
@@ -428,8 +432,8 @@ for t in range(starting_time,end_time,time_step):
     print("Time is", t)
     # Elements are growing:
     
-    root_potential_growth(dl=time_step/10, dr=time_step/50)
-    shoot_potential_growth(dl=time_step/10, dS=alpha * time_step)
+    root_potential_growth(dl=time_step/10, dr=time_step/50)#archisimple defines the trajectory 
+    #shoot_potential_growth(dl=time_step/10, dS=alpha * time_step)
 
 
 
@@ -443,20 +447,32 @@ for t in range(starting_time,end_time,time_step):
 
 
     # Calculate N potential demand of shoot, leaf and stem
+    ## N shoot potential demand depends on N root potential demand
     _N_shoot_potential_demand = N_shoot_potential_demand(_N_available=_N_available, _N_potential_root_demand=_N_potential_root_demand)
+    ## N shoot potential demand is chared between leaves and stems
     tau = leaf_stem_surface_ratio(element1=leaf_element, element2=stem_element)
     _N_leaf_potential_demand = N_leaf_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
     _N_stem_potential_demand = N_stem_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
-    # Calculate potiential leaf and stem area
+    ## N leaf depends on light intercepted: more light means more N = Nleaf = f(light intercepted)
+    # parcourir toutes les feuilles, en croissance ou non
+    #darea par feuille, chaque feuille a une certaine demande, bilan sur toutes les feuilles
+    ## N internode is proportional for each internode
+    # Calculate potiential leaf and stem area from N quantity
     _potential_leaf_area = potential_leaf_area(_N_leaf_potential_demand=_N_leaf_potential_demand, coef_N_leaf_area=coef_N_leaf_area)
     _potential_stem_area = potential_stem_area(_N_stem_potential_demand=_N_stem_potential_demand, coef_N_stem_area=coef_N_stem_area)
     # Calculate potential total photosynthetic area
     potential_photosynthetic_area = _potential_leaf_area + _potential_stem_area
-    # Calculate C potential shoot demand
-    _C_potential_shoot_demand = C_potential_shoot_demand(potential_photosynthetic_area=potential_photosynthetic_area, Cdensity=1)
+    # Calculate C potential uptake from the potential photosynthetic area
+    # Calculate C actual uptake from the photosynthetic area at t-1 ?
+    # C uptake is minimum between actual and potential
+    # Remaining C goes to growing root
+    # Defines actual N uptake
+    # Actual N uptake creates actual leaf area
+    
+    #_C_potential_shoot_demand = C_potential_shoot_demand(potential_photosynthetic_area=potential_photosynthetic_area, Cdensity=1)
     # Calculate C available to the plant
-    _intercepted_PAR = intercepted_PAR(initial_leaf_area=leaf_area0, k=k, e_amax=e_amax)
-    _C_available = C_available(_intercepted_PAR=_intercepted_PAR, RUE=RUE, Cstock=3, time_step=time_step)
+    #_intercepted_PAR = intercepted_PAR(initial_leaf_area=leaf_area0, k=k, e_amax=e_amax)
+    #_C_available = C_available(_intercepted_PAR=_intercepted_PAR, RUE=RUE, Cstock=3, time_step=time_step)
 
 
 
