@@ -50,7 +50,7 @@ def delta_volume(below):
     dradius = g.property('dradius')
 
     def seg_delta_volume(vid, below=below):
-        dV = length.get(vid,0) * dradius.get(vid,0) + dlength.get(vid,0) * radius.get(vid,0)
+        dV = pi*(2 * radius.get(vid,0) * length.get(vid,0) * dradius.get(vid,0) + dlength.get(vid,0) * (radius.get(vid,0))**2)
         return dV
     
     max_scale = g.max_scale()
