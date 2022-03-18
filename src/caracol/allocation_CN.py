@@ -31,6 +31,7 @@ C_remob_rate = 1 # C remobilization rate in gC.gC-1
 ###Costs
 _C_respiration
 _C_rhizodeposition
+_N_metabolic
 
 #import numpy #for loading the entire package
 from math import (pi, exp) #for loading only pi function from package numpy
@@ -241,8 +242,7 @@ def N_potential_leaves_stem_demand(tau, _N_potential_shoot_demand):
     print("N potential stems demand is", _N_potential_stems_demand, "gN")
     return _N_potential_leaves_demand, _N_potential_stems_demand
 
-##### n'importe quoi ici####
-def N_potential_leaf_demand(above, _N_potential_leaves_demand, light_intercepted_leaf):
+def N_potential_leaf_demand(_N_potential_leaves_demand):
     """
     Calculation of leaves and stems N potential demand (in gN) in function of the ratio of leaf/stem surface (in cm².cm-²)
     and potential shoot N demand (in gN)
@@ -278,7 +278,7 @@ def N_potential_leaf_demand(above, _N_potential_leaves_demand, light_intercepted
     return _N_potential_leaf_demand
 
 ### N_potential_stems_demand distribitued equally between every segments = N_potential_stem_demand
-def N_potential_stem_demand(above, _N_potential_stems_demand):
+def N_potential_stem_demand(_N_potential_stems_demand):
     g = above
     # select internodes only
     max_scale = g.max_scale() # I select the organ scale 
