@@ -1,6 +1,6 @@
 """ plant.py
 
-Define the topological structure, the vaious scales and growth and developmnt functions.
+Define the topological structure, the vaious scales and growth and development functions.
 This module is responsible of the morphogenesis program.
 
 """
@@ -131,8 +131,8 @@ def init_N_randomly(g, N=10.):
 
     return g
 
-def phytomere():
-    """ Return a phytomere.
+def phytomer():
+    """ Return a phytomer.
     Note: 
         - < : successor
         + : ramification
@@ -144,3 +144,53 @@ def phytomere():
     bud = g.add_child(parent=stem_id, edge_type='<', label='Apex')
     fat_mtg(g)
     return g
+
+
+###############################################################################
+
+class Plant:
+    """ Define a plant as an above and below ground MTG.
+
+    Some usefull functions can be defined as proxies.
+    
+    """
+    def __init__(self, name='', above=None, below=None):
+        self.name = name
+        self.above = self.init_above_mtg() if above is None else above
+        self.below = self.init_below_mtg() if below is None else below
+
+
+    @staticmethod
+    def init_above_mtg():
+        """ Simple function to create a simple aerial MTG"""
+        g = MTG()
+        
+        # Add a plant (scale is 1)
+        vid = g.add_component(g.root, label='Plant')
+        vid = g.add_component(vid, label='Axis')
+        vid = g.add_component(vid, label='Phytomer')
+        
+        # Last scale
+        vid = g.add_component(vid, label='Internode')
+        leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
+        bud_id = g.add_component(vid, edge-type='<', label='Bud')
+
+        fat_mtg(g)
+        return g
+
+    @staticmethod
+    def init_below_mtg():
+        """ Simple function to create a simple belowground MTG or RootSystem Architecture"""
+        g = MTG()
+        
+        # Add a plant (scale is 1)
+        vid = g.add_component(g.root, label='RSA')
+        vid = g.add_component(vid, label='Root')
+        
+        # Last scale
+        vid = g.add_component(vid, label='Segment')
+    
+        fat_mtg(g)
+        return g
+
+    
