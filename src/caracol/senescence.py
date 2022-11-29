@@ -6,26 +6,8 @@ Created on Tue Nov 22 10:44:53 2022
 """
 
 
-#MTG
-from openalea.mtg import MTG
 
-g = MTG()
 
-# Scale Plant
-plant1 = g.add_component(g.root)
-# Scale axis or GU or Phytomer
-root1 = g.add_component(plant1)
-
-v1 = g.add_child(root1, edge_type='<', carbon=12, label='Phytomer')
-v2 = g.add_child(v1, edge_type='+')
-v3 = g.add_child(v2, edge_type='<')
-v4 = g.add_child(v3, edge_type= '+')
-
-assert g.nb_vertices(scale=1) == 1
-assert g.nb_vertices(scale=2) == 5
-assert g.complex(v4) == plant1
-
-#FONCTIONS
 
 def CarbonBudget(
     ci: float, 
@@ -178,8 +160,6 @@ def Senescence(nstruct: float,
         necrotic leaf surface (state)
     Cd : float
         Already available C in the leaf (state)
-    Nfall : float
-        a falling leaf is a non biological state (state)
     
     """
     
@@ -190,18 +170,24 @@ def Senescence(nstruct: float,
     deltal = 0.001
     lsph :int=5
     lsn :int= 0
+
+    degradation = True
+    exportation = True
+    leaffall = False
+
     if nstruct > Es and lsph > 0:
-        degradation = True
-        exportation = True
-        leaffall = False
         nstruct = nstruct – deltan
         nd = (nd + deltan)- ne
         lsph = lsph – deltal
         lsn = lsn + deltal
         cd = cd - ce
-    return nstruct, nd, lsph, lsn, cd
     else:
         degradation = False
         exportation = False
         leaffall = True
-    return nfall = nd   
+
+    return nstruct, nd, lsph, lsn, cd, degradation, exportation, leaffall
+    
+    
+    
+    
