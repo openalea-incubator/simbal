@@ -5,6 +5,7 @@ Created on Tue Nov 22 10:44:53 2022
 @author: FARRA
 """
 
+
 #MTG
 from openalea.mtg import MTG
 
@@ -204,12 +205,3 @@ def Senescence(nstruct: float,
         exportation = False
         leaffall = True
     return nfall = nd   
-
-
-
-    
-        
-    
-                                
-                            
-                    
