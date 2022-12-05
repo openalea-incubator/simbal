@@ -4,7 +4,10 @@ Created on Tue Nov 22 10:44:53 2022
 
 @author: FARRA
 """
-
+# Coding rules
+# Objects : class CarbonBudget
+# Functions : def carbon_budget
+# Variables : lower case
 
 
 
@@ -36,10 +39,11 @@ def CarbonBudget(
     mature: bool
         Is the leaf mature?
     """
-    ci: int = 0.02
-    cm: int = 0.1
-    cd: int = 0.14
-    ce: int = 0.01
+    ci: float = 0.02
+    cm: float = 0.1
+    cd: float = 0.14
+    ce: float = 0.01
+
     mature = False
     if ci > 0 : 
         cd = cm + ci - ce 
@@ -48,7 +52,7 @@ def CarbonBudget(
 
     return cd, mature
         
-    
+
 def YoungLeaf_OrganGrowth(lsph: float, 
                           x: float):    
     """ A juvenil leaf can still import = source/sink organ.
