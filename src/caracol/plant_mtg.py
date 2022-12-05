@@ -1,6 +1,6 @@
 """ plant.py
 
-Define the topological structure, the vaious scales and growth and development functions.
+Define the topological structure, the various scales and growth and development functions.
 This module is responsible of the morphogenesis program.
 
 """
