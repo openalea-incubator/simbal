@@ -6,10 +6,56 @@ Created on Tue Nov 22 10:44:53 2022
 """
 
 
+def intercepted_PAR(
+    projected_leaf_area: float,
+    k: float,
+    e_amax: float):
+    """ Calculation of PAR intercepted by the plant with Beer Lambert law
+    
+    Parameters
+    ----------
+    projected_leaf_area : float
+        projected leaf area at the beginning of the time step in cm2
+    k : float
+        extinction coefficient
+    e_amax: float
+        maximum intercepted radiation
+   
+    Returns
+    -------
+    _intercepted_PAR : float
+        in MJ.cm-2
+    """
+    _intercepted_PAR = e_amax * (1 - exp(k * projected_leaf_area)) 
+    return _intercepted_PAR
+
+
+def producted_biomass(
+    _intercepted_PAR: float, 
+    RUE: float):
+    """ Transform radiation intercepted into biomass
+
+    Parameters
+    ----------
+
+    PAR_intercepted: float
+        PAR intercepted by the plant
+    RUE: float
+        Radiation use efficiency
+    
+    Returns
+    -------
+    _producted_biomass : float
+        ??????
+     
+    """
+    _producted_biomass = RUE * _intercepted_PAR
+    return _producted_biomass
 
 
 
-def CarbonBudget(
+
+def carbon_budget(
     ci: float, 
     cm: float, 
     cd: float, 
@@ -49,7 +95,7 @@ def CarbonBudget(
     return cd, mature
         
     
-def YoungLeaf_OrganGrowth(lsph: float, 
+def young_leaf_organ_growth(lsph: float, 
                           x: float):    
     """ A juvenil leaf can still import = source/sink organ.
     
@@ -72,7 +118,7 @@ def YoungLeaf_OrganGrowth(lsph: float,
     return lsph
     
         
-def LeafMature(ce_m: float,
+def leaf_mature(ce_m: float,
                ee: int, 
                nfonc: float,
                ne: float,
@@ -113,7 +159,7 @@ def LeafMature(ce_m: float,
 
         
         
-def Senescence(nstruct: float,
+def senescence(nstruct: float,
                es: int,
                deltan: float,
                deltal: float,
