@@ -26,34 +26,34 @@ def light_interception(
    
     Returns
     -------
-    _intercepted_PAR : float
+    intercepted_PAR : float
         in MJ.cm-2
     """
-    _intercepted_PAR = e_amax * (1 - exp(k * projected_leaf_area)) 
-    return _intercepted_PAR
+    intercepted_PAR = e_amax * (1 - exp(k * projected_leaf_area)) 
+    return intercepted_PAR
 
 
 def photosynthesis(
-    _intercepted_PAR: float, 
+    intercepted_PAR: float, 
     RUE: float):
     """ Transform radiation intercepted into biomass
 
     Parameters
     ----------
 
-    PAR_intercepted: float
-        PAR intercepted by the plant
+    intercepted_PAR: float
+        intercepted PAR by the plant
     RUE: float
         Radiation use efficiency
     
     Returns
     -------
-    _producted_biomass : float
+    producted_biomass : float
         ??????
      
     """
-    _producted_biomass = RUE * _intercepted_PAR
-    return _producted_biomass
+    producted_biomass = RUE * intercepted_PAR
+    return producted_biomass
 
 
 
