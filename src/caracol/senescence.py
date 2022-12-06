@@ -9,7 +9,7 @@ Created on Tue Nov 22 10:44:53 2022
 # Functions : def carbon_budget
 # Variables : lower case
 
-def intercepted_PAR(
+def light_interception(
     projected_leaf_area: float,
     k: float,
     e_amax: float):
@@ -33,7 +33,7 @@ def intercepted_PAR(
     return _intercepted_PAR
 
 
-def producted_biomass(
+def photosynthesis(
     _intercepted_PAR: float, 
     RUE: float):
     """ Transform radiation intercepted into biomass
