@@ -79,7 +79,8 @@ class PlantScenario(Plant):
         
         # Last scale
         seg = g.add_component(root, label='Segment')
-    
+        for i in range(3):
+            seg = g.add_child(seg, edge_type='<', label='Segment')
         fat_mtg(g)
         return g
 
