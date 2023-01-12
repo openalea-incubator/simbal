@@ -1,6 +1,8 @@
+
+
 #MTG
 from openalea.mtg import MTG, fat_mtg
-from .plant_mtg import Plant
+from plant_mtg import Plant
 
 class PlantScenario(Plant):
     """ Define a plant as an above and below ground MTG.
@@ -115,14 +117,18 @@ def init_scenario1_HLHN(g,
     
     """
     
-    leaves = [vid for vid in g.vertices() if g.label(vid) =='Leaf']
-    roots = [vid for vid in g.vertices() if g.label(vid) =='Root']
+    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid) =='Leaf']
+    segs = [vid for vid in g.vertices(scale=3) if g.label(vid) =='Root']
 
     for vid in leaves: 
-        g.property('Light', 'N', 'C')
+        nid = g.node(vid)
+        nid.Light = Light
+        nid.N = N
+        nid.C = C
 
-    for vid in roots: 
-        g.property('Nitrate')
+    for vid in segs: 
+        nid = g.node(vid)
+        nid.Nitrate = Nitrate
 
 
 def init_scenario2_HLLN(g,
@@ -151,14 +157,18 @@ def init_scenario2_HLLN(g,
     
     """
     
-    leaves = [vid for vid in g.vertices() if g.label(vid) =='Leaf']
-    roots = [vid for vid in g.vertices() if g.label(vid) =='Root']
+    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid) =='Leaf']
+    segs = [vid for vid in g.vertices(scale=3) if g.label(vid) =='Root']
 
     for vid in leaves: 
-        g.property('Light', 'N', 'C')
+        nid = g.node(vid)
+        nid.Light = Light
+        nid.N = N
+        nid.C = C
 
-    for vid in roots: 
-        g.property('Nitrate')
+    for vid in segs: 
+        nid = g.node(vid)
+        nid.Nitrate = Nitrate
 
 
 def init_scenario3_LLHN(g,
@@ -188,14 +198,18 @@ def init_scenario3_LLHN(g,
     
     """
     
-    leaves = [vid for vid in g.vertices() if g.label(vid) =='Leaf']
-    roots = [vid for vid in g.vertices() if g.label(vid) =='Root']
+    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid) =='Leaf']
+    segs = [vid for vid in g.vertices(scale=3) if g.label(vid) =='Root']
 
     for vid in leaves: 
-        g.property('Light', 'N', 'C')
+        nid = g.node(vid)
+        nid.Light = Light
+        nid.N = N
+        nid.C = C
 
-    for vid in roots: 
-        g.property('Nitrate')
+    for vid in segs: 
+        nid = g.node(vid)
+        nid.Nitrate = Nitrate
 
 
 def init_scenario4_LLLN(g,
@@ -226,11 +240,15 @@ def init_scenario4_LLLN(g,
     
     """
     
-    leaves = [vid for vid in g.vertices() if g.label(vid) =='Leaf']
-    roots = [vid for vid in g.vertices() if g.label(vid) =='Root']
+    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid) =='Leaf']
+    segs = [vid for vid in g.vertices(scale=3) if g.label(vid) =='Root']
 
     for vid in leaves: 
-        g.property('Light', 'N', 'C')
+        nid = g.node(vid)
+        nid.Light = Light
+        nid.N = N
+        nid.C = C
 
-    for vid in roots: 
-        g.property('Nitrate')
+    for vid in segs: 
+        nid = g.node(vid)
+        nid.Nitrate = Nitrate

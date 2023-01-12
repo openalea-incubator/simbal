@@ -33,6 +33,29 @@ def light_interception(
     return intercepted_PAR
 
 
+def nitrogen_budget(
+    ni: float,  
+    nd: float):
+    """ Allocate leaf nitrogen based on available nitrogen.
+
+    Parameters
+    ----------
+    Ni : float
+        Nitrogen import (input)
+    Nd : float
+        Already available N on the leaf = structural N (state)
+
+    Returns
+    -------
+    Nd : float
+        Already available N on the leaf = structural C (state)
+   
+    """
+    nd = nd + ni 
+    return nd
+
+
+
 def photosynthesis(
     intercepted_PAR: float, 
     RUE: float):
@@ -48,8 +71,10 @@ def photosynthesis(
     
     Returns
     -------
-    producted_biomass : float
-        ??????
+    producted_biomass: float
+        producted C
+    rejacted_C: float
+        CO2 rejacted by photosynthesis
      
     """
     producted_biomass = RUE * intercepted_PAR
@@ -60,64 +85,76 @@ def photosynthesis(
 
 def carbon_budget(
     ci: float, 
-    cm: float, 
-    cd: float, 
-    ce: float):
+    cp: float, 
+    cd: float):
     """ Allocate leaf carbon based on available carbon.
 
     Parameters
     ----------
     Ci : float
         Carbon import (input)
-    Cm : float
-        Metabolical C of the leaf = fonctional C (state)
+    Cp : float
+        Producted C by photosynthesis (input)
     Cd : float
         Already available C on the leaf = structural C (state)
-    Ce : float
-        Exported C
+    
 
     Returns
     -------
-    Cm : float
-        Metabolical C of the leaf = fonctional C (state)
     Cd : float
         Already available C on the leaf = structural C (state)
-    mature: bool
-        Is the leaf mature?
+
     """
-    ci: float = 0.02
-    cm: float = 0.1
-    cd: float = 0.14
-    ce: float = 0.01
-
-    mature = False
-    if ci > 0 : 
-        cd = cm + ci - ce 
-    else:
-        mature = True
-
-    return cd, mature
+    cd = cd+ cp
+    return cd
         
     
-def young_leaf_organ_growth(lsph: float, 
-                          x: float):    
-    """ A juvenil leaf can still import = source/sink organ.
+def potential_growth(
+    cd: float,
+    nd: float,
+    ce: float,
+    ne: float,
+    ci: float,
+    ni: float,
+    cm: float,
+    nm: float,
+    lsph: float):    
+    """ A juvenil leaf can still import = source/sink organ. A mature leaf doesn't import nutrient.
     
     Parameters
     ----------
     lsph : float
         Photosynthetic leaf surface (state)
-        
-    x : float
-     Created surface with the available carbon (input)
+    Cd : float
+        Already available C on the leaf = structural C (state)
+    Nd : float
+        Already available N on the leaf = structural C (state)
+    Ce : float
+        Exported N (input)
+    Ne : float
+        Exported N (input)
+    Ci : float
+        Imported N (input)
+    Ni : float
+        Imported N (input)
+    Cm : float
+        Metabolical C of the leaf = fonctional C (input)
+    Nm : float
+        Metabolical N of the leaf = fonctional N (input)
 
     Returns
     -------
     lsph : float
         Photosynthetic leaf surface (state)
+    Cm : float
+        Metabolical C of the leaf = fonctional C (state)
+    Nm : float
+        Metabolical N of the leaf = fonctional N (state)
     """
-    lsph :int= 5    # Leaf Surface photosynthetic
-    x :int= 0.5 # How much Cc is necessary to construct a leaf surface unit ?
+    nd = (nd + ni) - ne
+    nm = N_remob_rate * nd 
+    print("N remobilized is", _N_plant_remobilized, "gN")
+    return _N_plant_remobilized
     lsph = lsph + x
     return lsph
     
@@ -226,9 +263,9 @@ def senescence(nstruct: float,
     leaffall = False
 
     if nstruct > Es and lsph > 0:
-        nstruct = nstruct – deltan
+        nstruct = nstruct - deltan
         nd = (nd + deltan)- ne
-        lsph = lsph – deltal
+        lsph = lsph - deltal
         lsn = lsn + deltal
         cd = cd - ce
     else:
