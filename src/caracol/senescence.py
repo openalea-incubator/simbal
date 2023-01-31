@@ -141,7 +141,7 @@ def leaf_actual_surface(
 
 def photosynthetic_leaf_surface(
     leaf_actual_surface: float, 
-    necrotic_surface: float):
+    leaf_necrotic_surface: float):
     """
     Calculation of the photosynthetic leaf area (m2) 
 
@@ -149,7 +149,7 @@ def photosynthetic_leaf_surface(
     ----------
     leaf_actual_surface: float
         leaf area in m2
-    necrotic_surface: float
+    leaf_necrotic_surface: float
         necrose area in m2
 
     Returns
@@ -158,13 +158,13 @@ def photosynthetic_leaf_surface(
         potential leaf area in m2
     
     """
-    photosynthetic_leaf_surface =  leaf_actual_surface - necrotic_surface
-    print("potential photosynthetic leaf surface is", photosynthetic_leaf_surface, "m2")
-    return photosynthetic_leaf_surface
+    _photosynthetic_leaf_surface =  leaf_actual_surface - leaf_necrotic_surface
+    print("potential photosynthetic leaf surface is", _photosynthetic_leaf_surface, "m2")
+    return _photosynthetic_leaf_surface
 
 
 def potential_leaf_light_interception(
-    photosynthetic_leaf_surface: float,
+    _photosynthetic_leaf_surface: float,
     k: int,
     Light: int):
     """
@@ -174,24 +174,24 @@ def potential_leaf_light_interception(
     ----------
     k: int
         extinction coefficient
-    photosynthetic_leaf_surface : float
+    _photosynthetic_leaf_surface : float
         leaf surface
     Light : int
         global incident light
     
     Returns
     -------
-    leaf_light_interception: float
+    _potential_leaf_light_interception: float
         MJ.m-2
     leaf_PNUE: float
         PNUE = Photosynthetic Nitrogen Use efficiency
     """
-    leaf_light_interception = k*Light*exp(-k*photosynthetic_leaf_surface)#(Bertheloot et al. 2008)
-    return  leaf_light_interception
+    _potential_leaf_light_interception = k*Light*exp(-k*_photosynthetic_leaf_surface)#(Bertheloot et al. 2008)
+    return  _potential_leaf_light_interception
 
 
 def leaf_photosynthesis(
-    leaf_intercepted_PAR: float, 
+    _leaf_intercepted_PAR: float, 
     RUE: float):
     """ Transform radiation intercepted into biomass by the leaf
 
@@ -211,14 +211,14 @@ def leaf_photosynthesis(
         CO2 rejacted by photosynthesis
      
     """
-    leaf_producted_biomass = RUE * leaf_intercepted_PAR
-    return leaf_producted_biomass
+    _leaf_producted_biomass = RUE * _leaf_intercepted_PAR
+    return _leaf_producted_biomass
 
 
-def leaf_PNUE(
-    N_potential_plant_offer: float,
+def leaf_N_potential_offer(
+    _N_potential_plant_offer: float,
     Light: float,
-    potential_leaf_light_interception: float,
+    _potential_leaf_light_interception: float,
     above):
     """
     Calculation of leaves N potential demand (in gN) in function of the N by light unit necessary
@@ -239,18 +239,18 @@ def leaf_PNUE(
     """
     g = above
     leaves = [vid for vid in g.vertices(scale=4) if g.label(vid)=='Leaf']
-    plant_N_by_lightunit = N_potential_plant_offer / Light
-    leaf_N_potential_offer = dict((lid, plant_N_by_lightunit*potential_leaf_light_interception[lid]) for lid in leaves)
+    _plant_N_by_lightunit = _N_potential_plant_offer / Light
+    _leaf_N_potential_offer = dict((lid, _plant_N_by_lightunit*_potential_leaf_light_interception[lid]) for lid in leaves)
     
     g.add_property('leaf_N_by_lightunit')
     Nps = g.property('leaf_N_by_lightunit')
-    Nps.update(leaf_N_potential_offer)
+    Nps.update(_leaf_N_potential_offer)
 
-    return leaf_N_potential_offer, plant_N_by_lightunit
+    return _leaf_N_potential_offer, _plant_N_by_lightunit
 
 
 def potential_leaf_surface(
-    leaf_N_potential_offer: float, 
+    _leaf_N_potential_offer: float, 
     coef_N_leaf_surface: int):
     """
     Calculation of potential formed leaf area  (cm2) in function of potential N leaf offer (gN) and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
@@ -269,15 +269,15 @@ def potential_leaf_surface(
     
     """
     _potential_leaf_surface = {}
-    for lid in leaf_N_potential_offer:
+    for lid in _leaf_N_potential_offer:
         _potential_leaf_surface = coef_N_leaf_surface * leaf_N_potential_offer[lid] 
     print("potential leaf surface is", _potential_leaf_surface, "cm2")
     return _potential_leaf_surface
 
 
 def FSPM_Allirand_law(
-    _N_potential_leaf_offer,
-    leaf_light_interception):
+    _leaf_N_potential_offer,
+    _potential_leaf_light_interception):
     """
     Allirand law ; relationship between the light intercepted by the leaf and the nitrogen content
 
@@ -285,16 +285,16 @@ def FSPM_Allirand_law(
     ----------
     _N_potential_leaf_offer: float
         N leaf potential offer in gN
-    leaf_light_interception : float
+    _potential_leaf_light_interception : float
         in MJ.cm-2
     
     Returns
     -------
-    FSPM_Allirand_cst: float
+    _FSPM_Allirand_cst: float
         relationship between the light intercepted by the leaf and the nitrogen content
     """
-    FSPM_Allirand_cst = leaf_light_interception*_N_potential_leaf_offer
-    return FSPM_Allirand_cst
+    _FSPM_Allirand_cst = _potential_leaf_light_interception*_leaf_N_potential_offer
+    return _FSPM_Allirand_cst
 
 
 
@@ -347,7 +347,7 @@ def C_potential_leaf_demand(
 
 
 def C_potential_leaf_offer(
-    leaf_producted_biomass: float,
+    _leaf_producted_biomass: float,
     _C_respiration: float):
     """
     Calculation of C available to the leaf (in gC), in function of C uptake (in gC) 
@@ -366,18 +366,19 @@ def C_potential_leaf_offer(
         Available carbon in the whole plant
 
     """
-    _C_potential_leaf_offer = leaf_producted_biomass - _C_respiration
+    _C_potential_leaf_offer = _leaf_producted_biomass - _C_respiration
     print("C available to the leaf is", _C_potential_leaf_offer, "gC")
     return _C_potential_leaf_offer
 
 
 
 #Turnover Budget
-def stress_evaluation(
+def C_actual_uptake(
     g, 
     vid,
      _C_potential_leaf_offer: float,
      _C_potential_leaf_demand: float): 
+
     """
     Calculation of the actual growth by stress of the leaf
     
@@ -388,8 +389,10 @@ def stress_evaluation(
      _C_actual_uptake:
 
     g :
+        MTG
 
     vid :
+        Vertices id
 
 
     Returns
@@ -400,36 +403,56 @@ def stress_evaluation(
 
     storage:
 
-    """
-    g = above
-    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid)=='Leaf']
-    
+    """  
     dC = _C_potential_leaf_offer - _C_potential_leaf_demand 
-    if dC <= 0 : 
+    if dC < 0 :
+        _C_actual_uptake = dC 
         storage = 0
+
+        def C_actual_uptake_import(
+            _C_source_offer,
+            dC):
+    
+            dA = dC + _C_source_offer
+            if dA < 0:
+             storage = 0
+             growth = False
+
+             def leaf_senescence(
+                _C_potential_leaf_offer,
+                _leaf_N_potential_offer,
+                _C_sink_demand,
+                _N_sink_demand,
+                w):
+
+                _C_source_offer = w*_C_potential_leaf_offer*_C_sink_demand
+                _N_source_offer = w*_leaf_N_potential_offer*_N_sink_demand
+                if _C_source_offer <= 0 :
+                    leaf_fall = True
+
+                if _N_source_offer <= 0 :
+                    leaf_fall = True
+
+                else :
+                    leaf_fall = False
+                
+                return _C_source_offer, _N_source_offer, leaf_fall
+
+            else :
+                storage = dA
+                _C_actual_uptake = _C_potential_leaf_demand
+                growth = True
+                
+            return  _C_actual_uptake, growth
+        
     else :
         _C_actual_uptake = _C_potential_leaf_demand
         storage = dC
+        growth = True
 
-        return storage, _C_actual_uptake
+    return _C_actual_uptake, growth
     
     
-
-def C_import(
-    C_source_available,
-    dC):
-    
-    dA = C_source_available - dC
-    if dA <= 0:
-        storage = 0
-    else :
-        storage = dA
-        return storage, dA
-
-
-
-
-
 
 
 
