@@ -30,7 +30,7 @@ def potential_N_root_uptake(
 
     Returns
     -------
-    _potential_N_root_uptake: float
+    potential_N_root_uptake: float
         potential N uptake by roots
     
     """
@@ -51,7 +51,7 @@ def N_potential_offer(
 
     Returns
     -------
-    _N_potential_offer: float
+    N_potential_offer: float
         N potential offer to the plant in gN
     """
     _N_potential_offer = _potential_N_root_uptake 
@@ -129,13 +129,13 @@ def leaf_actual_surface(
     max_scale = g.max_scale()
     length = g.property('length')
     radius = g.property('radius')
-
-    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
-    for vid in leaves:
-        _leaf_actual_surface = 2 * pi * length.get(vid,0) * radius.get(vid,0)
-        return _leaf_actual_surface
+    def _leaf_actual_surface(vid):
+        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
+        return dS
     
-
+    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
+    _leaf_actual_surface = sum(_leaf_actual_surface(vid) for vid in leaves)
+    return _leaf_actual_surface
 
 
 def photosynthetic_leaf_surface(
@@ -184,8 +184,14 @@ def potential_leaf_light_interception(
         MJ.m-2
     leaf_PNUE: float
         PNUE = Photosynthetic Nitrogen Use efficiency
+
+    References
+    ----------
+    Bertheloot et al. 2008
     """
-    _potential_leaf_light_interception = k*Light*exp(-k*_photosynthetic_leaf_surface)#(Bertheloot et al. 2008)
+    # (Bertheloot et al. 2008)
+    _potential_leaf_light_interception = k*Light*exp(-k*_photosynthetic_leaf_surface)
+    
     return  _potential_leaf_light_interception
 
 
@@ -226,7 +232,7 @@ def leaf_N_potential_offer(
     ----------
     _N_potential_plant_offer: float
         N shoot potential offer in gN
-    Light : int
+    Light : float
         global incident light
     potential_leaf_light_interception: float
         leaf incident light
@@ -237,20 +243,26 @@ def leaf_N_potential_offer(
         N leaf potential offer in gN
     """
     g = above
-    leaves = [vid for vid in g.vertices(scale=4) if g.label(vid)=='Leaf']
+    max_scale = g.max_scale()
+    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
     _plant_N_by_lightunit = _N_potential_plant_offer / Light
-    _leaf_N_potential_offer = dict((lid, _plant_N_by_lightunit*_potential_leaf_light_interception[lid]) for lid in leaves)
+    _leaf_N_potential_offer = dict(
+        (lid, _plant_N_by_lightunit * _potential_leaf_light_interception[lid]) 
+        for lid in leaves
+    )
     
-    g.add_property('leaf_N_by_lightunit')
-    Nps = g.property('leaf_N_by_lightunit')
-    Nps.update(_leaf_N_potential_offer)
+    # TODO : define the intial properties once in an init funvtion?
+    g.properties().setdefault('leaf_N_by_lightunit', {}).update(_leaf_N_potential_offer)
+    #g.add_property('leaf_N_by_lightunit')
+    #Nps = g.property('leaf_N_by_lightunit')
+    #Nps.update(_leaf_N_potential_offer)
 
     return _leaf_N_potential_offer, _plant_N_by_lightunit
 
 
 def potential_leaf_surface(
     _leaf_N_potential_offer: float, 
-    coef_N_leaf_surface: int):
+    coef_N_leaf_surface: float):
     """
     Calculation of potential formed leaf area  (cm2) in function of potential N leaf offer (gN) and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
 
@@ -258,7 +270,7 @@ def potential_leaf_surface(
     ----------
     leaf_N_potential_offer: float
         leaf potential N demand in gN
-    coef_N_leaf_surface: int
+    coef_N_leaf_surface: float
         coefficient between leaf area and leaf N quantity in m2.g-1
 
     Returns
@@ -323,7 +335,7 @@ def C_potential_root_demand(
 
 def C_potential_leaf_demand(
     _potential_leaf_surface: float,
-    Cdensity: int):
+    Cdensity: float):
     """
     Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
     
@@ -372,9 +384,43 @@ def C_potential_leaf_offer(
 
 
 #Turnover Budget
+
+# internal functions
+def C_actual_uptake_import(
+    _C_source_offer,
+    dC):
+
+    dA = dC + _C_source_offer
+    if dA < 0:
+        storage = 0
+        growth = False
+    else:
+        growth = True
+    return growth
+
+def leaf_senescence(
+    _C_potential_leaf_offer,
+    _leaf_N_potential_offer,
+    _C_sink_demand,
+    _N_sink_demand,
+    w):
+
+    _C_source_offer = w*_C_potential_leaf_offer*_C_sink_demand
+    _N_source_offer = w*_leaf_N_potential_offer*_N_sink_demand
+    if _C_source_offer <= 0 :
+        leaf_fall = True
+
+    if _N_source_offer <= 0 :
+        leaf_fall = True
+
+    else :
+        leaf_fall = False
+    
+    return _C_source_offer, _N_source_offer, leaf_fall
+
+
 def C_actual_uptake(
-    g, 
-    vid,
+    g, vid: int,
      _C_potential_leaf_offer: float,
      _C_potential_leaf_demand: float): 
 
@@ -409,41 +455,21 @@ def C_actual_uptake(
         _C_actual_uptake = dC 
         storage = 0
 
-        def C_actual_uptake_import(
-            _C_source_offer,
-            dC):
-    
-            dA = dC + _C_source_offer
-            if dA < 0:
-             storage = 0
-             growth = False
+        growth = C_actual_uptake_import(
+                    _C_source_offer,
+                    dC)
 
-             def leaf_senescence(
+        if not growth:
+            _C_source_offer, _N_source_offer, leaf_fall= leaf_senescence(
                 _C_potential_leaf_offer,
                 _leaf_N_potential_offer,
                 _C_sink_demand,
                 _N_sink_demand,
-                w):
+                w)
 
-                _C_source_offer = w*_C_potential_leaf_offer*_C_sink_demand
-                _N_source_offer = w*_leaf_N_potential_offer*_N_sink_demand
-                if _C_source_offer <= 0 :
-                    leaf_fall = True
-
-                if _N_source_offer <= 0 :
-                    leaf_fall = True
-
-                else :
-                    leaf_fall = False
-                
-                return _C_source_offer, _N_source_offer, leaf_fall
-
-            else :
-                storage = dA
-                _C_actual_uptake = _C_potential_leaf_demand
-                growth = True
-                
-            return  _C_actual_uptake, growth
+        else : # growth == True
+            storage = dA
+            _C_actual_uptake = _C_potential_leaf_demand
         
     else :
         _C_actual_uptake = _C_potential_leaf_demand
