@@ -1,3 +1,4 @@
+from caracol import mtg_senescence, senescence
 
 #Scenarios
 def init_scenario1_HLHN(g,
@@ -25,12 +26,9 @@ def init_scenario1_HLHN(g,
     -------
     H1  C and N distribution drive by light
     H2  Senescence initiation by Cand N threshold
-   
     """
 
-    from caracol import mtg_senescence
-
-    above = mtg_senescence.init_above_mtg()
+    g = mtg_senescence.init_above_mtg()
     
     leaves = [vid for vid in g.vertices(scale=4) if g.label(vid) =='Leaf']
     segs = [vid for vid in g.vertices(scale=3) if g.label(vid) =='Root']
@@ -49,8 +47,7 @@ def init_scenario1_HLHN(g,
         nid.Length = Length
 
 
-    from caracol import senescence
-
+    
     #Nitrogen Budget
     _potential_N_root_uptake = potential_N_root_uptake(Nitrate, _root_surface, time_step, SNU )
     _N_potential_offer = N_potential_offer(_potential_N_root_uptake)
