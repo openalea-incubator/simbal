@@ -10,7 +10,7 @@ from math import (exp, pi)
 
 #Nitrogen Budget
 def potential_N_root_uptake(
-    _root_surface: float, 
+    root_surface: float, 
     Nitrate: float, 
     time_step: int, 
     SNU: float):
@@ -34,7 +34,7 @@ def potential_N_root_uptake(
         potential N uptake by roots
     
     """
-    _potential_N_root_uptake = SNU * Nitrate * time_step * _root_surface
+    _potential_N_root_uptake = SNU * Nitrate * time_step * root_surface
     print("N root uptake is", _potential_N_root_uptake, "gN")
     return _potential_N_root_uptake
 
@@ -109,7 +109,8 @@ def N_potential_plant_offer(
 
 #Light Budget
 def leaf_actual_surface(
-    above):
+    above,
+    vid):
     """
     Calculation of the mtg leaf surface 
 
@@ -121,22 +122,20 @@ def leaf_actual_surface(
     
     Returns
     -------
-    dS : float
-        leaf surface
     _leaf_actual_surface : float
-        total leaves surface
+        leaf surface
     """
     g = above
     max_scale = g.max_scale()
     length = g.property('length')
     radius = g.property('radius')
-    def _leaf_actual_surface(vid):
-        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
-        return dS
-    
+
     leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
-    _leaf_actual_surface = sum(_leaf_actual_surface(vid) for vid in leaves)
-    return _leaf_actual_surface
+    for vid in leaves:
+        _leaf_actual_surface = 2 * pi * length.get(vid,0) * radius.get(vid,0)
+        return _leaf_actual_surface
+    
+
 
 
 def photosynthetic_leaf_surface(
@@ -394,7 +393,6 @@ def C_actual_uptake(
     vid :
         Vertices id
 
-
     Returns
     -------
     dC:
@@ -402,6 +400,8 @@ def C_actual_uptake(
      _C_actual_uptake:
 
     storage:
+
+    growth:
 
     """  
     dC = _C_potential_leaf_offer - _C_potential_leaf_demand 
