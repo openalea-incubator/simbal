@@ -32,7 +32,6 @@ def potential_N_root_uptake(
     -------
     potential_N_root_uptake: float
         potential N uptake by roots
-    
     """
     _potential_N_root_uptake = SNU * Nitrate * time_step * root_surface
     print("N root uptake is", _potential_N_root_uptake, "gN")
@@ -76,7 +75,6 @@ def N_potential_root_demand(
     -------
     _N_potential_root_demand: float
         N root potential demand in gN
-
     """
     _N_potential_root_demand = _delta_volume * Ndensity
     print("N potential root demand is", _N_potential_root_demand, "gN")
@@ -109,8 +107,7 @@ def N_potential_plant_offer(
 
 #Light Budget
 def leaf_actual_surface(
-    above,
-    vid):
+    above, vid):
     """
     Calculation of the mtg leaf surface 
 
@@ -122,31 +119,31 @@ def leaf_actual_surface(
     
     Returns
     -------
-    _leaf_actual_surface : float
-        leaf surface
+    _plant_actual_surface : float
+       total shoot surface
     """
     g = above
     max_scale = g.max_scale()
     length = g.property('length')
     radius = g.property('radius')
+
     def _leaf_actual_surface(vid):
         dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
         return dS
     
     leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
-    _leaf_actual_surface = sum(_leaf_actual_surface(vid) for vid in leaves)
-    return _leaf_actual_surface
-
+    _plant_actual_surface = sum(_leaf_actual_surface(vid) for vid in leaves)
+    return _plant_actual_surface
 
 def photosynthetic_leaf_surface(
-    leaf_actual_surface: float, 
+    dS: float, 
     leaf_necrotic_surface: float):
     """
     Calculation of the photosynthetic leaf area (m2) 
 
     Parameters
     ----------
-    leaf_actual_surface: float
+    dS: float
         leaf area in m2
     leaf_necrotic_surface: float
         necrose area in m2
@@ -155,9 +152,8 @@ def photosynthetic_leaf_surface(
     -------
     _potential_photosynthetic_leaf_surface: float
         potential leaf area in m2
-    
     """
-    _photosynthetic_leaf_surface =  leaf_actual_surface - leaf_necrotic_surface
+    _photosynthetic_leaf_surface =  dS - leaf_necrotic_surface
     print("potential photosynthetic leaf surface is", _photosynthetic_leaf_surface, "m2")
     return _photosynthetic_leaf_surface
 
@@ -182,28 +178,25 @@ def potential_leaf_light_interception(
     -------
     _potential_leaf_light_interception: float
         MJ.m-2
-    leaf_PNUE: float
-        PNUE = Photosynthetic Nitrogen Use efficiency
-
+    
     References
     ----------
     Bertheloot et al. 2008
     """
-    # (Bertheloot et al. 2008)
     _potential_leaf_light_interception = k*Light*exp(-k*_photosynthetic_leaf_surface)
     
     return  _potential_leaf_light_interception
 
 
 def leaf_photosynthesis(
-    _leaf_intercepted_PAR: float, 
+    _potential_leaf_light_interception: float, 
     RUE: float):
     """ Transform radiation intercepted into biomass by the leaf
 
     Parameters
     ----------
 
-    leaf_intercepted_PAR: float
+    _potential_leaf_light_interception: float
         intercepted PAR by the plant
     RUE: float
         Radiation use efficiency
@@ -214,9 +207,8 @@ def leaf_photosynthesis(
         producted C
     rejacted_C: float
         CO2 rejacted by photosynthesis
-     
     """
-    _leaf_producted_biomass = RUE * _leaf_intercepted_PAR
+    _leaf_producted_biomass = RUE * _potential_leaf_light_interception
     return _leaf_producted_biomass
 
 
@@ -251,7 +243,7 @@ def leaf_N_potential_offer(
         for lid in leaves
     )
     
-    # TODO : define the intial properties once in an init funvtion?
+    # TODO : define the initial properties once in an init function?
     g.properties().setdefault('leaf_N_by_lightunit', {}).update(_leaf_N_potential_offer)
     #g.add_property('leaf_N_by_lightunit')
     #Nps = g.property('leaf_N_by_lightunit')
@@ -277,7 +269,6 @@ def potential_leaf_surface(
     -------
     _potential_leaf_surface: float
         potential leaf area in m2
-    
     """
     _potential_leaf_surface = {}
     for lid in _leaf_N_potential_offer:
@@ -327,7 +318,6 @@ def C_potential_root_demand(
     -------
     _C_potential_root_demand: float
         C root potential demand in gC
-
     """
     _C_potential_root_demand = _delta_volume * Cdensity
     print("C potential root demand is", _C_potential_root_demand, "gC")
@@ -350,7 +340,6 @@ def C_potential_leaf_demand(
     -------
     _C_potential_leaf_demand: float
         C leaves potential demand in gC
-    
     """
     _C_potential_leaf_demand = _potential_leaf_surface * Cdensity
     print("C potential leaf demand is", _C_potential_leaf_demand, "gC")
@@ -366,8 +355,7 @@ def C_potential_leaf_offer(
     Parameters
     ----------
     leaf_producted_biomass: float
-        quantity of producted carbon biomass 
-        
+        quantity of producted carbon biomass    
     _C_respiration: 
        C respiration cost 
 
@@ -375,7 +363,6 @@ def C_potential_leaf_offer(
     -------
     _C_potential_leaf_offer:
         Available carbon in the whole plant
-
     """
     _C_potential_leaf_offer = _leaf_producted_biomass - _C_respiration
     print("C available to the leaf is", _C_potential_leaf_offer, "gC")
@@ -383,47 +370,232 @@ def C_potential_leaf_offer(
 
 
 
-#Turnover Budget
-
+##Turnover Budget
 # internal functions
-def C_actual_uptake_import(
-    _C_source_offer,
-    dC):
+def leaf_statut(
+    _C_potential_leaf_offer: float,
+    _C_potential_leaf_demand: float):
+    """
+    Evaluation of the leaf state to determinate his value (weigth) in the pool 
+    
+    Parameters
+    ----------
+    _C_potential_leaf_offer: float
+        Available carbon in the whole plant    
+    _C_potential_leaf_demand: 
+       C leaves potential demand in gC 
 
-    dA = dC + _C_source_offer
-    if dA < 0:
-        storage = 0
+    Returns
+    -------
+    growth : bool
+        growth state
+    sink : bool
+        organe state
+    source : bool
+        organe state
+    storage : bool
+        C storage value
+    dC : float
+        Carbon deficit in the leaf
+    """
+    dC = _C_potential_leaf_offer - _C_potential_leaf_demand 
+
+    if dC < 0:
+        storage = False
         growth = False
+        sink = True
+        source = False
+    
+    #if dC == 0:
+        #storage = False
+        #growth = True
+        #sink = False
+        #source = False
+    
     else:
+        storage = True
         growth = True
-    return growth
+        sink = False
+        source = True
 
-def leaf_senescence(
+    return growth, sink, source, storage, dC
+
+ 
+def C_pool_budget(
     _C_potential_leaf_offer,
-    _leaf_N_potential_offer,
-    _C_sink_demand,
-    _N_sink_demand,
     w):
+    """
+    Available C in the plant
+    
+    Parameters
+    ----------
+    _C_potential_leaf_offer : float
+        Available carbon in the leaf  
+    _leaf_N_potential_offer : float
+        leaf potential N offer in gN
+    w : float
+        leaf ponderation in the pool
 
-    _C_source_offer = w*_C_potential_leaf_offer*_C_sink_demand
-    _N_source_offer = w*_leaf_N_potential_offer*_N_sink_demand
-    if _C_source_offer <= 0 :
-        leaf_fall = True
+    Returns
+    -------
+    _C_pool_offer : float
+        Total C available in the plant
+    empty : bool
+        pool state
+    dA : float
+        Carbon deficit after pool budget
+    """
+    #source = leaf_statut()
+    dC = leaf_statut()
 
-    if _N_source_offer <= 0 :
-        leaf_fall = True
+    #if source = True
+    
+    #w =#pondération 
+    _C_pool_offer = 00  #_C_potential_leaf_offer #pondération feuilles sources selon PAR le plus élevé
+    _C_leaf_export = w * _C_pool_offer #update
+
+    if _C_pool_offer == 0 :
+        empty = True
 
     else :
-        leaf_fall = False
+        empty = False
+        dA = dC + _C_pool_offer
     
-    return _C_source_offer, _N_source_offer, leaf_fall
+    return _C_pool_offer, _C_leaf_export, empty, dA
 
 
-def C_actual_uptake(
+def C_exportation_budget(
+    _C_potential_leaf_offer,
+    _C_leaf_export):
+
+    _C_leaf_actual_content = _C_potential_leaf_offer - _C_leaf_export#update feuilles sources
+
+    return _C_leaf_actual_content
+
+
+def C_importation_budget(
+    _C_potential_leaf_demand,
+    _C_potential_leaf_offer,
+    _leaf_N_potential_offer,
+    dC, w):
+    """
+    Evaluation of the stress (deficit) after importation 
+    
+    Parameters
+    ----------
+    _C_potential_leaf_demand: float
+        C leaves potential demand in gC
+    _C_potential_leaf_offer : float
+        Available carbon in the whole plant    
+    _leaf_N_potential_offer : float
+        leaf potential N demand in gN
+    dC : float
+         Carbon deficit in the leaf
+    w : float
+        leaf weigth in the pool according to his PAR and statut
+
+    Returns
+    -------
+    stress : bool
+        stress (nutrient deficit) state
+    _C_actual_deficit : float
+        Final deficit after importation
+    _C_actual_uptake : float
+        Final imported carbon quantity
+    storage : float
+        C storage value
+    growth : bool
+        growth state
+    senescence_initiation : bool
+        senescence initiation indicator
+    """
+    dA = C_pool_budget(
+        _C_potential_leaf_offer,
+        _leaf_N_potential_offer,
+        w, dC)
+
+    if dA < 0 :
+        stress = True
+        _C_actual_deficit = dA 
+        storage = 0
+        growth = False
+        senescence_initiation = True
+
+    else :
+        stress = False
+        _C_actual_uptake = _C_potential_leaf_demand
+        storage = dA
+        growth = True
+
+    return stress, _C_actual_deficit, _C_actual_uptake, storage, growth, senescence_initiation
+
+
+def leaf_senescence(above, vid,
+    _N_potential_plant_offer,
+    _plant_actual_surface,
+    _C_potential_leaf_offer,
+    _leaf_N_potential_offer,
+    dS, w):
+
+    #sink = leaf_statut()
+    #if not sink : initatiation de la feuille avec le PAR le moins élevé
+    #update g.property senescence
+    #if feuille senescente
+    senescence_stage = True
+    N_remobilisation = True
+
+    _C_leaf_export = C_pool_budget(
+        _C_potential_leaf_offer,
+        w)
+
+    _N_senescence_threshold = _N_leaf_actual_content
+    _C_senescence_threshold = _C_potential_leaf_offer - _C_leaf_export
+
+    g = above
+    max_scale = g.max_scale()
+    
+    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
+
+    _N_leaf_actual_content = dict(
+        (vid, (_N_potential_plant_offer / _plant_actual_surface)*dS(vid))
+        for vid in leaves
+    )
+
+    _N_pool_offer = sum(_N_leaf_actual_content(vid) for vid in leaves)# des feuilles en sénescence
+
+    _N_plant_demand = sum(_N_leaf_actual_content(vid) - _leaf_N_potential_offer(vid) for vid in leaves)# des feuilles puits
+
+    _N_plant_hunger = _N_pool_offer - _N_plant_demand
+
+    if _N_plant_hunger > 0 :
+       
+        _N_remobilized = _N_plant_demand
+       
+        _N_leaf_remobilized = (w * _N_remobilized)# feuille sénescence w le plus élevé selon PAR élevé
+
+        _N_leaf_actual_content = _leaf_N_potential_offer #update feuille puit
+        
+        _N_leaf_actual_content = _N_leaf_actual_content -_N_leaf_remobilized #update feuille senescent
+
+    else :
+        N_stress = True
+        _N_remobilized = _N_pool_offer
+
+        leaf_fall = True#update property senescent = leaf_fall
+        _N_leaf_fall = _N_leaf_actual_content
+
+        _N_leaf_actual_content = _N_leaf_actual_content + (w * _N_remobilized)# pondération des feuilles puits selon PAR le plus élevé
+       
+    return senescence_stage, N_remobilisation, _N_senescence_threshold, _C_senescence_threshold, _N_plant_hunger, _N_remobilized, leaf_fall, N_stress, _N_leaf_actual_content, _N_leaf_fall
+
+
+#main function
+def turnover_budget(
     g, vid: int,
      _C_potential_leaf_offer: float,
-     _C_potential_leaf_demand: float): 
-
+     _leaf_N_potential_offer: float,
+     _C_potential_leaf_demand: float,
+     w): 
     """
     Calculation of the actual growth by stress of the leaf
     
@@ -431,58 +603,92 @@ def C_actual_uptake(
     ----------
     _C_potential_leaf_demand:
         Actual necessary carbon for the plant development
-     _C_actual_uptake:
-
+     _C_actual_uptake : float
+        Final imported carbon quantity
     g :
         MTG
-
     vid :
         Vertices id
 
     Returns
     -------
-    dC:
-        Actual necessary carbon for the plant development
-     _C_actual_uptake:
-
-    storage:
-
-    growth:
-
+    senescence_initiation : bool
+        senescence initiation indicator
+    senescence_threshold = bool
+        senescence threshold indicator
+    leaf_fall : bool
+        viable or non viable state
+    stress : bool
+        stress (nutrient deficit) state
+    _C_actual_uptake : float
+        Final imported carbon quantity
+    growth : bool
+        growth state
+    empty : bool
+        pool state
+    source : bool
+        organe state
+    storage : float
+        C storage value
     """  
-    dC = _C_potential_leaf_offer - _C_potential_leaf_demand 
-    if dC < 0 :
-        _C_actual_uptake = dC 
-        storage = 0
+    growth = leaf_statut(
+        _C_potential_leaf_offer,
+        _C_potential_leaf_demand)
 
-        growth = C_actual_uptake_import(
-                    _C_source_offer,
-                    dC)
-
-        if not growth:
-            _C_source_offer, _N_source_offer, leaf_fall= leaf_senescence(
+    if not growth:
+            empty = C_pool_budget(
                 _C_potential_leaf_offer,
                 _leaf_N_potential_offer,
-                _C_sink_demand,
-                _N_sink_demand,
                 w)
 
-        else : # growth == True
-            storage = dA
+            if not empty:
+
+                stress = C_importation_budget()
+
+                if not stress:
+                    _C_actual_uptake = _C_potential_leaf_demand
+
+                else:
+                  senescence_initiation = True
+                  _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall = leaf_senescence()
+
+                return senescence_initiation, _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall  
+
+            else : # empty == True
+                senescence_initiation = True
+                _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall = leaf_senescence()
+
+            return stress, _C_actual_uptake, senescence_initiation, _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall
+    
+    else : # growth == True
+            source, storage = leaf_statut(
+                _C_potential_leaf_offer,
+                _C_potential_leaf_demand)
+            
             _C_actual_uptake = _C_potential_leaf_demand
-        
-    else :
-        _C_actual_uptake = _C_potential_leaf_demand
-        storage = dC
-        growth = True
 
-    return _C_actual_uptake, growth
-    
-    
+    return growth, empty,_N_senescence_threshold, _C_senescence_threshold, source, storage, _C_actual_uptake
+
+            
+                
+                
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+   
 
 
 
