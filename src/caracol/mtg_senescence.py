@@ -2,7 +2,7 @@
 
 #MTG
 from openalea.mtg import MTG, fat_mtg
-from plant_mtg import Plant
+from .plant_mtg import Plant
 
 class PlantScenario(Plant):
     """ Define a plant as an above and below ground MTG.

@@ -28,12 +28,12 @@ def init_scenario1_HLHN(
     H1  C and N distribution drive by light
     H2  Senescence initiation by Cand N threshold
     """
-
-    above = mtg_senescence.init_above_mtg()
-    below = mtg_senescence.init_below_mtg()
+    scenario = mtg_senescence.PlantScenario
+    above = scenario.init_above_mtg()
+    below = scenario.init_below_mtg()
     
     leaves = [vid for vid in above.vertices(scale=4) if above.label(vid) =='Leaf']
-    segs = [vid for vid in below.vertices(scale=3) if below.label(vid) =='Root']
+    segs = [vid for vid in below.vertices(scale=2) if below.label(vid) =='Root']
 
     for vid in leaves: 
         nid = above.node(vid)
@@ -42,10 +42,11 @@ def init_scenario1_HLHN(
         nid.C = C
         nid.Surface = Surface
 
-
+    # TODO: segs are the root. To modify and rename
     for vid in segs: 
         nid = below.node(vid)
         nid.Nitrate = Nitrate
+        # Note : Length is wrong here for the full RSA
         nid.Length = Length
 
 

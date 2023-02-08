@@ -26,3 +26,7 @@ Reconstruct in 3D the plants' geometry
 ## Environment
 
 Compute light interception and soil N content
+
+## Senescence
+
+Algorithm
