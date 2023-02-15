@@ -374,14 +374,20 @@ def C_potential_leaf_offer(
 
 ##Turnover Budget
 # internal functions
-def leaf_statut(
+def leaf_status(
+    g,
+    vid: int,
     C_potential_leaf_offer: float,
     C_potential_leaf_demand: float):
     """
-    Evaluation of the leaf state to determinate his value (weigth) in the pool 
+    Evaluation of the leaf state to compute his value (weigth) in the pool 
     
     Parameters
     ----------
+    g: MTG
+        the above part
+    vid : int
+        leaf id in g
     C_potential_leaf_offer: float
         Available carbon in the whole plant    
     C_potential_leaf_demand: 
@@ -389,6 +395,12 @@ def leaf_statut(
 
     Returns
     -------
+
+    dC : float
+        Carbon deficit in the leaf
+
+    State Variables (on MTG)
+    ------------------------
     growth : bool
         growth state
     sink : bool
@@ -397,8 +409,7 @@ def leaf_statut(
         organe state
     storage : bool
         C storage value
-    dC : float
-        Carbon deficit in the leaf
+
     """
     dC = C_potential_leaf_offer - C_potential_leaf_demand 
 
@@ -420,8 +431,19 @@ def leaf_statut(
         sink = False
         source = True
 
-    return growth, sink, source, storage, dC
+    leaf = g.node(vid)
+    leaf.growth = growth
+    leaf.sink = sink
+    leaf.source = source
+    leaf.storage = storage
 
+    return dC
+
+
+def C_production_by_leaf(
+    g, 
+    vid: int):
+    pass
  
 def C_pool_budget(
     C_potential_leaf_offer,

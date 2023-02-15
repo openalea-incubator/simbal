@@ -2,12 +2,20 @@
 
 ## Parameters
 
-Create a file to read/write the parameters needed for the simulation.
+- Create a file to read/write the parameters needed for the simulation.
 With default values and unit (see walter?).
+
+- Separate the definition of parameters from the code.
+    * in a parameter file (resp. openalea)
+    * in a test, explicitly in python
+    * in visualea, in a given workflow
+
+### Basic
+- Set the parameters directly in a test.
 
 ## Architecture
 
-Define the global representation of several plants (a list) with an above and below ground part.
+Define global simulation programs of several plant architectures (various varieties) (a list) with an above and below ground part.
 Each part is represented as an MTG. But may have different scale and properties for the above and below ground part.
 As well as for between plants.
 
@@ -29,11 +37,14 @@ Compute light interception and soil N content
 
 ## Senescence
 
-Algorithm
+### Algorithm
+
+**TDOD** : translate in english
 
 Internal function :
 
-- Je détermine l'état de chaque feuille du MTG et je leurs attribue des propriétés ;
+- function: *leaf_status* 
+Détermine l'état de chaque feuille du MTG et je leurs attribue des propriétés ;
 Si teneur en C insuffisante face à la demande --> dC négatif
 alors growth = false
     storage = false
@@ -45,7 +56,8 @@ alors growth = true
     sink = false
     source = true
 
-- Je détermine la participation des feuilles 'source' du MTG au pool C et je met à jour leur propriété teneur en C ;
+- C_offer (photosynthesis)
+Détermine la participation des feuilles 'source' du MTG au pool C et je met à jour leur propriété teneur en C ;
 Plus la lumière interceptée (PAR) de la feuille est élevé, plus son poids est important --> C_leaf_export
 C_leaf_actual_content = C__potential_leaf_offer - C_leaf_export
 
