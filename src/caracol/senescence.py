@@ -7,8 +7,7 @@ Created on Tue Nov 22 10:44:53 2022
 
 from math import (exp, pi)
 
-
-#Nitrogen Budget
+#Nitrogen plant budget
 def potential_N_root_uptake(
     root_surface: float, 
     Nitrate: float, 
@@ -25,17 +24,17 @@ def potential_N_root_uptake(
         N quantity in soil in gN
     time_step: float
         time step of the simulation in day
-    SNU:
-
+    SNU: float
+        ?????
 
     Returns
     -------
     potential_N_root_uptake: float
         potential N uptake by roots
     """
-    _potential_N_root_uptake = SNU * Nitrate * time_step * root_surface
-    print("N root uptake is", _potential_N_root_uptake, "gN")
-    return _potential_N_root_uptake
+    potential_N_root_uptake = SNU * Nitrate * time_step * root_surface
+
+    return potential_N_root_uptake
 
 
 def N_potential_offer(
@@ -45,7 +44,7 @@ def N_potential_offer(
     
     Parameters
     ----------
-    _potential_N_root_uptake: float
+    N_potential_root_uptake: float
         N uptake by roots (in g)   
 
     Returns
@@ -53,9 +52,9 @@ def N_potential_offer(
     N_potential_offer: float
         N potential offer to the plant in gN
     """
-    _N_potential_offer = N_potential_root_uptake 
-    print("N available to the whole plant is", _N_potential_offer, "gN")
-    return _N_potential_offer
+    N_potential_shoot_offer = N_potential_root_uptake 
+    
+    return N_potential_shoot_offer
 
 
 def N_potential_root_demand(
@@ -76,9 +75,9 @@ def N_potential_root_demand(
     N_potential_root_demand: float
         N root potential demand in gN
     """
-    _N_potential_root_demand = delta_volume * N_density
-    print("N potential root demand is", _N_potential_root_demand, "gN")
-    return _N_potential_root_demand
+    N_potential_root_demand = delta_volume * N_density
+
+    return N_potential_root_demand
 
 
 def N_potential_plant_offer(
@@ -97,288 +96,468 @@ def N_potential_plant_offer(
     Returns
     -------
     N_potential_plant_offer: float
-        N shoot potential demand in gN
+        N shoot potential offer in gN
     """
-    _N_potential_plant_offer = N_potential_shoot_offer - N_potential_root_demand
-    print("N potential shoot demand is", _N_potential_plant_offer, "gN")
-    return _N_potential_plant_offer
+    N_potential_plant_offer = N_potential_shoot_offer - N_potential_root_demand
+    
+    return N_potential_plant_offer
 
 
 
-#Light Budget
-def leaf_actual_surface(
-    above, vid):
+#Light leaf budget
+def leaf_area(g, time_step):
     """
     Calculation of the mtg leaf surface 
 
     Parameters
     ----------
-    above :
-    length:
-    radius:
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
     
     Returns
     -------
-    _plant_actual_surface : float
-       total shoot surface
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    length : float
+    radius : float
+    area : float
+        leaf surface acording to length and radius
     """
-    g = above
     max_scale = g.max_scale()
+
     length = g.property('length')
     radius = g.property('radius')
 
-    def _leaf_actual_surface(vid):
-        dS = 2 * pi * length.get(vid,0)  * radius.get(vid,0)
-        return dS
-    
-    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
-    _plant_actual_surface = sum(_leaf_actual_surface(vid) for vid in leaves)
-    return _plant_actual_surface
+    for i in range(time_step):
 
-def photosynthetic_leaf_surface(
-    leaf_surface: float, 
-    leaf_necrotic_surface: float):
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive :
+            l.area = 2 * pi * l.length  * l.radius
+    
+    return g
+    
+
+def photosynthetic_leaf_area(g, time_step):
     """
     Calculation of the photosynthetic leaf area (m2) 
 
     Parameters
     ----------
-    leaf_surface: float
-        leaf area in m2
-    leaf_necrotic_surface: float
-        necrose area in m2
-
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+    
     Returns
     -------
-    potential_photosynthetic_leaf_surface: float
-        potential leaf area in m2
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    area : float
+        leaf surface acording to length and radius
+    necrotic_area : float
+        non photosynthetic leaf area
+    photosynthetic_area : float
+        green leaf area
     """
-    _photosynthetic_leaf_surface =  leaf_surface - leaf_necrotic_surface
-    print("potential photosynthetic leaf surface is", _photosynthetic_leaf_surface, "m2")
-    return _photosynthetic_leaf_surface
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.photosynthetic_area = l.area - l.necrotic_area
+
+    return g
 
 
-def potential_leaf_light_interception(
-    photosynthetic_leaf_surface: float,
+def potential_leaf_PAR(g, time_step,
     k: int,
-    Light: int):
+    Light: float):
     """
     Intercepted light by the leaf
 
     Parameters
     ----------
-    photosynthetic_leaf_surface : float
-        leaf surface
-    k: int
-        extinction coefficient
-    Light : int
-        global incident light
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
     
     Returns
     -------
-    potential_leaf_light_interception: float
-        MJ.m-2
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    photosynthetic_area : float
+        green leaf area
+    PAR : float
+        leaf intercepted light 
     
     References
     ----------
     Bertheloot et al. 2008
     """
-    _potential_leaf_light_interception = k * Light * exp(-k * photosynthetic_leaf_surface)
-    
-    return  _potential_leaf_light_interception
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.PAR = k * Light * exp(-k * l.photosynthetic_area)
+  
+    return  g
 
 
-def leaf_photosynthesis(
-    potential_leaf_light_interception: float, 
+def leaf_photosynthesis(g, time_step,
     RUE: float):
     """ Transform radiation intercepted into biomass by the leaf
 
-    Parameters
+   Parameters
     ----------
-
-    potential_leaf_light_interception: float
-        intercepted PAR by the plant
-    RUE: float
-        Radiation use efficiency
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+    RUE : float
+        ?????   
     
     Returns
     -------
-    leaf_producted_biomass: float
-        producted C
-    rejacted_C: float
-        CO2 rejacted by photosynthesis
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    PAR : float
+        leaf intercepted light
+    C_producted : float
+        leaf producted biomass by photosynthesis 
     """
-    _leaf_producted_biomass = RUE * potential_leaf_light_interception
-    return _leaf_producted_biomass
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.C_producted = RUE * l.PAR
+
+    return g
 
 
-def leaf_N_potential_offer(
-    g,
-    N_potential_plant_offer: float,
-    Light: float,
-    potential_leaf_light_interception: float
-    ):
+def leaf_N_potential_offer(g, time_step,
+    N_potential_plant_offer):
     """
     Calculation of leaves N potential demand (in gN) in function of the N by light unit necessary
 
     Parameters
     ----------
     g : MTG
-        Shoot/above architecture
-    N_potential_plant_offer: float
+        the above part
+    time_step : int
+        Time scale (day)
+    N_potential_plant_offer : float
         N shoot potential offer in gN
-    Light : float
-        global incident light
-    potential_leaf_light_interception: float
-        leaf incident light
-    
+
     Returns
     -------
-    N_leaf_potential_offer: float
-        N leaf potential offer in gN
+    g : MTG
+        the above part
+    PAR_total : float
+        total leaves PAR
+    plant_N_by_lightunit : float
+        nitrogen light use efficiency ?
+
+    State Variables (on MTG)
+    ------------------------
+    PAR : float
+        leaf intercepted light
+    N_potential_offer : float
+        nitrogen potential leaf offer
     """
     max_scale = g.max_scale()
-    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
-    _plant_N_by_lightunit = N_potential_plant_offer / Light
-    _leaf_N_potential_offer = dict(
-        (lid, _plant_N_by_lightunit * potential_leaf_light_interception[lid]) 
-        for lid in leaves
-    )
-    
-    # TODO : define the initial properties once in an init function?
-    g.properties().setdefault('leaf_N_by_lightunit', {}).update(_leaf_N_potential_offer)
-    #g.add_property('leaf_N_by_lightunit')
-    #Nps = g.property('leaf_N_by_lightunit')
-    #Nps.update(_leaf_N_potential_offer)
 
-    return _leaf_N_potential_offer, _plant_N_by_lightunit
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        PAR_total = sum(l.PAR for l in leaves)
+
+        plant_N_by_lightunit = N_potential_plant_offer / PAR_total
+
+        for l in alive:
+            l.N_potential_offer = plant_N_by_lightunit * l.PAR
+   
+
+    return g, PAR_total, plant_N_by_lightunit
 
 
-def potential_leaf_surface(
-    N_leaf_potential_offer: dict, 
-    coef_N_leaf_surface: float):
+def potential_leaf_surface(g, time_step):
     """
     Calculation of potential formed leaf area  (cm2) in function of potential N leaf offer (gN) and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
 
     Parameters
     ----------
-    N_leaf_potential_offer: dict
-        leaf potential N demand in gN
-    coef_N_leaf_surface: float
-        coefficient between leaf area and leaf N quantity in m2.g-1
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
 
     Returns
     -------
-    _potential_leaf_surface: dict
-        potential leaf area in m2
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    N : float
+        nitrogen leaf content
+    area : float
+        leaf surface
+    area_by_Nunit : float
+        surface nitogen use efficiency ?
+    N_potential_offer : float
+        nitrogen potential leaf offer
+    potential_area : float
+        potential leaf surface
     """
-    _potential_leaf_surface = {}
-    for lid in N_leaf_potential_offer:
-        _potential_leaf_surface[lid] = coef_N_leaf_surface * N_leaf_potential_offer[lid] 
-    print("potential leaf surface is", _potential_leaf_surface, "cm2")
-    return _potential_leaf_surface
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.area_by_Nunit = l.area / l.N
+            l.potential_area = l.area_by_Nunit * l.N_potential_offer
+        
+    return g
+
+def potential_leaf_light_interception(g, time_step,
+    k: int,
+    Light: float):
+    """
+    Intercepted light by the leaf
+
+   Parameters
+    ----------
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+    k: int
+        extinction coefficient
+    Light : int
+        global incident light
+
+    Returns
+    -------
+    g : MTG
+        the above part
+    
+    State Variables (on MTG)
+    ------------------------
+    potential_area : float
+        potential leaf surface
+    PAR_potential : float
+        potential leaf intercepted light
+    
+    References
+    ----------
+    Bertheloot et al. 2008
+    """
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.PAR_potential = k * Light * exp(-k * l.potential_area)
+  
+    return  g
 
 
-def FSPM_Allirand_law(
-    N_leaf_potential_offer,
-    potential_leaf_light_interception):
+def leaf_potential_photosynthesis(g, time_step,
+    RUE: float):
+    """ Transform radiation intercepted into biomass by the leaf
+
+    Parameters
+    ----------
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+    RUE : float
+        radiation use efficiency ?
+
+    Returns
+    -------
+    g : MTG
+        the above part
+    
+    State Variables (on MTG)
+    ------------------------
+    PAR_potential : float
+        potential leaf intercepted light
+    C_potential_producted : float
+        potential leaf producted biomass
+    
+    """
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.C_potential_producted = RUE * l.PAR_potential
+
+    return g
+
+
+def FSPM_Allirand_law(g, time_step):
     """
     Allirand law ; relationship between the light intercepted by the leaf and the nitrogen content
 
     Parameters
     ----------
-    _N_potential_leaf_offer: float
-        N leaf potential offer in gN
-    _potential_leaf_light_interception : float
-        in MJ.cm-2
-    
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+
     Returns
     -------
-    FSPM_Allirand_cst: float
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    PAR_potential : float
+        potential leaf intercepted light
+    N_potential_offer : float
+        nitrogen potential leaf offer
+    FSPM_Allirand : float
         relationship between the light intercepted by the leaf and the nitrogen content
     """
-    _FSPM_Allirand_cst = potential_leaf_light_interception * N_leaf_potential_offer
-    return _FSPM_Allirand_cst
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.FSPM_Allirand = l.PAR_potential * l.N_potential
+
+    return g
 
 
 
-#Carbon Budget
-def C_potential_root_demand(
-    _delta_volume: float, 
-    Cdensity: int):
-    """
-    Calculation of C potential root demand (in gC) in function of the root segment volume and root C density
-
-    Parameters
-    ----------
-    delta_volume: float
-        potential increase of root volume in cm3
-    Cdensity: float
-        C root density in gC.m-3
-    
-    Returns
-    -------
-    _C_potential_root_demand: float
-        C root potential demand in gC
-    """
-    _C_potential_root_demand = _delta_volume * Cdensity
-    print("C potential root demand is", _C_potential_root_demand, "gC")
-    return _C_potential_root_demand
-
-def C_potential_leaf_demand(
-    _potential_leaf_surface: float,
-    Cdensity: float):
+#Carbon leaf budget
+def C_potential_leaf_demand(g, time_step):
     """
     Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
     
     Parameters
     ----------
-    _potential_leaf_surface: float
-        potential formed area in m2
-    Cdensity: float
-        C shoot density in gC.cm-2
-    
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
+
     Returns
     -------
-    _C_potential_leaf_demand: float
-        C leaves potential demand in gC
+    g : MTG
+        the above part
+    
+    State Variables (on MTG)
+    ------------------------
+    area : float
+        leaf surface
+    potential_are : flooat
+        potential leaf surface
+    C_by_areaunit : float
+        carbon surface use efficiency ?
+    C_potential_demand : float
+        leaf potential carbon demand
     """
-    _C_potential_leaf_demand = _potential_leaf_surface * Cdensity
-    print("C potential leaf demand is", _C_potential_leaf_demand, "gC")
-    return _C_potential_leaf_demand
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.C_by_areaunit = l.C / l.area
+            l.C_potential_demand = l.C_by_areaunit * l.potential_area
+        
+    return g
 
 
-def C_potential_leaf_offer(
-    _leaf_producted_biomass: float,
-    _C_respiration: float):
+def C_potential_leaf_offer(g, time_step):
     """
     Calculation of C available to the leaf (in gC), in function of C uptake (in gC) 
     
     Parameters
     ----------
-    leaf_producted_biomass: float
-        quantity of producted carbon biomass    
-    _C_respiration: 
-       C respiration cost 
+    g : MTG
+        the above part
+    time_step : int
+        Time scale (day)
 
     Returns
     -------
-    _C_potential_leaf_offer:
-        Available carbon in the whole plant
+    g : MTG
+        the above part
+    
+    State Variables (on MTG)
+    ------------------------
+    C_producted : float
+        leaf producted biomass
+    C_potential_offer : float
+        leaf potential carbon offer
     """
-    _C_potential_leaf_offer = _leaf_producted_biomass - _C_respiration
-    print("C available to the leaf is", _C_potential_leaf_offer, "gC")
-    return _C_potential_leaf_offer
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+
+        for l in alive:
+            l.C_potential_offer = l.C_producted - l.C_respiration         
+
+    return g
 
 
 
 ##Turnover Budget
 # internal functions
-def leaf_status(
-    g,
-    vid: int,
-    C_potential_leaf_offer: float,
-    C_potential_leaf_demand: float):
+def leaf_status(g, time_step):
     """
     Evaluation of the leaf state to compute his value (weigth) in the pool 
     
@@ -386,21 +565,24 @@ def leaf_status(
     ----------
     g: MTG
         the above part
-    vid : int
-        leaf id in g
-    C_potential_leaf_offer: float
-        Available carbon in the whole plant    
-    C_potential_leaf_demand: 
-       C leaves potential demand in gC 
+    time_step : int
+        Time scale (day)
 
     Returns
     -------
-
-    dC : float
-        Carbon deficit in the leaf
+    g : MTG
+        the above part
 
     State Variables (on MTG)
     ------------------------
+    PAR : float
+        leaf light intercepted
+    C_potential_leaf_offer : float
+        leaf potential C content
+    C_potential_leaf_demand : float
+        leaf potential C demand
+    dC : float
+        C deficit in the leaf
     growth : bool
         growth state
     sink : bool
@@ -409,327 +591,526 @@ def leaf_status(
         organe state
     storage : bool
         C storage value
-
     """
-    dC = C_potential_leaf_offer - C_potential_leaf_demand 
+    max_scale = g.max_scale()
 
-    if dC < 0:
-        storage = False
-        growth = False
-        sink = True
-        source = False
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+
+        for l in leaves :
+            l.dC = l.C_potential_leaf_offer - l.C_potential_leaf_demand
+
+            if l.dC < 0:
+                l.storage = False
+                l.growth = False
+                l.sink = True
+                l.source = False
     
-    elif dC == 0:
-        storage = False
-        growth = True
-        sink = False
-        source = False
-    
-    else:
-        storage = True
-        growth = True
-        sink = False
-        source = True
+            else:
+                l.storage = True
+                l.growth = True
+                l.sink = False
+                l.source = True
 
-    leaf = g.node(vid)
-    leaf.growth = growth
-    leaf.sink = sink
-    leaf.source = source
-    leaf.storage = storage
+        return g
 
-    return dC
-
-
-def C_production_by_leaf(
-    g, 
-    vid: int):
-    pass
  
-def C_pool_budget(
-    C_potential_leaf_offer,
-    w):
+
+def C_pool_budget(g, time_step):
     """
-    Available C in the plant
+    C distribution between leaves acording to their status and value (weight)
     
     Parameters
     ----------
-    C_potential_leaf_offer : float
-        Available carbon in the leaf  
-    w : float
-        leaf ponderation (weight) in the pool for export
+    g: MTG
+        the above part
+    time_step : int
+        Time scale (day)
 
     Returns
     -------
-    C_pool_offer : float
-        Total C available in the plant
-    C_leaf_export : float
-        C exported to other organs    
-    empty : bool
-        pool state
-    dA : float
-        Carbon deficit after pool budget
-    """
-    #source = leaf_statut()
-    dC = leaf_statut()
+    g : MTG
+        the above part
+    pool_C : float
+        C labile available in the plant
+    PAR_total :
+        total light intercepted by the plant
+    C_plant_hunger :
+        C plant stress state
 
-    #if source = True
-    
-    #w =#pondération 
-    _C_pool_offer = C_potential_leaf_offer #weighted leaf sources based on relative PAR
-    _C_leaf_export = w * _C_pool_offer #update
-
-    if _C_pool_offer == 0 :
-        empty = True
-
-    else :
-        empty = False
-        dA = dC + _C_pool_offer
-    
-    return _C_pool_offer, _C_leaf_export, empty, dA
-
-
-def C_exportation_budget(
-    C_potential_leaf_offer,
-    C_leaf_export):
-
-    _C_leaf_actual_content = C_potential_leaf_offer - C_leaf_export#update feuilles sources
-
-    return _C_leaf_actual_content
-
-
-def C_importation_budget(
-    C_potential_leaf_demand,
-    C_potential_leaf_offer,
-    N_potential_leaf_offer,
-    dC, w):
-    """
-    Evaluation of the stress (deficit) after importation 
-    
-    Parameters
-    ----------
-    C_potential_leaf_demand: float
-        C leaves potential demand in gC
-    C_potential_leaf_offer : float
-        Available carbon in the whole plant    
-    N_potential_leaf_offer : float
-        leaf potential N demand in gN
-    dC : float
-         Carbon deficit in the leaf
-    w : float
-        leaf weigth in the pool according to his PAR and statut
-
-    Returns
-    -------
-    stress : bool
-        stress (nutrient deficit) state
-    C_actual_deficit : float
-        Final deficit after importation
-    C_actual_uptake : float
-        Final imported carbon quantity
-    storage : float
-        C storage value
+    State Variables (on MTG)
+    ------------------------
+    sink : bool
+        organe state
+    leaf_fall : bool
+        viability state of the leaf
+    C_storage : float
+        ????
+    C_producted : float
+        leaf producted biomass
+    PAR : float
+        leaf light intercepted
+    weight : float
+        value of the leaf participation to the pool accordint to his PAR
+    C : float
+        leaf carbon content
+    C_exported : float
+        C exported from the source leaf
+    C_imported : float
+        C imported to the sink leaf
+    C_deficit : float
+        leaf C stress
     growth : bool
         growth state
-    senescence_initiation : bool
-        senescence initiation indicator
+    C_potential_demand : float
+        carbon potential leaf demand
     """
-    dA = C_pool_budget(
-        C_potential_leaf_offer,
-        N_potential_leaf_offer,
-        w, dC)
-
-    if dA < 0 :
-        stress = True
-        _C_actual_deficit = dA 
-        storage = 0
-        growth = False
-        senescence_initiation = True
-
-    else :
-        stress = False
-        _C_actual_uptake = C_potential_leaf_demand
-        storage = dA
-        growth = True
-
-    return stress, _C_actual_deficit, _C_actual_uptake, storage, growth, senescence_initiation
-
-
-def leaf_senescence(g, vid,
-    N_potential_plant_offer,
-    plant_actual_surface,
-    C_potential_leaf_offer,
-    N_potential_leaf_offer,
-    dS, w):
-
-    #sink = leaf_statut()
-    #if not sink : initatiation de la feuille avec le PAR le moins élevé
-    #update g.property senescence
-    #if feuille senescente
-    senescence_stage = True
-    N_remobilisation = True
-
-    _C_leaf_export = C_pool_budget(
-        C_potential_leaf_offer,
-        w)
-
-    # TODO : _N_leaf_actual_content is not defined
-    _N_senescence_threshold = _N_leaf_actual_content
-    _C_senescence_threshold = C_potential_leaf_offer - _C_leaf_export
-
-    #g = above
     max_scale = g.max_scale()
+
+    gN = g.property('N')
+    gC = g.property('C')
+
+    for i in range(time_step):
+
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+        sink = [l for l in alive if l.sink]
+
+        pool_C = sum(l.C_storage + l.C_producted for l in alive)
+        PAR_total = sum(l.PAR for l in alive)
+
+        for l in alive :
+            l.weight = l.PAR / PAR_total
+            l.C_exported = pool_C * l.weight
+            gC = l.C - l.C_exported
+
+            if pool_C < 0 :
+                C_plant_hunger = True
+                 
+                for l in sink :
+                    l.weight = l.PAR / PAR_total
+                    l.C_imported = pool_C * l.weight
+                    
+                    l.dC = leaf_status()
+                    l.C_deficit = l.dC + l.C_imported
+
+            else :
+                C_plant_hunger = False
+                
+                for l in sink :
+                    l.growth = True
+                    gC = l.C_potential_demand
+                    
     
-    leaves = [vid for vid in g.vertices(scale=max_scale) if g.label(vid)=='Leaf']
+    return g, pool_C, PAR_total, C_plant_hunger
 
-    leaf_area = g.property('leaf_area')
-    _N_leaf_actual_content = dict(
-        (vid, (N_potential_plant_offer / plant_actual_surface)*leaf_area[vid])
-        for vid in leaves
-    )  
 
-    _N_pool_offer = sum(_N_leaf_actual_content[vid] for vid in leaves)# des feuilles en sénescence
 
-    Np_leaf_offer = g.property('N_potential_leaf_offer')
-    _N_plant_demand = sum(_N_leaf_actual_content[vid] - Np_leaf_offer[vid] for vid in leaves)# des feuilles puits
+def leaf_senescence(g,
+    time_step,
+    N_potential_plant_offer) :
+    """
+    Leaf senescence mecanism and leaf falling
+    
+    Parameters
+    ----------
+    g: MTG
+        the above part
+    time_step : int
+        Time scale (day)
+    N_potential_plant_offer : float
+        plant potential nitrogen content
 
-    _N_plant_hunger = _N_pool_offer - _N_plant_demand
+    Returns
+    -------
+    g : MTG
+        the above part
+    plant_area : float
+        plant total area 
+    PAR_total :
+        total light intercepted by the plant
+    plant_N : float
+        plant nitrogen content
+    pool_N : float
+        senescence leaves nitrogen pool
+    plant_N_by_lightunit : float
+        potential nitrogen quantity by light unit
+    N_plant_demand : float
+        plant nitrogen demand
+    N_plant_deficit : float
+        plant nitrogen deficit
+    N_plant_hunger :
+        N plant stress state
+    N_plant_remobilized : float
+        plant remobilized nitrogen
 
-    if _N_plant_hunger > 0 :
-       
-        _N_remobilized = _N_plant_demand
-       
-        _N_leaf_remobilized = (w * _N_remobilized)# feuille sénescence w le plus élevé selon PAR élevé
+    State Variables (on MTG)
+    ------------------------
+    growth : bool
+        growth state
+    leaf_fall : bool
+        viability state of the leaf
+    senescence : bool
+        leaf development status
+    photosynthetic_area : float
+        photosynthetic leaf surface
+    N_potential_offer : float
+        potential leaf nitrogen content
+    N_deficit : float
+        leaf nitrogen deficit
+    weight : float
+        value of the leaf participation to the pool accordint to his PAR
+    N_exported : float
+        leaf exported nitrogen from the source/senescent leaves to the N pool
+    N : float
+        leaf nitrogen content
+    C : float
+        leaf carbon content
+    N_senescnence_threshold : float
+        leaf senescence initiation nitrogen threshold according to the leaf state (MTG)
+    C_senescnence_threshold : float
+        leaf senescence initiation carbon threshold according to the leaf state (MTG)
+    PAR : float
+        leaf light intercepted
+    """
+    max_scale = g.max_scale()
 
-        _N_leaf_actual_content = _leaf_N_potential_offer #update feuille puit
-        
-        _N_leaf_actual_content = _N_leaf_actual_content -_N_leaf_remobilized #update feuille senescent
+    gN = g.property('N')
+    gC = g.property('C')
 
-    else :
-        N_stress = True
-        _N_remobilized = _N_pool_offer
+    for i in range(time_step):
+    
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+        source = [l for l in alive if l.growth]
+        senescence = [l for l in alive if l.senescence]
 
-        leaf_fall = True#update property senescent = leaf_fall
-        _N_leaf_fall = _N_leaf_actual_content
+        plant_area = sum(l.photosynthetic_area for l in alive)
 
-        _N_leaf_actual_content = _N_leaf_actual_content + (w * _N_remobilized)# pondération des feuilles puits selon PAR le plus élevé
-       
-    return senescence_stage, N_remobilisation, _N_senescence_threshold, _C_senescence_threshold, _N_plant_hunger, _N_remobilized, leaf_fall, N_stress, _N_leaf_actual_content, _N_leaf_fall
+        for l in alive :
+            l.N = (N_potential_plant_offer / plant_area)*l.photosynthetic_area
+
+            plant_N = sum(l.N for l in alive)
+            pool_N = sum(l.N for l in source if l.senescence)
+            PAR_total = leaf_N_potential_offer(g, time_step, N_potential_plant_offer)
+
+            l.N_deficit = l.N - l.N_potential_offer
+
+            N_plant_demand = sum(l.N_deficit for l in alive)
+            N_plant_deficit = pool_N - N_plant_demand
+
+            if N_plant_deficit > 0 :
+                N_plant_hunger = False
+                N_plant_remobilized = N_plant_demand
+
+                for l in senescence :
+                    l.weight = l.PAR / PAR_total
+                    l.N_exported = pool_N * l.weight
+                    gN = l.N - l.N_exported
+                    gC = l.C
+                   
+                for l in alive:
+                    gN = l.N_potential_offer
+                    gC = l.C
+
+            else :
+                N_plant_hunger = True
+
+                alive.sort(key = lambda l:l.PAR)
+
+                for l in alive[0]:
+                    l.senescence = True
+                    l.N_senescence_threshold = l.N
+                    l.C_senescence_threshold = l.C
+
+                    for l in senescence :
+                        l.weight = l.PAR / PAR_total
+                        l.N_exported = pool_N * l.weight
+                        l.N = l.N_senescence_threshold - l.N_exported
+                        l.C = l.C_senescence_threshold
+                        gN = l.N
+                        gC = l.C
+
+                    N_plant_remobilized = sum(l.N_exported for l in senescence)
+
+                    senescence.sort(key = lambda l:l.PAR)
+
+                    for l in senescence[0] : 
+                        l.leaf_fall = True
+                        l.N_leaf_fall = l.N - l.N_exported
+                        l.C_leaf_fall = l.C
+                        gN = l.N_leaf_fall
+                        gC = l.C_leaf_fall
+
+                    survivors = [l for l in alive if not l.leaf_fall]
+
+                    for l in survivors:
+                        l.weight = l.PAR / PAR_total
+                        l.N_imported = pool_N * l.weight 
+                        l.N_deficit = l.N + l.N_imported
+                        gN = l.N_deficit
+
+            return g, plant_area, plant_N, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
 
 
 #main function
-def turnover_budget(
-    g, vid: int,
-    C_potential_leaf_offer: float,
-    C_potential_leaf_demand: float,
-    N_potential_leaf_offer: float,
-    w): 
+def turnover_budget(g, time_step): 
     """
-    Calculation of the actual growth by stress of the leaf
+    Leaf senescence mecanism and leaf falling
     
     Parameters
     ----------
-    g : MTG
-        above MTG
-    vid : int
-        Vertices id
-    C_potential_leaf_offer: float
-        Actual available carbon for the plant development
-    C_potential_leaf_demand: float
-        Actual necessary carbon for the plant development
-    N_potential_leaf_offer : float
-        N potential leaf offer for a given leaf
-    w : float
-        Weight ???
+    g: MTG
+        the above part
+    time_step : int
+        Time scale (day)
 
     Returns
     -------
+    g : MTG
+        the above part
+    C_plant_hunger : float
+        C plant stress state
+    PAR_total :
+        total light intercepted by the plant
+    plant_N : float
+        plant nitrogen content
+    pool_N : float
+        senescence leaves nitrogen pool
+    plant_N_by_lightunit : float
+        potential nitrogen quantity by light unit
+    N_plant_demand : float
+        plant nitrogen demand
+    N_plant_deficit : float
+        plant nitrogen deficit
+    N_plant_hunger :
+        N plant stress state
+    N_plant_remobilized : float
+        plant remobilized nitrogen
     senescence_initiation : bool
-        senescence initiation indicator
-    senescence_threshold = bool
-        senescence threshold indicator
+        scenescence initiation indicator
     leaf_fall : bool
-        viable or non viable state
-    stress : bool
-        stress (nutrient deficit) state
-    _C_actual_uptake : float
-        Final imported carbon quantity
+        leaf falling indicator
+
+    State Variables (on MTG)
+    ------------------------
+    N : float
+        leaf nitrogen content
+    C : float
+        leaf carbon content
+    leaf_fall : bool
+        viability state of the leaf
+    dC : float
+        C deficit in the leaf
     growth : bool
         growth state
-    empty : bool
-        pool state
+    sink : bool
+        organe state
     source : bool
         organe state
-    storage : float
+    storage : bool
         C storage value
-
-    Algorithm
-    ---------
-    Let g be the shoot.
-    1. Query all the leaves that are gowing
-    2. Query all the others
-    3. Is the plant is C stressed
-        * get C available in all organs (C_pool_budget)
-        * distribute depending on w
-    4. Else
-        *  continuer
-
-    """  
-    # TODO : for all leaves
-    growth, sink, source, storage, dC = leaf_statut(
-        C_potential_leaf_offer,
-        C_potential_leaf_demand)
-
-    if not growth:
-        # Missing : g
-        leaf_offer, empty, dA = C_pool_budget(
-            C_potential_leaf_offer,
-            N_potential_leaf_offer,
-            w)
-
-        if not empty:
-
-            stress = C_importation_budget(
-                C_potential_leaf_offer,
-                C_potential_leaf_demand,
-                N_potential_leaf_offer,
-                dC, w)
-                
-
-            if not stress:
-                _C_actual_uptake = _C_potential_leaf_demand
-
-            else:
-                _senescence_initiation = True
-                _N_senescence_threshold, _C_senescence_threshold, _leaf_fall, _N_leaf_fall = leaf_senescence()
-
-            return _senescence_initiation, _N_senescence_threshold, _C_senescence_threshold, _leaf_fall, _N_leaf_fall  
-
-        else : # empty == True
-            _senescence_initiation = True
-            _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall = leaf_senescence()
-
-        return stress, _C_actual_uptake, _senescence_initiation, _N_senescence_threshold, _C_senescence_threshold, leaf_fall, _N_leaf_fall
     
-    else : # growth == True
-        source, storage = leaf_statut(
-            _C_potential_leaf_offer,
-            _C_potential_leaf_demand)
-        
-        _C_actual_uptake = _C_potential_leaf_demand
+    """
+    max_scale = g.max_scale()
 
-    return growth, empty,_N_senescence_threshold, _C_senescence_threshold, source, storage, _C_actual_uptake
+    gN = g.property('N')
+    gC = g.property('C')
+
+    for i in range(time_step):
+    
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]   
+    
+        for l in alive :
+            l.growth, l.sink, l.source, l.storage, l.dC = leaf_status(g, time_step)
+
+            if not l.growth :
+                g, C_plant_hunger = C_pool_budget(g, time_step)
+
+                if C_plant_hunger :
+                    g, plant_area, plant_N, pool_N, plant_N_by_lightunit, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized = leaf_senescence(g, time_step)
+                    senescence_initiation = True
+
+                    if N_plant_hunger:
+                        leaf_fall = True
+
+                    else :
+                        leaf_fall = False
+                
+                else :
+                    senescence_initiation = False
+
+        return g, plant_area, plant_N, pool_N, plant_N_by_lightunit, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized, senescence_initiation, leaf_fall
 
             
+            
                 
-                
+    
 
+##############################################################################################################################
 
+#MODULE SENESCENCE
 
+def leaf_senescence_module(g, time_step):
+    """
+    Leaf senescence mecanism and leaf falling
+    
+    Parameters
+    ----------
+    g: MTG
+        the above part
+    time_step : int
+        Time scale (day)
 
+    Returns
+    -------
+    g : MTG
+        the above part
+    C_plant_hunger : float
+        C plant stress state
+    PAR_total :
+        total light intercepted by the plant
+    plant_N : float
+        plant nitrogen content
+    pool_N : float
+        senescence leaves nitrogen pool
+    plant_N_by_lightunit : float
+        potential nitrogen quantity by light unit
+    N_plant_demand : float
+        plant nitrogen demand
+    N_plant_deficit : float
+        plant nitrogen deficit
+    N_plant_hunger :
+        N plant stress state
+    N_plant_remobilized : float
+        plant remobilized nitrogen
+    senescence_initiation : bool
+        scenescence initiation indicator
+    leaf_fall : bool
+        leaf falling indicator
 
+    State Variables (on MTG)
+    ------------------------
+    N : float
+        leaf nitrogen content
+    C : float
+        leaf carbon content
+    PAR : float
+        leaf light intercepted
+    C_potential : float
+        potential leaf carbon demand
+    dC : float
+        C deficit in the leaf
+    growth : bool
+        growth state
+    sink : bool
+        organe state
+    source : bool
+        organe state
+    storage : bool
+        C storage value
+    leaf_fall : bool
+        viability state of the leaf
+    weight : float
+        value of the leaf participation to the pool accordint to his PAR
+    C_exported : float
+        C exported from the source leaf
+    C_imported : float
+        C imported to the sink leaf
+    C_deficit : float
+        leaf C stress
+    senescence : bool
+        leaf development status
+    area : float
+        leaf area (surface)
+    N_potential : float
+        potential leaf nitrogen content
+    N_deficit : float
+        leaf nitrogen deficit
+    N_exported : float
+        leaf exported nitrogen from the source/senescent leaves to the N pool
+    N_senescnence_threshold : float
+        leaf senescence initiation nitrogen threshold according to the leaf state (MTG)
+    C_senescnence_threshold : float
+        leaf senescence initiation carbon threshold according to the leaf state (MTG)
+    N_leaf_fall : float
+        fall leaf nitrogen content
+    C_leaf_fall : float
+        fall leaf carbon content
+    N_imported : float
+        leaf imported nitrogen from the N pool (senescent leaves)
+    """
+    max_scale = g.max_scale()
 
+    gN = g.property('N')
+    gC = g.property('C')
 
+    for i in range(time_step):
+    
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+        source = [l for l in alive if l.growth]
 
+        plant_N = sum(l.N for l in alive)
+        pool_N = sum(l.N for l in source if l.senescence)
+        PAR_total = sum(l.PAR for l in alive)
+        plant_N_by_lightunit = plant_N / PAR_total
+
+        for l in alive :
+            l.N_potential_offer = plant_N_by_lightunit * l.PAR
+            l.N_deficit = l.N - l.N_potential_offer
+
+            N_plant_demand = sum(l.N_deficit for l in alive)
+            N_plant_deficit = pool_N - N_plant_demand
+
+            if N_plant_deficit > 0 :
+                N_plant_hunger = False
+                N_plant_remobilized = N_plant_demand
+
+                for l in alive:
+                    gN = l.N_potential_offer
+                    gC = l.C
+
+            else :
+                N_plant_hunger = True
+
+                alive.sort(key = lambda l:l.PAR)
+
+                for l in alive[0]:
+                    g.add_property('senescence')
+                    senescence = True
+                    l.N_senescence_threshold = l.N
+                    l.C_senescence_threshold = l.C
+
+                senescence = [l for l in alive if l.senescence]
+
+                for l in senescence :
+                    l.weight = l.PAR / PAR_total
+                    l.N_exported = pool_N * l.weight
+                    l.N_leaf_fall = l.N - l.N_exported
+                    l.C_leaf_fall = l.C
+                    gN = l.N_leaf_fall
+                    gC = l.C_leaf_fall
+
+                N_plant_remobilized = sum(l.N_exported for l in senescence)
+
+                leaf_fall = [l for l in alive if l.senescence]
+
+                for l in leaf_fall :
+                    g.add_property('leaf_fall')
+                    leaf_fall = True
+
+                survivors = [l for l in alive if not l.leaf_fall]
+
+                for l in survivors:
+                    l.weight = l.PAR / PAR_total
+                    l.N_imported = pool_N * l.weight 
+                    l.N_deficit = l.N + l.N_imported
+                    gN = l.N_deficit
+
+            return g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
 
 
 
