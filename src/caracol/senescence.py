@@ -52,9 +52,9 @@ def N_potential_offer(
     N_potential_offer: float
         N potential offer to the plant in gN
     """
-    N_potential_shoot_offer = N_potential_root_uptake 
+    N_potential_plant_offer = N_potential_root_uptake 
     
-    return N_potential_shoot_offer
+    return N_potential_plant_offer
 
 
 def N_potential_root_demand(
@@ -80,8 +80,8 @@ def N_potential_root_demand(
     return N_potential_root_demand
 
 
-def N_potential_plant_offer(
-    N_potential_shoot_offer: float, 
+def N_potential_shoot_offer(
+    N_potential_plant_offer: float, 
     N_potential_root_demand: float):
     """
     Calculation of the potential shoot demand (gN) in function of N available to the plant (gN) and potential root N demand (gN)
@@ -97,10 +97,14 @@ def N_potential_plant_offer(
     -------
     N_potential_plant_offer: float
         N shoot potential offer in gN
-    """
-    N_potential_plant_offer = N_potential_shoot_offer - N_potential_root_demand
     
-    return N_potential_plant_offer
+    Hypothesis
+    ----------
+    H1 Roots take precedence on the nitrogen uptake
+    """
+    N_potential_shoot_offer = N_potential_plant_offer - N_potential_root_demand
+    
+    return N_potential_shoot_offer
 
 
 
@@ -168,6 +172,10 @@ def photosynthetic_leaf_area(g, time_step):
         non photosynthetic leaf area
     photosynthetic_area : float
         green leaf area
+    
+    Hypothesis
+    ----------
+    H2 leaf necrotic surface doesn't have photosynthetic activities anymore
     """
     max_scale = g.max_scale()
 
@@ -205,7 +213,11 @@ def potential_leaf_PAR(g, time_step,
     photosynthetic_area : float
         green leaf area
     PAR : float
-        leaf intercepted light 
+        leaf intercepted light
+
+    Hypothesis
+    ----------
+    H3 The Monteith law is valid at the leaf scale (with MTG)
     
     References
     ----------
@@ -248,6 +260,10 @@ def leaf_photosynthesis(g, time_step,
         leaf intercepted light
     C_producted : float
         leaf producted biomass by photosynthesis 
+    
+    Hypothesis
+    ----------
+    H3 The Monteith law is valid at the leaf scale (with MTG)
     """
     max_scale = g.max_scale()
 
@@ -291,6 +307,10 @@ def leaf_N_potential_offer(g, time_step,
         leaf intercepted light
     N_potential_offer : float
         nitrogen potential leaf offer
+    
+    Hypothesis
+    ----------
+    H4 Nutrient contents and PAR are homogeneous in the leaf area
     """
     max_scale = g.max_scale()
 
@@ -333,11 +353,15 @@ def potential_leaf_surface(g, time_step):
     area : float
         leaf surface
     area_by_Nunit : float
-        surface nitogen use efficiency ?
+        surface nitrogen use efficiency ?
     N_potential_offer : float
         nitrogen potential leaf offer
     potential_area : float
         potential leaf surface
+    
+    Hypothesis
+    ----------
+    H4 Nutrient contents and PAR are homogeneous in the leaf area
     """
     max_scale = g.max_scale()
 
@@ -381,6 +405,10 @@ def potential_leaf_light_interception(g, time_step,
     PAR_potential : float
         potential leaf intercepted light
     
+    Hypothesis
+    ----------
+    H3 The Monteith law is valid at the leaf scale (with MTG) 
+    
     References
     ----------
     Bertheloot et al. 2008
@@ -423,6 +451,9 @@ def leaf_potential_photosynthesis(g, time_step,
     C_potential_producted : float
         potential leaf producted biomass
     
+    Hypothesis
+    ----------
+    H3 The Monteith law is valid at the leaf scale (with MTG)
     """
     max_scale = g.max_scale()
 
@@ -461,6 +492,10 @@ def FSPM_Allirand_law(g, time_step):
         nitrogen potential leaf offer
     FSPM_Allirand : float
         relationship between the light intercepted by the leaf and the nitrogen content
+    
+    Hypothesis
+    ----------
+    H5 The Allirand law is valid at the leaf scale (with MTG)
     """
     max_scale = g.max_scale()
 
@@ -503,6 +538,10 @@ def C_potential_leaf_demand(g, time_step):
         carbon surface use efficiency ?
     C_potential_demand : float
         leaf potential carbon demand
+    
+    Hypothesis
+    ----------
+    H4 Nutrient contents and PAR are homogeneous in the leaf area
     """
     max_scale = g.max_scale()
 
@@ -591,6 +630,10 @@ def leaf_status(g, time_step):
         organe state
     storage : bool
         C storage value
+    
+    Hypothesis
+    ----------
+    H6 A leaf cannot be a source and a sink organ at the same time step
     """
     max_scale = g.max_scale()
 
@@ -665,11 +708,12 @@ def C_pool_budget(g, time_step):
         growth state
     C_potential_demand : float
         carbon potential leaf demand
+    
+    Hypothesis
+    ----------
+    H7 leaf participation to the C pool according to their PAR (higher PAR = greater weight)
     """
     max_scale = g.max_scale()
-
-    gN = g.property('N')
-    gC = g.property('C')
 
     for i in range(time_step):
 
@@ -773,6 +817,11 @@ def leaf_senescence(g,
         leaf senescence initiation carbon threshold according to the leaf state (MTG)
     PAR : float
         leaf light intercepted
+    
+    Hypothesis
+    ----------
+    H8 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
+    H9 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
     """
     max_scale = g.max_scale()
 
@@ -807,8 +856,8 @@ def leaf_senescence(g,
                 for l in senescence :
                     l.weight = l.PAR / PAR_total
                     l.N_exported = pool_N * l.weight
-                    gN = l.N - l.N_exported
-                    gC = l.C
+                    l.N = l.N - l.N_exported
+                    l.C = l.C
                    
                 for l in alive:
                     gN = l.N_potential_offer
@@ -852,10 +901,56 @@ def leaf_senescence(g,
                         gN = l.N_deficit
 
             return g, plant_area, plant_N, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
+        
+        
+def leaf_necrotic_area(g, time_step):
+    """
+    Leaf senescence necrotic surface after N remobilization (yellowing area)
+    
+    Parameters
+    ----------
+    g: MTG
+        the above part
+    time_step : int
+        Time scale (day)
+
+    Returns
+    -------
+    g : MTG
+        the above part
+
+    State Variables (on MTG)
+    ------------------------
+    
+    leaf_fall : bool
+        viability state of the leaf
+    senescence : bool
+        leaf development status
+    area_by_Nunit : float
+        surface nitrogen use efficiency ?
+    N_exported : float
+        leaf exported nitrogen from the source/senescent leaves to the N pool
+    necrotic_area : float
+        leaf necrotic surface
+    """
+   
+    max_scale = g.max_scale()
+
+    for i in range(time_step):
+    
+        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
+        alive = [l for l in leaves if not l.leaf_fall]
+        senescence = [l for l in alive if l.senescence]
+
+        for l in senescence:
+            l.necrotic_area = l.N_exported * l.area_by_Nunit
+
+    return g
+
 
 
 #main function
-def turnover_budget(g, time_step): 
+def turnover_plant_budget(g, time_step): 
     """
     Leaf senescence mecanism and leaf falling
     
@@ -870,8 +965,6 @@ def turnover_budget(g, time_step):
     -------
     g : MTG
         the above part
-    C_plant_hunger : float
-        C plant stress state
     PAR_total :
         total light intercepted by the plant
     plant_N : float
@@ -912,6 +1005,9 @@ def turnover_budget(g, time_step):
     storage : bool
         C storage value
     
+    Hypothesis
+    ----------
+    H10 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
     """
     max_scale = g.max_scale()
 
@@ -931,6 +1027,7 @@ def turnover_budget(g, time_step):
 
                 if C_plant_hunger :
                     g, plant_area, plant_N, pool_N, plant_N_by_lightunit, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized = leaf_senescence(g, time_step)
+                    g = leaf_necrotic_area(g, time_step)
                     senescence_initiation = True
 
                     if N_plant_hunger:
@@ -968,8 +1065,6 @@ def leaf_senescence_module(g, time_step):
     -------
     g : MTG
         the above part
-    C_plant_hunger : float
-        C plant stress state
     PAR_total :
         total light intercepted by the plant
     plant_N : float
@@ -1041,6 +1136,12 @@ def leaf_senescence_module(g, time_step):
         fall leaf carbon content
     N_imported : float
         leaf imported nitrogen from the N pool (senescent leaves)
+    
+    Hypothesis
+    ----------
+    H8 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
+    H9 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
+    H10 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
     """
     max_scale = g.max_scale()
 
