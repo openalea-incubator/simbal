@@ -310,7 +310,15 @@ def leaf_N_potential_offer(g, time_step,
     
     Hypothesis
     ----------
-    H4 Nutrient contents and PAR are homogeneous in the leaf area
+    H4 Nitrogen plant distribution accordind to PAR (light)
+    
+    H5 Nutrient contents and PAR are homogeneous in the leaf area
+
+    References
+    ----------
+    Takashima (2004)
+    Hikosaka (2005)
+    Yasumura (2007)
     """
     max_scale = g.max_scale()
 
@@ -361,7 +369,7 @@ def potential_leaf_surface(g, time_step):
     
     Hypothesis
     ----------
-    H4 Nutrient contents and PAR are homogeneous in the leaf area
+    H5 Nutrient contents and PAR are homogeneous in the leaf area
     """
     max_scale = g.max_scale()
 
@@ -495,7 +503,11 @@ def FSPM_Allirand_law(g, time_step):
     
     Hypothesis
     ----------
-    H5 The Allirand law is valid at the leaf scale (with MTG)
+    H6 The Allirand law is valid at the leaf scale (with MTG)
+
+    References
+    ----------
+    Allirand (2009)
     """
     max_scale = g.max_scale()
 
@@ -541,7 +553,7 @@ def C_potential_leaf_demand(g, time_step):
     
     Hypothesis
     ----------
-    H4 Nutrient contents and PAR are homogeneous in the leaf area
+    H5 Nutrient contents and PAR are homogeneous in the leaf area
     """
     max_scale = g.max_scale()
 
@@ -633,7 +645,14 @@ def leaf_status(g, time_step):
     
     Hypothesis
     ----------
-    H6 A leaf cannot be a source and a sink organ at the same time step
+    H7 Source/sink status according to leaves c stress
+
+    H8 A leaf cannot be a source and a sink organ at the same time step
+
+    References
+    ----------
+    Khudairi (1970)
+    Wingler (2004)
     """
     max_scale = g.max_scale()
 
@@ -711,7 +730,7 @@ def C_pool_budget(g, time_step):
     
     Hypothesis
     ----------
-    H7 leaf participation to the C pool according to their PAR (higher PAR = greater weight)
+    H9 leaf participation to the C pool according to their PAR (higher PAR = greater weight)
     """
     max_scale = g.max_scale()
 
@@ -820,13 +839,16 @@ def leaf_senescence(g,
     
     Hypothesis
     ----------
-    H8 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
-    H9 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
+    H10 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
+
+    H11 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
+
+    References
+    ----------
+    Skulachev (2002)
+    Thomas (2013)
     """
     max_scale = g.max_scale()
-
-    gN = g.property('N')
-    gC = g.property('C')
 
     for i in range(time_step):
     
@@ -1007,12 +1029,14 @@ def turnover_plant_budget(g, time_step):
     
     Hypothesis
     ----------
-    H10 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
+    H12 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
+
+    References
+    ----------
+    Thornley (1998)
+    Kull (2002)
     """
     max_scale = g.max_scale()
-
-    gN = g.property('N')
-    gC = g.property('C')
 
     for i in range(time_step):
     
@@ -1139,14 +1163,36 @@ def leaf_senescence_module(g, time_step):
     
     Hypothesis
     ----------
-    H8 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
-    H9 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
-    H10 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
+    H4 Nitrogen plant distribution accordind to PAR (light)
+
+    H5 Nutrient contents and PAR are homogeneous in the leaf area
+
+    H7 Source/sink status according to leaves c stress
+
+    H8 A leaf cannot be a source and a sink organ at the same time step
+
+    H10 Senescence initiation of leaf choose according to their PAR (lowest PAR = sacrificial leaf) // Samurai law
+
+    H11 Senescent leaf participation to the N pool according to their PAR (higher PAR = greater weight)
+
+    H12 Carbon stress definit nitrogen remobilization necessities (photosynthetic system turnover to optimise the biomass production according to the environmental factors)
+
+    References
+    ----------
+    Takashima (2004)
+    Hikosaka (2005)
+    Yasumura (2007)
+
+    Khudairi (1970)
+    Wingler (2004)
+
+    Skulachev (2002)
+    Thomas (2013)
+
+    Thornley (1998)
+    Kull (2002)
     """
     max_scale = g.max_scale()
-
-    gN = g.property('N')
-    gC = g.property('C')
 
     for i in range(time_step):
     
