@@ -12,14 +12,15 @@ e_amax = 1
 k = 1
 
 
+
 for i in range (n):
 
-    N_potential_shoot_offer = N_potential_shoot_offer(N_potential_plant_offer, N_potential_root_demand)
+    PAR_total,N_pool, N_potential_shoot_offer = N_potential_shoot_offer(N_potential_plant_offer, N_potential_root_demand)
     g = leaf_area(g)
     g = photosynthetic_leaf_area(g)
     g = potential_leaf_PAR(g, k, e_amax)
     g = leaf_photosynthesis(g, RUE)
-    g, PAR_total, plant_N_by_Lightunit = leaf_N_potential_offer(g, N_potential_shoot_offer)
+    g, plant_N_by_Lightunit = leaf_N_potential_offer(g, PAR_total, N_potential_shoot_offer)
     g = potential_leaf_surface(g)
     g = potential_leaf_light_interception(g, k, e_amax)
     g = leaf_potential_photosynthesis(g, RUE)
