@@ -33,7 +33,8 @@ def N_potential_shoot_offer(g,
     max_scale = g.max_scale()
 
     leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
-    alive = [l for l in leaves if not l.leaf_fall]
+    alive = [l for l in leaves if not l.leaf_fall and l.senescence]
+    senescence = [l for l in alive if l.senescence]
 
     N_shoot = N_potential_plant_offer - N_potential_root_demand
     PAR_total = sum(l.PAR for l in leaves)
@@ -42,7 +43,10 @@ def N_potential_shoot_offer(g,
         l.weight = l.PAR / PAR_total
         l.N_available = l.N * l.weight
     
-    N_pool = sum(l.PAR for l in leaves)
+    for l in senescence:
+        l.N_available = l.N
+        
+    N_pool = sum(l.N_available for l in alive) 
     N_potential_shoot_offer = N_shoot + N_pool
     
     return PAR_total,N_pool, N_potential_shoot_offer
@@ -763,8 +767,8 @@ def leaf_senescence(g,
                 l.C = l.C
                    
             for l in alive:
-                gN = l.N_potential_offer
-                gC = l.C
+                l.N = l.N_potential_offer
+                l.C = l.C
 
         else :
             N_plant_hunger = True
@@ -801,7 +805,7 @@ def leaf_senescence(g,
                     l.weight = l.PAR / PAR_total
                     l.N_imported = pool_N * l.weight 
                     l.N_deficit = l.N + l.N_imported
-                    gN = l.N_deficit
+                
 
         return g, plant_area, plant_N, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
         
