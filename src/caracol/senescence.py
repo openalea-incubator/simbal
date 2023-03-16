@@ -7,79 +7,7 @@ Created on Tue Nov 22 10:44:53 2022
 
 from math import (exp, pi)
 
-#Nitrogen plant budget
-def potential_N_root_uptake(
-    root_surface: float, 
-    Nitrate: float, 
-    time_step: int, 
-    SNU: float):
-    """
-    Calculation of N potential uptake by roots
-
-    Parameters
-    ----------
-    root_surface: float
-        root object
-    Nitrate: float
-        N quantity in soil in gN
-    time_step: float
-        time step of the simulation in day
-    SNU: float
-        ?????
-
-    Returns
-    -------
-    potential_N_root_uptake: float
-        potential N uptake by roots
-    """
-    potential_N_root_uptake = SNU * Nitrate * time_step * root_surface
-
-    return potential_N_root_uptake
-
-
-def N_potential_offer(
-    N_potential_root_uptake: float):
-    """
-    Calculation of N available to the whole plant (in gN)
-    
-    Parameters
-    ----------
-    N_potential_root_uptake: float
-        N uptake by roots (in g)   
-
-    Returns
-    -------
-    N_potential_offer: float
-        N potential offer to the plant in gN
-    """
-    N_potential_plant_offer = N_potential_root_uptake 
-    
-    return N_potential_plant_offer
-
-
-def N_potential_root_demand(
-    delta_volume: float, 
-    N_density: int):
-    """
-    Calculation of N potential root demand (in gN) in function of the root volume and root N density
-
-    Parameters
-    ----------
-    delta_volume: float
-        potential increase of root volume in m3
-    N_density: float
-        N root density in gN.m-3
-
-    Returns
-    -------
-    N_potential_root_demand: float
-        N root potential demand in gN
-    """
-    N_potential_root_demand = delta_volume * N_density
-
-    return N_potential_root_demand
-
-
+#Photosynthesis
 def N_potential_shoot_offer(
     N_potential_plant_offer: float, 
     N_potential_root_demand: float):
@@ -107,8 +35,6 @@ def N_potential_shoot_offer(
     return N_potential_shoot_offer
 
 
-
-#Light leaf budget
 def leaf_area(g, time_step):
     """
     Calculation of the mtg leaf surface 
@@ -192,7 +118,7 @@ def photosynthetic_leaf_area(g, time_step):
 
 def potential_leaf_PAR(g, time_step,
     k: int,
-    Light: float):
+    e_amax: float):
     """
     Intercepted light by the leaf
 
@@ -231,7 +157,7 @@ def potential_leaf_PAR(g, time_step,
         alive = [l for l in leaves if not l.leaf_fall]
 
         for l in alive:
-            l.PAR = k * Light * exp(-k * l.photosynthetic_area)
+            l.PAR = k * e_amax * (1 - exp(k * l.photosynthetic_area))
   
     return  g
 
@@ -279,7 +205,7 @@ def leaf_photosynthesis(g, time_step,
 
 
 def leaf_N_potential_offer(g, time_step,
-    N_potential_plant_offer):
+    N_potential_shoot_offer):
     """
     Calculation of leaves N potential demand (in gN) in function of the N by light unit necessary
 
@@ -311,7 +237,7 @@ def leaf_N_potential_offer(g, time_step,
     Hypothesis
     ----------
     H4 Nitrogen plant distribution accordind to PAR (light)
-    
+
     H5 Nutrient contents and PAR are homogeneous in the leaf area
 
     References
@@ -329,7 +255,7 @@ def leaf_N_potential_offer(g, time_step,
 
         PAR_total = sum(l.PAR for l in leaves)
 
-        plant_N_by_lightunit = N_potential_plant_offer / PAR_total
+        plant_N_by_lightunit = N_potential_shoot_offer / PAR_total
 
         for l in alive:
             l.N_potential_offer = plant_N_by_lightunit * l.PAR
@@ -379,14 +305,14 @@ def potential_leaf_surface(g, time_step):
         alive = [l for l in leaves if not l.leaf_fall]
 
         for l in alive:
-            l.area_by_Nunit = l.area / l.N
+            l.area_by_Nunit = l.photosynthetic_area / l.N
             l.potential_area = l.area_by_Nunit * l.N_potential_offer
         
     return g
 
 def potential_leaf_light_interception(g, time_step,
     k: int,
-    Light: float):
+    e_amax: float):
     """
     Intercepted light by the leaf
 
@@ -429,7 +355,7 @@ def potential_leaf_light_interception(g, time_step,
         alive = [l for l in leaves if not l.leaf_fall]
 
         for l in alive:
-            l.PAR_potential = k * Light * exp(-k * l.potential_area)
+            l.PAR_potential = k * e_amax * (1 - exp(k * l.potential_area))
   
     return  g
 
@@ -522,8 +448,6 @@ def FSPM_Allirand_law(g, time_step):
     return g
 
 
-
-#Carbon leaf budget
 def C_potential_leaf_demand(g, time_step):
     """
     Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
@@ -600,7 +524,7 @@ def C_potential_leaf_offer(g, time_step):
         alive = [l for l in leaves if not l.leaf_fall]
 
         for l in alive:
-            l.C_potential_offer = l.C_producted - l.C_respiration         
+            l.C_potential_offer = l.C + l.C_producted - l.C_respiration         
 
     return g
 
@@ -772,7 +696,7 @@ def C_pool_budget(g, time_step):
 
 def leaf_senescence(g,
     time_step,
-    N_potential_plant_offer) :
+    N_potential_shoot_offer) :
     """
     Leaf senescence mecanism and leaf falling
     
@@ -860,11 +784,11 @@ def leaf_senescence(g,
         plant_area = sum(l.photosynthetic_area for l in alive)
 
         for l in alive :
-            l.N = (N_potential_plant_offer / plant_area)*l.photosynthetic_area
+            l.N = (N_potential_shoot_offer / plant_area)*l.photosynthetic_area
 
             plant_N = sum(l.N for l in alive)
             pool_N = sum(l.N for l in source if l.senescence)
-            PAR_total = leaf_N_potential_offer(g, time_step, N_potential_plant_offer)
+            PAR_total = leaf_N_potential_offer(g, time_step, N_potential_shoot_offer)
 
             l.N_deficit = l.N - l.N_potential_offer
 
@@ -1217,8 +1141,8 @@ def leaf_senescence_module(g, time_step):
                 N_plant_remobilized = N_plant_demand
 
                 for l in alive:
-                    gN = l.N_potential_offer
-                    gC = l.C
+                    l.N = l.N_potential_offer
+                    l.C = l.C
 
             else :
                 N_plant_hunger = True
@@ -1238,8 +1162,8 @@ def leaf_senescence_module(g, time_step):
                     l.N_exported = pool_N * l.weight
                     l.N_leaf_fall = l.N - l.N_exported
                     l.C_leaf_fall = l.C
-                    gN = l.N_leaf_fall
-                    gC = l.C_leaf_fall
+                    l.N = l.N_leaf_fall
+                    l.C = l.C_leaf_fall
 
                 N_plant_remobilized = sum(l.N_exported for l in senescence)
 
@@ -1255,7 +1179,9 @@ def leaf_senescence_module(g, time_step):
                     l.weight = l.PAR / PAR_total
                     l.N_imported = pool_N * l.weight 
                     l.N_deficit = l.N + l.N_imported
-                    gN = l.N_deficit
+                    l.N = l.N_deficit
+                    
+                alive = survivors   
 
             return g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
 
