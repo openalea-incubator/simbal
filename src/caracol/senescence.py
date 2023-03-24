@@ -750,7 +750,8 @@ def leaf_senescence(g,
         plant_N = sum(l.N for l in alive)
         pool_N = sum(l.N for l in source if l.senescence)
         PAR_total = leaf_N_potential_offer(g, N_potential_shoot_offer)
-
+        
+        # TODO: I am not sure to understand this line here. The deficit should probably be a difference between demand and offer, right?
         l.N_deficit = l.N - l.N_potential_offer
 
         N_plant_demand = sum(l.N_deficit for l in alive)
