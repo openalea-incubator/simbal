@@ -11,8 +11,7 @@ from math import (exp, pi)
 def N_potential_shoot_offer(g,
     N_potential_plant_offer: float, 
     N_potential_root_demand: float):
-    """
-    Calculation of the potential shoot demand (gN) in function of N available to the plant (gN) and potential root N demand (gN)
+    """Calculation of the potential shoot demand (gN) in function of N available to the plant (gN) and potential root N demand (gN)
 
     Parameters
     ----------
@@ -53,8 +52,7 @@ def N_potential_shoot_offer(g,
 
 
 def leaf_area(g):
-    """
-    Calculation of the mtg leaf surface 
+    """Calculation of the mtg leaf surface 
 
     Parameters
     ----------
@@ -75,11 +73,6 @@ def leaf_area(g):
     """
     max_scale = g.max_scale()
 
-    length = g.property('length')
-    radius = g.property('radius')
-
-   
-
     leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
     alive = [l for l in leaves if not l.leaf_fall]
 
@@ -90,8 +83,7 @@ def leaf_area(g):
     
 
 def photosynthetic_leaf_area(g):
-    """
-    Calculation of the photosynthetic leaf area (m2) 
+    """Calculation of the photosynthetic leaf area (m2) 
 
     Parameters
     ----------
@@ -130,8 +122,7 @@ def photosynthetic_leaf_area(g):
 def potential_leaf_PAR(g,
     k: int,
     e_amax: float):
-    """
-    Intercepted light by the leaf
+    """Intercepted light by the leaf
 
     Parameters
     ----------
@@ -152,7 +143,7 @@ def potential_leaf_PAR(g,
 
     Hypothesis
     ----------
-    H3 The Monteith law is valid at the leaf scale (with MTG)
+    H3 The Beer-Lambert law is valid at the leaf scale (with MTG)
     
     References
     ----------
@@ -171,7 +162,7 @@ def potential_leaf_PAR(g,
 
 def leaf_photosynthesis(g,
     RUE: float):
-    """ Transform radiation intercepted into biomass by the leaf
+    """Transform radiation intercepted into biomass by the leaf
 
    Parameters
     ----------
@@ -210,8 +201,7 @@ def leaf_photosynthesis(g,
 def leaf_N_potential_offer(g,
     PAR_total,
     N_potential_shoot_offer):
-    """
-    Calculation of leaves N potential demand (in gN) in function of the N by light unit necessary
+    """Calculation of leaves N potential demand (in gN) in function of the N by light unit necessary
 
     Parameters
     ----------
@@ -263,8 +253,7 @@ def leaf_N_potential_offer(g,
 
 
 def potential_leaf_surface(g):
-    """
-    Calculation of potential formed leaf area  (cm2) in function of potential N leaf offer (gN) and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
+    """Calculation of potential formed leaf area  (cm2) in function of potential N leaf offer (gN) and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
 
     Parameters
     ----------
@@ -307,8 +296,7 @@ def potential_leaf_surface(g):
 def potential_leaf_light_interception(g, time_step,
     k: int,
     e_amax: float):
-    """
-    Intercepted light by the leaf
+    """Intercepted light by the leaf
 
    Parameters
     ----------
@@ -333,7 +321,7 @@ def potential_leaf_light_interception(g, time_step,
     
     Hypothesis
     ----------
-    H3 The Monteith law is valid at the leaf scale (with MTG) 
+    H3 The Beer-Lambert law is valid at the leaf scale (with MTG) 
     
     References
     ----------
@@ -352,7 +340,7 @@ def potential_leaf_light_interception(g, time_step,
 
 def leaf_potential_photosynthesis(g,
     RUE: float):
-    """ Transform radiation intercepted into biomass by the leaf
+    """Transform radiation intercepted into biomass by the leaf
 
     Parameters
     ----------
@@ -375,7 +363,7 @@ def leaf_potential_photosynthesis(g,
     
     Hypothesis
     ----------
-    H3 The Monteith law is valid at the leaf scale (with MTG)
+    H3 The Beer-Lambert law is valid at the leaf scale (with MTG)
     """
     max_scale = g.max_scale()
 
@@ -389,8 +377,7 @@ def leaf_potential_photosynthesis(g,
 
 
 def FSPM_Allirand_law(g):
-    """
-    Allirand law ; relationship between the light intercepted by the leaf and the nitrogen content
+    """Allirand law ; relationship between the light intercepted by the leaf and the nitrogen content
 
     Parameters
     ----------
@@ -431,8 +418,7 @@ def FSPM_Allirand_law(g):
 
 
 def C_potential_leaf_demand(g):
-    """
-    Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
+    """Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
     
     Parameters
     ----------
@@ -472,8 +458,7 @@ def C_potential_leaf_demand(g):
 
 
 def C_potential_leaf_offer(g):
-    """
-    Calculation of C available to the leaf (in gC), in function of C uptake (in gC) 
+    """Calculation of C available to the leaf (in gC), in function of C uptake (in gC) 
     
     Parameters
     ----------
@@ -507,8 +492,7 @@ def C_potential_leaf_offer(g):
 ##Turnover Budget
 # internal functions
 def leaf_status(g):
-    """
-    Evaluation of the leaf state to compute his value (weigth) in the pool 
+    """Evaluation of the leaf state to compute his value (weigth) in the pool 
     
     Parameters
     ----------
@@ -574,8 +558,7 @@ def leaf_status(g):
  
 
 def C_pool_budget(g):
-    """
-    C distribution between leaves acording to their status and value (weight)
+    """C distribution between leaves acording to their status and value (weight)
     
     Parameters
     ----------
@@ -636,7 +619,7 @@ def C_pool_budget(g):
     for l in alive :
         l.weight = l.PAR / PAR_total
         l.C_exported = pool_C * l.weight
-        gC = l.C - l.C_exported
+        l.C = l.C - l.C_exported
 
         if pool_C < 0 :
             C_plant_hunger = True
@@ -653,7 +636,7 @@ def C_pool_budget(g):
                 
             for l in sink :
                 l.growth = True
-                gC = l.C_potential_demand
+                l.C = l.C_potential_demand
                     
     
     return g, pool_C, PAR_total, C_plant_hunger
@@ -662,8 +645,7 @@ def C_pool_budget(g):
 
 def leaf_senescence(g,
     N_potential_shoot_offer) :
-    """
-    Leaf senescence mecanism and leaf falling
+    """Leaf senescence mecanism and leaf falling
     
     Parameters
     ----------
@@ -745,7 +727,6 @@ def leaf_senescence(g,
     plant_area = sum(l.photosynthetic_area for l in alive)
 
     for l in alive :
-        l.N = (N_potential_shoot_offer / plant_area)*l.photosynthetic_area
 
         plant_N = sum(l.N for l in alive)
         pool_N = sum(l.N for l in source if l.senescence)
@@ -811,8 +792,7 @@ def leaf_senescence(g,
         
         
 def leaf_necrotic_area(g):
-    """
-    Leaf senescence necrotic surface after N remobilization (yellowing area)
+    """Leaf senescence necrotic surface after N remobilization (yellowing area)
     
     Parameters
     ----------
@@ -854,8 +834,7 @@ def leaf_necrotic_area(g):
 
 #main function
 def turnover_plant_budget(g): 
-    """
-    Leaf senescence mecanism and leaf falling
+    """Leaf senescence mecanism which lead to leaf fall
     
     Parameters
     ----------
@@ -952,8 +931,7 @@ def turnover_plant_budget(g):
 #MODULE SENESCENCE
 
 def leaf_senescence_module(g):
-    """
-    Leaf senescence mecanism and leaf falling
+    """Leaf senescence mecanism and leaf falling
     
     Parameters
     ----------
@@ -1132,7 +1110,7 @@ def leaf_senescence_module(g):
                     
             alive = survivors   
 
-        return g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
+    return g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized
 
 
 
