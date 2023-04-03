@@ -23,23 +23,26 @@ As well as for between plants.
 
 Manage the allocation (shoot & root) of C and N.
 
-## Growth
-
-Define the growth of the plants considering C and N allocation.
-
-## Geometry
-
-Reconstruct in 3D the plants' geometry 
-
-## Environment
-
-Compute light interception and soil N content
-
 ## Senescence
+
+* Why ? : Define the senescence process into the CN allocation mecanism
+
+* Brief description of the concept : 
+Senescence = N remobilization, lead to leaf falling
+
+* To who ? : researchers, students, programmers
+
+* What is it ? : an executable script
+
+* The code is open source and on the collaborative platform GitHub
+
+* Contributors ? : Solen FARRA, Laurene PERTHAME, Christophe PRADAL, Frederic REES
 
 ### Algorithm
 
-**TDOD** : translate in english
+
+
+
 
 
 
