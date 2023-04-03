@@ -1,0 +1,12 @@
+### Parameters:
+Ndensity = 1
+Cdensity = 1 
+SNU = 1 # speed of N uptake by roots in gN.cm-2.s-1
+N_remob_rate = 1 # N remobilization rate in gN.gN-1
+coef_N_leaf_surface = 0.046 # leaf surface = f(leaf N quantity) coefficient in cm2.g-1
+coef_N_stem_surface = 0.005 # stem surface = f(stem N quantity) coefficient in cm2.g-1
+alpha = 0.002 # increase of leaf area per unit of time in cm2.day-1
+e_amax = 0.95 # maximum of radiation interception
+k = -0.88 # extinction coefficient in Beer Lambert law
+RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
+C_remob_rate = 1 # C remobilization rate in gC.gC-1
