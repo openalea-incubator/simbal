@@ -185,12 +185,16 @@ def init_scenario4_LLLN(g):
 
 
 ##################################################################################################################################################################################
+scenario = mtg_senescence.PlantScenario
+g = above = scenario.init_above_mtg()
 
+n = 10
 
-time_step = 10
-for i in range(time_step):
-    g = init_scenario1_HLHN(g, time_step)
-    g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized = snc.leaf_senescence_module(g, time_step)
+for i in range(n):
+
+    def main(g):
+        g = init_scenario1_HLHN(g)
+        g, plant_N, pool_N, PAR_total, plant_N_by_lightunit, pool_N, N_plant_demand, N_plant_deficit, N_plant_hunger, N_plant_remobilized = snc.leaf_senescence_module(g)
 
 
 
