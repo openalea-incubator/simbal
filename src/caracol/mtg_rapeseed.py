@@ -1,4 +1,3 @@
-from openalea.mtg import MTG, fat_mtg
 from .mtg_plant import Plant
 
 class rapeseed(Plant):
