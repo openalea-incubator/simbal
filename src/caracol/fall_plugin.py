@@ -297,9 +297,9 @@ class NoFall(leaf):
 
 
 #FALL PLUGIN
-class Senescence(IFall, NoFall):
+class Fall(IFall, NoFall):
         def fall(version = 'default'):
-            """Leaf senescence and falling plugin
+            """Leaf falling plugin
             
             """
             if version == 'default': 
