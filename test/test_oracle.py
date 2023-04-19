@@ -1,5 +1,8 @@
 from caracol import mtg_senescence
-from caracol import fall as snc
+
+import doctest
+doctest.testmod()
+
 
 scenario = mtg_senescence.PlantScenario
 g = above = scenario.init_above_mtg()
@@ -7,7 +10,7 @@ g = above = scenario.init_above_mtg()
 max_scale = g.max_scale()
 
 #Test de Ono (1996)
-def init_scenario1_HLHN(g):
+def _init_HLHN(g):
     """ High Light - High Nitrate (positive witness)
 
     Properties
@@ -21,36 +24,12 @@ def init_scenario1_HLHN(g):
     C : float (mmolC.m-2)
         Carbohydrates leaf content (glucose + sucrose + starch)
     """
-    PAR1, PAR2 = 200, 450
-    s1, s2 = 5., 2.
-    C1, C2 = 10, 10
-    N1, N2 = 10, 10
-
-    leaves = [lid for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
-    assert len(leaves)==2
-
-    l1, l2 = leaves
-    l1, l2 = g.node(l1), g.node(l2)
-
-    l1.PAR = PAR1
-    l2.PAR = PAR2
-
-    l1.surface = s1    
-    l2.surface = s2
-
-    l1.C = C1    
-    l2.C = C2
-
-    l1.N = N1    
-    l2.N = N2
-
-    l1.growth = False
-    l2.growth = True
+   
 
     return g
 
 
-def init_scenario2_HLLN(g):
+def _init_HLLN(g):
     """ High Light - Low Nitrate 
 
     Properties
@@ -64,36 +43,12 @@ def init_scenario2_HLLN(g):
     C : float (mmolC.m-2)
         Carbohydrates leaf content (glucose + sucrose + starch)
     """
-    PAR1, PAR2 = 200, 450
-    s1, s2 = 5., 2.
-    C1, C2 = 10, 10
-    N1, N2 = 10, 10
-
-    leaves = [lid for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
-    assert len(leaves)==2
-
-    l1, l2 = leaves
-    l1, l2 = g.node(l1), g.node(l2)
-
-    l1.PAR = PAR1
-    l2.PAR = PAR2
-
-    l1.surface = s1    
-    l2.surface = s2
-
-    l1.C = C1    
-    l2.C = C2
-
-    l1.N = N1    
-    l2.N = N2
-
-    l1.growth = False
-    l2.growth = True
+    
 
     return g
 
 
-def init_scenario3_LLHN(g):
+def _init_LLHN(g):
     """ Low Light - High Nitrate 
 
     Properties
@@ -107,36 +62,12 @@ def init_scenario3_LLHN(g):
     C : float (mmolC.m-2)
         Carbohydrates leaf content (glucose + sucrose + starch)
     """
-    PAR1, PAR2 = 200, 450
-    s1, s2 = 5., 2.
-    C1, C2 = 10, 10
-    N1, N2 = 10, 10
-
-    leaves = [lid for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
-    assert len(leaves)==2
-
-    l1, l2 = leaves
-    l1, l2 = g.node(l1), g.node(l2)
-
-    l1.PAR = PAR1
-    l2.PAR = PAR2
-
-    l1.surface = s1    
-    l2.surface = s2
-
-    l1.C = C1    
-    l2.C = C2
-
-    l1.N = N1    
-    l2.N = N2
-
-    l1.growth = False
-    l2.growth = True
+    
 
     return g
 
 
-def init_scenario4_LLLN(g):
+def _init_LLLN(g):
     """ Low Light - Low Nitrate (negative witness)
 
     Properties
@@ -151,32 +82,7 @@ def init_scenario4_LLLN(g):
         Carbohydrates leaf content (glucose + sucrose + starch)
     """
 
-    PAR1, PAR2 = 200, 450
-    s1, s2 = 5., 2.
-    C1, C2 = 10, 10
-    N1, N2 = 10, 10
-
-    leaves = [lid for lid in g.vertices(scale=max_scale) if g.class_name(lid)=='Leaf']
-    assert len(leaves)==2
-
-    l1, l2 = leaves
-    l1, l2 = g.node(l1), g.node(l2)
-
-    l1.PAR = PAR1
-    l2.PAR = PAR2
-
-    l1.surface = s1    
-    l2.surface = s2
-
-    l1.C = C1    
-    l2.C = C2
-
-    l1.N = N1    
-    l2.N = N2
-
-    l1.growth = False
-    l2.growth = True
-
+    
     return g
 
 
