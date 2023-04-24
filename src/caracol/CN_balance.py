@@ -1,4 +1,4 @@
-
+import doctest 
 class leaf:
     def _init_(self):
         """Leaf scale turnover module initial parameters
@@ -95,6 +95,10 @@ class leaf:
     ----------
     Skulachev (2002)
     Thomas (2013)
+
+    Examples
+    --------
+    >>> define_leaf_senescence()
     """
         max_scale = g.max_scale()
     
@@ -172,7 +176,7 @@ class leaf:
         
     def define_leaf_necrotic_area(g, self):
         """Leaf senescence necrotic surface after N remobilization (yellowing area)
-    
+        
     Parameters
     ----------
     g: MTG
@@ -196,6 +200,11 @@ class leaf:
         leaf exported nitrogen from the source/senescent leaves to the N pool
     necrotic_area : float
         leaf necrotic surface
+
+    Examples
+    --------
+    >>> define_leaf_necrotic_area()
+
         """
    
         max_scale = g.max_scale()
@@ -330,7 +339,11 @@ class leaf:
 
             Thornley (1998),
             Kull (2002),
-            Bertheloot(2008),
+            Bertheloot(2008)
+
+            Examples
+            --------
+            >>> define_fall()
         
             """
             
@@ -415,6 +428,10 @@ class plant:
     ----------
     Khudairi (1970)
     Wingler (2004)
+
+    Examples
+    --------
+    >>> define_leaf_status()
     """
             max_scale = g.max_scale()
 
@@ -487,6 +504,11 @@ class plant:
     Hypothesis
     ----------
     H9 leaf participation to the C pool according to their PAR (higher PAR = greater weight)
+
+    Examples
+    --------
+    >>> define_C_pool_budget()
+
     """
             max_scale = g.max_scale()
 
@@ -538,3 +560,9 @@ class CNBalance(leaf, plant):
             else:
                 return plant()
         
+
+
+if __name__ == "__main__":
+    """Run the unit test suite"""
+    import doctest
+    doctest.testmod()
