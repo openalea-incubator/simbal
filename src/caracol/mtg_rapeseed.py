@@ -1,11 +1,13 @@
 from .mtg_plant import Plant
+import doctest
+
 
 class rapeseed(Plant):
     def _init_(self):
         self.n_short: int = 15
-        self.n_long: int= 3
-        self.short_length: float= 0.5
-        self.long_length: float= 2.5
+        self.n_long: int = 3
+        self.short_length: float = 0.5
+        self.long_length: float = 2.5
         
         return self
 
