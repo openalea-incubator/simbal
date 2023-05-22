@@ -173,7 +173,7 @@ class Plant:
         # Last scale
         vid = g.add_component(vid, label='Internode')
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-        bud_id = g.add_component(vid, edge-type='<', label='Bud')
+        bud_id = g.add_component(vid, edge_type='<', label='Bud')
 
         fat_mtg(g)
         return g
