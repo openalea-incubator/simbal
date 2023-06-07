@@ -1,5 +1,4 @@
 from openalea.mtg import *#/!\DANGEROUS/!\
-import doctest
 
 
 class Plant:
@@ -61,3 +60,10 @@ class Plant:
     
         fat_mtg(g)
         return g
+
+if __name__ == "__main__" :
+    """Run the unit test suite 
+
+    """
+    import doctest
+    doctest.testmod()
