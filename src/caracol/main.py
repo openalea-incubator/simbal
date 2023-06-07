@@ -1,16 +1,13 @@
-from caracol import mtg_rapeseed
-from caracol import photosynthesis as ph
-from caracol import CN_balance as cnb
-import doctest
+import mtg_rapeseed
+import photosynthesis as ph
+import aptos as cnb
 
 
 class main :
     def _init_(self) :
         mtg = mtg_rapeseed
         above = mtg.above() 
-
         g = above
-        
         n = 10
     
     def main(_init_) :
@@ -37,6 +34,11 @@ class main :
             return g, PAR_total,N_pool, N_potential_shoot_offer, 
         PAR_total, plant_N_by_lightunit
 
-           
 
+if __name__ == "__main__" :
+    """Run the unit test suite 
+
+    """
+    import doctest
+    doctest.testmod()
 
