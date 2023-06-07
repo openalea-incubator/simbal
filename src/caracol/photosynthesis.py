@@ -1,5 +1,4 @@
 from math import (exp, pi)
-import doctest
 
 class leaf:
     def _init_(self):
@@ -477,3 +476,9 @@ class leaf:
 
         return g
 
+if __name__ == "__main__" :
+    """Run the unit test suite 
+
+    """
+    import doctest
+    doctest.testmod()
