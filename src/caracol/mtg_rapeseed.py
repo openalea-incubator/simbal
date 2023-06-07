@@ -1,7 +1,7 @@
-from mtg_plant import Plant
+from caracol.mtg_plant import Plant
 
 
-class rapeseed(Plant):
+class Rapeseed(Plant):
     def _init_(self):
         self.n_short: int = 15
         self.n_long: int = 3

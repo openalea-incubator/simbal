@@ -1,6 +1,6 @@
 from math import (exp, pi)
 
-class leaf:
+class Leaf:
     def _init_(self):
         """Leaf photosynthesis module initial parameters
           
