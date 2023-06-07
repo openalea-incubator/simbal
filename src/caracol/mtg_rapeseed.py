@@ -1,5 +1,4 @@
-from .mtg_plant import Plant
-import doctest
+from mtg_plant import Plant
 
 
 class rapeseed(Plant):
@@ -17,6 +16,12 @@ class rapeseed(Plant):
 
         return self
 
+if __name__ == "__main__" :
+    """Run the unit test suite 
+
+    """
+    import doctest
+    doctest.testmod()
 
 
 
