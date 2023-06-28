@@ -312,9 +312,10 @@ def phenotype(g,
 #1 create an MTG for a plant at a certain age (DD), for a given phyllochron (n_leaves/DD)
 g=vegetative_rapeseed_DJ(950).above 
 #2 attribute architectural properties to the MTG 
-phenotype(g)
+
 #3 generate and display a 3D representation of the architecture
 #%gui qt
+phenotype(g)
 Viewer.display(scene3d(g))
 
 """ OBSOLETE leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
