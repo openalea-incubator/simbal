@@ -12,7 +12,7 @@ import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.data_samples import data_path
 
-from rosette_lib import *
+from colzette_lib import *
 
 tps1 = time.process_time()
 
