@@ -108,6 +108,44 @@ def vegetative_rapeseed_DJ(
     return Plant(name='rapeseed', above = above)
 
 
+def vegetative_rapeseed_field(
+    DJ: int = 950,
+    node_length: float= 0.02,
+    phyllochrone = 0.015,
+    coord = (0,0,0)
+    
+    ):
+    """ Build a field with nrows(coord) plants that have n_nodes internodes
+
+    """
+    n_nodes=round(DJ*phyllochrone)
+    print('plantes à',n_nodes,'entrenoeuds')
+    above = g = MTG()
+
+
+    for pl in coord:
+       
+        print(pl)
+        vid = g.add_component(g.root, label='Plant',edge_type='/',position=pl) #vid = vertex_id
+        vid = g.add_component(vid, label='Axis')
+
+        pid = g.add_component(vid, label='Phytomer') #pid= phytomer_id
+        vid = g.add_component(pid, label='Internode') 
+        g.node(vid).NodeLength = node_length
+        #g.node(vid).short = True
+        leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
+        
+        for i in range(n_nodes-1):
+            pid = g.add_child(pid, edge_type='<', label='Phytomer')
+            vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
+            g.node(vid).NodeLength = node_length
+            #g.node(vid).short = True
+
+            leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
+
+    return Plant(name='rapeseed', above = above)
+
+
 
 def update_MTG(g, outputs):
     """
@@ -186,28 +224,6 @@ def rapeseed_visitor(
 
 
 
-def scene3d(g):
-    t = pgl.PglTurtle()
-    # set colors 
-    color = Color3(*colors['Internode'])
-    t.setColorAt(1, color)
-    color = Color3(*colors['Petiole'])
-    t.setColorAt(2, color)
-    color = Color3(*colors['Leaf'])
-    t.setColorAt(3, color)
-
-
-
-    max_scale = g.max_scale()
-
-    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
-
-    scene = turtle.traverse_with_turtle(
-        g, vid, 
-        visitor=rapeseed_visitor_v2, turtle=t, gc=False)
-
-    return scene
-
 def rapeseed_visitor_v2(
     g, 
     v, 
@@ -219,6 +235,7 @@ def rapeseed_visitor_v2(
 
     nid = g.node(v)
     label = g.label(v)
+    print(nid,label)
     turtle.rollL(137.5)
     
 
@@ -248,6 +265,90 @@ def rapeseed_visitor_v2(
         turtle.F(nid.NodeLength)
 
     turtle.setId(v)
+
+
+def ColzetteVisitor(
+    g, 
+    v, 
+    turtle,
+    ):
+    
+    #nb_plants=g.nb_vertices(scale=1)
+    #nb_phytomer = g.nb_vertices(scale=3)
+    #elt_per_plant=(g.nb_vertices()-1)/g.nb_vertices(scale=1)
+
+    #retrieve the node and its label 
+    nid = g.node(v)
+    label = g.label(v)
+    #new_plant_countdown=nb_plants*nb_phytomer
+    print(nid,label)
+    
+    if nid.parent() is None:#this is a new plant base
+        p = nid.complex_at_scale(scale=1)
+        print('plant no',p)
+        if 'position' in p.properties():
+            print (p.label, 'moving to ', p.position)
+            turtle.move(list(map(float,p.position)))
+        else:
+            print('backtobase')
+            turtle.move(0,0,0)
+
+        if 'azimuth' in p.properties():
+            turtle.rollR(p.azimuth)
+    
+    turtle.rollL(137.5)
+
+    if g.edge_type(v) == '+':
+        
+        turtle.setWidth(nid.PetioleDiam)
+        if label == 'Leaf':
+            
+            leafscale = Vector3(1, nid.LeafWidth, nid.LeafLength)
+
+
+        
+        turtle.down(nid.InsertionAngle)
+        
+        turtle.setColor(2)
+
+        turtle.F(nid.PetioleLength)
+
+        turtle.setColor(3)
+        my_leaf = Scaled(leafscale, leafshape)
+        turtle.customGeometry(my_leaf)
+
+
+    if label == 'Internode':
+        turtle.setWidth(nid.StemDiam)
+        turtle.setColor(1)
+        turtle.F(nid.NodeLength)
+
+    turtle.setId(v)
+
+
+
+
+def scene3d(g,select_vis=rapeseed_visitor_v2):
+    t = pgl.PglTurtle()
+    # set colors 
+    color = Color3(*colors['Internode'])
+    t.setColorAt(1, color)
+    color = Color3(*colors['Petiole'])
+    t.setColorAt(2, color)
+    color = Color3(*colors['Leaf'])
+    t.setColorAt(3, color)
+
+
+
+    max_scale = g.max_scale()
+
+    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
+    vid = 4
+    scene = turtle.traverse_with_turtle(
+        g, vid, 
+        visitor=select_vis, turtle=t, gc=False)
+
+    return scene
 
 
 
@@ -281,23 +382,27 @@ def phenotype(g,
     leaf_max: int=0.5,
     skew: int=5,
     phyllot : int = 137.5,
-    ins_angle : int = 70,
+    ins_angle : int = 60,
     coeff_leaf: int=20, #surface to length
     coeff_width: int =0.831562, #length to width
     coeff_petiole: int =0.31017, #length to petiole length 0.51017
     stem_d: int=0.1,
     coeff_petiole_d : int=0.5
     ):
+    # shapes an mtg with a given number of leaves 
+    
+
     sortie=dict()
+    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
     leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
     internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
     
-    surface=bell_shaped_dist(1,len(leaves),leaf_max,skew)
-    sortie['LeafSurface']=dict(zip(leaves,surface))
+    surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew)
+    sortie['LeafSurface']=dict(zip(leaves,surface*len(leaves)))
 
-    sortie['LeafLength']=dict(zip(leaves,[element * coeff_leaf for element in surface]))
-    sortie['LeafWidth']=dict(zip(leaves,[element * coeff_leaf * coeff_width for element in surface]))
-    sortie['PetioleLength']=dict(zip(leaves,[element * coeff_leaf * coeff_petiole for element in surface]))
+    sortie['LeafLength']=dict(zip(leaves,[element * coeff_leaf for element in surface]*len(leaves)))
+    sortie['LeafWidth']=dict(zip(leaves,[element * coeff_leaf * coeff_width for element in surface]*len(leaves)))
+    sortie['PetioleLength']=dict(zip(leaves,[element * coeff_leaf * coeff_petiole for element in surface]*len(leaves)))
     
     sortie['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
     sortie['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
@@ -337,9 +442,9 @@ can = scene3d(g)
 sky = str(data_path('Turtle16soc.light'))
 #opts = list(map(str, [data_path('par.opt'), data_path('nir.opt')]))
 pattern = str(data_path('filter.8'))
-    
+#pattern = (-0.5,-0.5,0.5,0.5)    
 # complete set of files
-cs = CaribuScene(scene=can, light=sky,pattern=pattern)
+cs = CaribuScene(scene=can,pattern=pattern)
 raw,agg=cs.run(simplify=True)
 
 #runtime ~30s 
@@ -366,3 +471,59 @@ from openalea.plantgl.all import Viewer
 #%gui qt
 scene, values = cs.plot(raw['par']['Ei'], display=True)
 """
+
+def adel_regular(nb_plants, nb_rank, dx, dy, nx=None):
+    
+    if nx is None:
+        nx = int(nb_plants/nb_rank)
+    ny = nb_rank
+    domain = ((0,0),(nx*dx, ny*dy))
+    return [(i*dx+dx/2., j*dy+dy/2., 0.) for j in range(ny) for i in range(nx)], domain
+
+
+def agronomicplot(nplants=None, length=None, width=None, sowing_density=None, plant_density=None, inter_row=None, noise=0, convunit=100, center_scene=True):
+    """ Returns the number of plants, the positions, the domain (scene units), the domain area (square meter) and the conversion coefficient for meter to scene unit (1/convunit) of a micro-plot specified with agronomical variables
+    nplants is the number of plants of the micro-plot (mandatory if length or width is None)
+    length (m) is plot dimension along row direction (mandatory if nplants is None)
+    width (m) is plot dimension perpendicular to row direction (mandatory if nplants is None)
+    sowing density is the density of seeds sawn (mandatory)
+    plant_density is the density of plants that are present (after loss due to bad emergence, early death...) (mandatory)
+    inter_row (m) is for the  distance between rows (mandatory)
+    noise (%), indicates the precision of the sowing for the inter plant spacing
+    convunit is the conversion factor from meter to scene unit
+    center_scene allows to center the position around origin. If False, the scene is in the x+,y+ sector, the origin being at the lower left corner of the domain
+    
+    Rows are parallel to x-axis
+    Length and Width are adjusted to produce a canopy centered in its domain and compliant with infinitisation
+    """
+    from operator import itemgetter
+    import random
+    
+    
+    inter_plant = 1. / inter_row / sowing_density
+    
+    if nplants is None: # length and width are NOT None
+        nrow = max(1, int(float(width) / inter_row))
+        plant_per_row = max(1, int(float(length) / inter_plant))
+        nplants = nrow * plant_per_row
+        
+    else: # nplants is NOT None ; length and width are None 
+        import math
+        nrow = max(1, int(math.sqrt(nplants)))
+        
+    dx = inter_plant * convunit
+    dy = inter_row * convunit
+    positions, domain = adel_regular(nplants, nrow, dx, dy)
+    n_emerged = int(nplants * plant_density / sowing_density)
+    positions = random.sample(positions, n_emerged)
+    # sorting by ranks
+    positions = sorted(positions, key= itemgetter(1,0))
+    domain_area = abs(domain[1][0] - domain[0][0]) / convunit * abs(domain[1][1] - domain[0][1]) / convunit
+    if center_scene:
+        xc = float(domain[1][0] + domain[0][0]) / 2
+        yc = float(domain[1][1] + domain[0][1]) / 2
+        positions = [(x - xc, y - yc, z) for x, y, z in positions]
+        domain = ((domain[0][0] - xc, domain[0][1] - yc), (domain[1][0] - xc, domain[1][1] - yc))
+    
+    return n_emerged, positions, domain, domain_area, 1. / convunit
+    
