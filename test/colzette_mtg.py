@@ -1,3 +1,9 @@
+"""
+Collection of all the functions created for Colzette. 
+Includes outdated scripts and work in progress
+For a cleaner version, see 'colzette_lib.py'
+"""
+
 from openalea.mtg import *
 from openalea.mtg.turtle import *
 from openalea.plantgl import all as pgl
@@ -50,7 +56,7 @@ class Plant:
         fat_mtg(g)
         return g
 
-
+#### MTG builders 
 def vegetative_rapeseed(
     n_nodes: int = 10,
     node_length: float= 0.04,
@@ -84,7 +90,7 @@ def vegetative_rapeseed_DJ(
     phyllochrone = 0.015
 
     ):
-    """ Build a plant with n_nodes internodes
+    """ Build an mtg of a single plant.The number of internodes is based on its age (DD) and phyllochrone 
     """
     n_nodes=round(DJ*phyllochrone)
     above = g = MTG()
@@ -107,6 +113,63 @@ def vegetative_rapeseed_DJ(
 
     return Plant(name='rapeseed', above = above)
 
+
+##Mtg builder with mutliple plants
+# functions from Adel used in vegetative_rapeseed_field()
+def adel_regular(nb_plants, nb_rank, dx, dy, nx=None):
+    
+    if nx is None:
+        nx = int(nb_plants/nb_rank)
+    ny = nb_rank
+    domain = ((0,0),(nx*dx, ny*dy))
+    return [(i*dx+dx/2., j*dy+dy/2., 0.) for j in range(ny) for i in range(nx)], domain
+
+def agronomicplot(nplants=None, length=None, width=None, sowing_density=None, plant_density=None, inter_row=None, noise=0, convunit=100, center_scene=True):
+    """ Returns the number of plants, the positions, the domain (scene units), the domain area (square meter) and the conversion coefficient for meter to scene unit (1/convunit) of a micro-plot specified with agronomical variables
+    nplants is the number of plants of the micro-plot (mandatory if length or width is None)
+    length (m) is plot dimension along row direction (mandatory if nplants is None)
+    width (m) is plot dimension perpendicular to row direction (mandatory if nplants is None)
+    sowing density is the density of seeds sawn (mandatory)
+    plant_density is the density of plants that are present (after loss due to bad emergence, early death...) (mandatory)
+    inter_row (m) is for the  distance between rows (mandatory)
+    noise (%), indicates the precision of the sowing for the inter plant spacing
+    convunit is the conversion factor from meter to scene unit
+    center_scene allows to center the position around origin. If False, the scene is in the x+,y+ sector, the origin being at the lower left corner of the domain
+    
+    Rows are parallel to x-axis
+    Length and Width are adjusted to produce a canopy centered in its domain and compliant with infinitisation
+    """
+    from operator import itemgetter
+    import random
+    
+    
+    inter_plant = 1. / inter_row / sowing_density
+    
+    if nplants is None: # length and width are NOT None
+        nrow = max(1, int(float(width) / inter_row))
+        plant_per_row = max(1, int(float(length) / inter_plant))
+        nplants = nrow * plant_per_row
+        
+    else: # nplants is NOT None ; length and width are None 
+        import math
+        nrow = max(1, int(math.sqrt(nplants)))
+        
+    dx = inter_plant * convunit
+    dy = inter_row * convunit
+    positions, domain = adel_regular(nplants, nrow, dx, dy)
+    n_emerged = int(nplants * plant_density / sowing_density)
+    positions = random.sample(positions, n_emerged)
+    # sorting by ranks
+    positions = sorted(positions, key= itemgetter(1,0))
+    domain_area = abs(domain[1][0] - domain[0][0]) / convunit * abs(domain[1][1] - domain[0][1]) / convunit
+    if center_scene:
+        xc = float(domain[1][0] + domain[0][0]) / 2
+        yc = float(domain[1][1] + domain[0][1]) / 2
+        positions = [(x - xc, y - yc, z) for x, y, z in positions]
+        domain = ((domain[0][0] - xc, domain[0][1] - yc), (domain[1][0] - xc, domain[1][1] - yc))
+    
+    return n_emerged, positions, domain, domain_area, 1. / convunit
+   
 
 def vegetative_rapeseed_field(
     DJ: int = 950,
@@ -172,7 +235,10 @@ def rapeseed_visitor(
         coeff_width: int =0.831562,
         coeff_petiole: int =0.51017 
         ):
-    
+    """
+    OUTDATED. Use V2 instead
+
+    """
     #nb_phytomer = g.nb_vertices(scale=3)
 
 
@@ -229,7 +295,16 @@ def rapeseed_visitor_v2(
     v, 
     turtle,
     ):
+    """
+    OpenAlea visitor
+    This function is called by the scene3D() function when creating the 3D scene
     
+    g is an MTG tree. In contains all the geometrical informations need by the visitor 
+    v is the vertex being generated (int)
+    turtle is the turtle used to create the 3D space
+
+    
+    """
     #nb_phytomer = g.nb_vertices(scale=3)
 
 
@@ -272,6 +347,9 @@ def ColzetteVisitor(
     v, 
     turtle,
     ):
+    """
+    [IN PROGRESS ] Visitor that can handle an MTG file with multiple plants 
+    """
     
     #nb_plants=g.nb_vertices(scale=1)
     #nb_phytomer = g.nb_vertices(scale=3)
@@ -329,6 +407,13 @@ def ColzetteVisitor(
 
 
 def scene3d(g,select_vis=rapeseed_visitor_v2):
+
+    """
+    calls a PlantGL turtle to generate a 3D scene
+    g is an MTG file
+    select_vis can be used to select the visitor to use 
+
+    """
     t = pgl.PglTurtle()
     # set colors 
     color = Color3(*colors['Internode'])
@@ -343,7 +428,6 @@ def scene3d(g,select_vis=rapeseed_visitor_v2):
     max_scale = g.max_scale()
 
     vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
-    vid = 4
     scene = turtle.traverse_with_turtle(
         g, vid, 
         visitor=select_vis, turtle=t, gc=False)
@@ -352,7 +436,7 @@ def scene3d(g,select_vis=rapeseed_visitor_v2):
 
 
 
-
+#dictionnary of colors and shape of the leaves 
 colors = dict()
 colors['Internode'] = (100, 100, 80)
 colors['Petiole'] = (100, 100, 80)
@@ -369,7 +453,7 @@ leafshape = NurbsPatch([[(-0.0241355, -0.0549754, -0.00804807, 1), (-0.00877065,
 import numpy
 
 def bell_shaped_dist(total_area=1, nb_phy=15, rmax=.7, skewness=5):
-    """ returns leaf area of individual leaves along bell shaped model """
+    """ returns the leaf area of individual leaves along a bell shaped model, as a proportion of the total leaf area """
 
     r = numpy.linspace(1./nb_phy, 1, nb_phy)
     k = skewness
@@ -388,9 +472,10 @@ def phenotype(g,
     coeff_petiole: int =0.31017, #length to petiole length 0.51017
     stem_d: int=0.1,
     coeff_petiole_d : int=0.5
-    ):
-    # shapes an mtg with a given number of leaves 
-    
+    ): 
+    """
+    applies phenotypical attributes to an MTG based on parameters. 
+    """
 
     sortie=dict()
     plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
@@ -417,10 +502,9 @@ def phenotype(g,
 #1 create an MTG for a plant at a certain age (DD), for a given phyllochron (n_leaves/DD)
 g=vegetative_rapeseed_DJ(950).above 
 #2 attribute architectural properties to the MTG 
-
+phenotype(g)
 #3 generate and display a 3D representation of the architecture
 #%gui qt
-phenotype(g)
 Viewer.display(scene3d(g))
 
 """ OBSOLETE leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
@@ -447,7 +531,6 @@ pattern = str(data_path('filter.8'))
 cs = CaribuScene(scene=can,pattern=pattern)
 raw,agg=cs.run(simplify=True)
 
-#runtime ~30s 
 
 #scene,values = cs.plot(raw['par']['Ei'],display=False)
 
@@ -455,75 +538,3 @@ raw,agg=cs.run(simplify=True)
 
 cs.plot(raw['Ei'],display=True)
 """
-
-
-import numpy as np
-v99 = np.plenercentile(values, 99)
-nvalues=np.array(values)
-nvalues[nvalues>v99]=v99
-values = nvalues.tolist()
-
-from oawidgets.plantgl import *
-PlantGL(scene, group_by_color=False, property=values) 
-
-from openalea.plantgl.all import Viewer
-
-#%gui qt
-scene, values = cs.plot(raw['par']['Ei'], display=True)
-"""
-
-def adel_regular(nb_plants, nb_rank, dx, dy, nx=None):
-    
-    if nx is None:
-        nx = int(nb_plants/nb_rank)
-    ny = nb_rank
-    domain = ((0,0),(nx*dx, ny*dy))
-    return [(i*dx+dx/2., j*dy+dy/2., 0.) for j in range(ny) for i in range(nx)], domain
-
-
-def agronomicplot(nplants=None, length=None, width=None, sowing_density=None, plant_density=None, inter_row=None, noise=0, convunit=100, center_scene=True):
-    """ Returns the number of plants, the positions, the domain (scene units), the domain area (square meter) and the conversion coefficient for meter to scene unit (1/convunit) of a micro-plot specified with agronomical variables
-    nplants is the number of plants of the micro-plot (mandatory if length or width is None)
-    length (m) is plot dimension along row direction (mandatory if nplants is None)
-    width (m) is plot dimension perpendicular to row direction (mandatory if nplants is None)
-    sowing density is the density of seeds sawn (mandatory)
-    plant_density is the density of plants that are present (after loss due to bad emergence, early death...) (mandatory)
-    inter_row (m) is for the  distance between rows (mandatory)
-    noise (%), indicates the precision of the sowing for the inter plant spacing
-    convunit is the conversion factor from meter to scene unit
-    center_scene allows to center the position around origin. If False, the scene is in the x+,y+ sector, the origin being at the lower left corner of the domain
-    
-    Rows are parallel to x-axis
-    Length and Width are adjusted to produce a canopy centered in its domain and compliant with infinitisation
-    """
-    from operator import itemgetter
-    import random
-    
-    
-    inter_plant = 1. / inter_row / sowing_density
-    
-    if nplants is None: # length and width are NOT None
-        nrow = max(1, int(float(width) / inter_row))
-        plant_per_row = max(1, int(float(length) / inter_plant))
-        nplants = nrow * plant_per_row
-        
-    else: # nplants is NOT None ; length and width are None 
-        import math
-        nrow = max(1, int(math.sqrt(nplants)))
-        
-    dx = inter_plant * convunit
-    dy = inter_row * convunit
-    positions, domain = adel_regular(nplants, nrow, dx, dy)
-    n_emerged = int(nplants * plant_density / sowing_density)
-    positions = random.sample(positions, n_emerged)
-    # sorting by ranks
-    positions = sorted(positions, key= itemgetter(1,0))
-    domain_area = abs(domain[1][0] - domain[0][0]) / convunit * abs(domain[1][1] - domain[0][1]) / convunit
-    if center_scene:
-        xc = float(domain[1][0] + domain[0][0]) / 2
-        yc = float(domain[1][1] + domain[0][1]) / 2
-        positions = [(x - xc, y - yc, z) for x, y, z in positions]
-        domain = ((domain[0][0] - xc, domain[0][1] - yc), (domain[1][0] - xc, domain[1][1] - yc))
-    
-    return n_emerged, positions, domain, domain_area, 1. / convunit
-    

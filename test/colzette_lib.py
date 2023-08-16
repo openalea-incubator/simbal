@@ -1,3 +1,7 @@
+"""
+Clean python file containing the necessary functions for 'FullCycle' to operate
+"""
+
 from openalea.mtg import *
 from openalea.mtg.turtle import *
 from openalea.plantgl import all as pgl
@@ -8,12 +12,13 @@ import numpy
 
 import openalea.plantgl.all as pgl
 
+#color dict of the 3D elements
 colors = dict()
 colors['Internode'] = (100, 100, 80)
 colors['Petiole'] = (100, 100, 80)
 colors['Leaf'] = (9, 82, 40)
 
-# forme des feuilles
+# 3D shape of the leaves
 leafshape = NurbsPatch([[(-0.0241355, -0.0549754, -0.00804807, 1), (-0.00877065, -0.00933309, 0.00100194, 1), (0.0221632, 0.0405477, -0.00898557, 1), (-0.00223729, -0.00247516, 0.000385988, 1)], 
                         [(0.314084, -0.472921, 0.392759, 1), (0.000957513, 0.000400347, 0.33376, 1), (-0.00092555, 0.00517653, 0.332921, 1), (0.408856, 0.483731, 0.413612, 1)], 
                         [(0.329337, -0.501345, 0.730665, 1), (0.000326354, 0.0164005, 0.665257, 1), (-0.000118909, 0.019707, 0.66817, 1), (0.414001, 0.558038, 0.74373, 1)], 
@@ -21,7 +26,7 @@ leafshape = NurbsPatch([[(-0.0241355, -0.0549754, -0.00804807, 1), (-0.00877065,
 
 
 
-
+#MTG generation and edition
 
 class Plant:
     """ Define a plant as an above and below ground MTG.
@@ -68,7 +73,6 @@ class Plant:
         fat_mtg(g)
         return g
 
-
 def vegetative_rapeseed(
     n_nodes: int = 10,
     node_length: float= 0.04,
@@ -102,7 +106,7 @@ def vegetative_rapeseed_DJ(
     phyllochrone = 0.015
 
     ):
-    """ Build a plant with n_nodes internodes
+    """ Build an mtg of a single plant. The number of internodes is based on its age (DD) and phyllochrone 
     """
     n_nodes=round(DJ*phyllochrone)
     above = g = MTG()
@@ -125,8 +129,6 @@ def vegetative_rapeseed_DJ(
 
     return Plant(name='rapeseed', above = above)
 
-
-
 def update_MTG(g, outputs):
     """
     Update the MTG 
@@ -140,97 +142,67 @@ def update_MTG(g, outputs):
         # update the MTG
         g.property(param).update(outputs[param])   
 
+def bell_shaped_dist(total_area=1, nb_phy=15, rmax=.7, skewness=5):
+    """ returns the leaf area of individual leaves along a bell shaped model, as a proportion of the total leaf area """
+
+    r = numpy.linspace(1./nb_phy, 1, nb_phy)
+    k = skewness
+    relative_surface = numpy.exp(-k / rmax * ( 2 * (r - rmax)**2 + (r - rmax)**3))
+    leaf_area = relative_surface / relative_surface.sum() * total_area
+    return leaf_area.tolist()
+
+def phenotype(g,
+    leaf_max: int=0.5,
+    skew: int=5,
+    phyllot : int = 137.5,
+    ins_angle : int = 60,
+    coeff_leaf: int=20, #surface to length
+    coeff_width: int =0.831562, #length to width
+    coeff_petiole: int =0.31017, #length to petiole length 0.51017
+    stem_d: int=0.1,
+    coeff_petiole_d : int=0.5
+    ): 
+    """
+    applies phenotypical attributes to an MTG based on parameters. 
+    """
+
+    sortie=dict()
+    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
+    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
+    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
     
+    surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew)
+    sortie['LeafSurface']=dict(zip(leaves,surface*len(leaves)))
 
-def rapeseed_visitor(
-        g, 
-        v, 
-        turtle,
-        phyllo : int = 137.5,
-        angle_insert : int = 70,
-        coeff_leaf: int=20,
-        coeff_width: int =0.831562,
-        coeff_petiole: int =0.51017 
-        ):
+    sortie['LeafLength']=dict(zip(leaves,[element * coeff_leaf for element in surface]*len(leaves)))
+    sortie['LeafWidth']=dict(zip(leaves,[element * coeff_leaf * coeff_width for element in surface]*len(leaves)))
+    sortie['PetioleLength']=dict(zip(leaves,[element * coeff_leaf * coeff_petiole for element in surface]*len(leaves)))
     
-    #nb_phytomer = g.nb_vertices(scale=3)
+    sortie['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
+    sortie['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
 
+    sortie['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
+    sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
 
-    nid = g.node(v)
-    label = g.label(v)
-    surfaces=g.property('LeafSurface')
-    #diam = g.property('diam') #a definir 
-    turtle.rollL(phyllo)
-    
-
-    if g.edge_type(v) == '+':
-        #short = False
-        #if v in diam:
-            #turtle.setWidth(diam[v]/2.)
-        if label == 'Leaf':
-            
-            """
-            #short = nid.parent().short
-
-            #rank = g.Rank(g.parent(v))
-
-            #s = (nb_phytomer-(0.3*v))
-           # s = (nb_phytomer-rank)+1
-            #s = max(1, s/4.)
-            """
-            bell_s=surfaces.get(v)*coeff_leaf
-            petiole_length =bell_s*coeff_petiole 
-            leafscale = Vector3(1, coeff_width*bell_s, bell_s)
-
-
-        
-        turtle.down(angle_insert)
-        
-        turtle.setColor(2)
-
-        turtle.F(petiole_length)
-
-        turtle.setColor(3)
-        my_leaf = Scaled(leafscale, leafshape)
-        turtle.customGeometry(my_leaf)
-
-
-    if label == 'Internode':
-        
-        turtle.setColor(1)
-        turtle.F(nid.length)
-
-    turtle.setId(v)
+    update_MTG(g,sortie)
 
 
 
-def scene3d(g):
-    t = pgl.PglTurtle()
-    # set colors 
-    color = Color3(*colors['Internode'])
-    t.setColorAt(1, color)
-    color = Color3(*colors['Petiole'])
-    t.setColorAt(2, color)
-    color = Color3(*colors['Leaf'])
-    t.setColorAt(3, color)
-
-
-
-    max_scale = g.max_scale()
-
-    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
-
-    scene = turtle.traverse_with_turtle(
-        g, vid, 
-        visitor=rapeseed_visitor_v2, turtle=t, gc=False)
-
-    return scene
+#3D scene generation    
 
 def rapeseed_visitor_v2(
     g, 
     v, 
     turtle,
     ):
+    """
+    OpenAlea visitor
+    This function is called by the scene3D() function when creating the 3D scene
+    
+    g is an MTG tree. In contains all the geometrical informations need by the visitor 
+    v is the vertex being generated (int)
+    turtle is the turtle used to create the 3D space
+    """
     
     #nb_phytomer = g.nb_vertices(scale=3)
 
@@ -267,46 +239,28 @@ def rapeseed_visitor_v2(
 
     turtle.setId(v)
 
+def scene3d(g):
+    """
+    calls a PlantGL turtle to generate a 3D scene
+    g is an MTG file
+    """
+    t = pgl.PglTurtle()
+    # set colors 
+    color = Color3(*colors['Internode'])
+    t.setColorAt(1, color)
+    color = Color3(*colors['Petiole'])
+    t.setColorAt(2, color)
+    color = Color3(*colors['Leaf'])
+    t.setColorAt(3, color)
 
 
 
-def bell_shaped_dist(total_area=1, nb_phy=15, rmax=.7, skewness=5):
-    """ returns leaf area of individual leaves along bell shaped model """
+    max_scale = g.max_scale()
 
-    r = numpy.linspace(1./nb_phy, 1, nb_phy)
-    k = skewness
-    relative_surface = numpy.exp(-k / rmax * ( 2 * (r - rmax)**2 + (r - rmax)**3))
-    leaf_area = relative_surface / relative_surface.sum() * total_area
-    return leaf_area.tolist()
+    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
 
+    scene = turtle.traverse_with_turtle(
+        g, vid, 
+        visitor=rapeseed_visitor_v2, turtle=t, gc=False)
 
-def phenotype(g,
-    leaf_max: int=0.5,
-    skew: int=5,
-    phyllot : int = 137.5,
-    ins_angle : int = 60,
-    coeff_leaf: int=20, #surface to length
-    coeff_width: int =0.831562, #length to width
-    coeff_petiole: int =0.31017, #length to petiole length 0.51017
-    stem_d: int=0.1,
-    coeff_petiole_d : int=0.5
-    ):
-    sortie=dict()
-    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
-    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
-    
-    surface=bell_shaped_dist(1,len(leaves),leaf_max,skew)
-    sortie['LeafSurface']=dict(zip(leaves,surface))
-
-    sortie['LeafLength']=dict(zip(leaves,[element * coeff_leaf for element in surface]))
-    sortie['LeafWidth']=dict(zip(leaves,[element * coeff_leaf * coeff_width for element in surface]))
-    sortie['PetioleLength']=dict(zip(leaves,[element * coeff_leaf * coeff_petiole for element in surface]))
-    
-    sortie['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
-    sortie['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
-
-    sortie['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
-    sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
-
-    update_MTG(g,sortie)
-
+    return scene
