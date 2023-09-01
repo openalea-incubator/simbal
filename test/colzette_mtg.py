@@ -169,13 +169,12 @@ def agronomicplot(nplants=None, length=None, width=None, sowing_density=None, pl
         domain = ((domain[0][0] - xc, domain[0][1] - yc), (domain[1][0] - xc, domain[1][1] - yc))
     
     return n_emerged, positions, domain, domain_area, 1. / convunit
-   
 
 def vegetative_rapeseed_field(
     DJ: int = 950,
     node_length: float= 0.02,
     phyllochrone = 0.015,
-    coord = (0,0,0)
+    coord = [(0,0,0)]
     
     ):
     """ Build a field with nrows(coord) plants that have n_nodes internodes
@@ -188,7 +187,7 @@ def vegetative_rapeseed_field(
 
     for pl in coord:
        
-        print(pl)
+        #print(pl)
         vid = g.add_component(g.root, label='Plant',edge_type='/',position=pl) #vid = vertex_id
         vid = g.add_component(vid, label='Axis')
 
@@ -225,7 +224,7 @@ def update_MTG(g, outputs):
 
     
 
-def rapeseed_visitor(
+def rapeseed_visitor_old(
         g, 
         v, 
         turtle,
@@ -290,7 +289,7 @@ def rapeseed_visitor(
 
 
 
-def rapeseed_visitor_v2(
+def rapeseed_visitor(
     g, 
     v, 
     turtle,
@@ -310,7 +309,7 @@ def rapeseed_visitor_v2(
 
     nid = g.node(v)
     label = g.label(v)
-    print(nid,label)
+    #print(nid,label)
     turtle.rollL(137.5)
     
 
@@ -320,7 +319,7 @@ def rapeseed_visitor_v2(
         if label == 'Leaf':
             
             leafscale = Vector3(1, nid.LeafWidth, nid.LeafLength)
-
+        
 
         
         turtle.down(nid.InsertionAngle)
@@ -332,6 +331,7 @@ def rapeseed_visitor_v2(
         turtle.setColor(3)
         my_leaf = Scaled(leafscale, leafshape)
         turtle.customGeometry(my_leaf)
+        
 
 
     if label == 'Internode':
@@ -359,7 +359,7 @@ def ColzetteVisitor(
     nid = g.node(v)
     label = g.label(v)
     #new_plant_countdown=nb_plants*nb_phytomer
-    print(nid,label)
+    #print(nid,label)
     
     if nid.parent() is None:#this is a new plant base
         p = nid.complex_at_scale(scale=1)
@@ -406,7 +406,7 @@ def ColzetteVisitor(
 
 
 
-def scene3d(g,select_vis=rapeseed_visitor_v2):
+def scene3d(g,select_vis=rapeseed_visitor):
 
     """
     calls a PlantGL turtle to generate a 3D scene
@@ -428,9 +428,9 @@ def scene3d(g,select_vis=rapeseed_visitor_v2):
     max_scale = g.max_scale()
 
     vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
-    scene = turtle.traverse_with_turtle(
-        g, vid, 
-        visitor=select_vis, turtle=t, gc=False)
+    scene = turtle.TurtleFrame(
+        g, 
+        visitor=select_vis, turtle=t, gc=False, all_roots=True)
 
     return scene
 
@@ -448,6 +448,26 @@ leafshape = NurbsPatch([[(-0.0241355, -0.0549754, -0.00804807, 1), (-0.00877065,
                         [(0.329337, -0.501345, 0.730665, 1), (0.000326354, 0.0164005, 0.665257, 1), (-0.000118909, 0.019707, 0.66817, 1), (0.414001, 0.558038, 0.74373, 1)], 
                         [(0.00223079, 0.0223592, 0.999352, 1), (0.00112035, 0.028812, 1.0005, 1), (-0.000767699, 0.0327184, 0.999658, 1), (-0.0011293, 0.0361733, 1.00279, 1)]])
 
+def unileaflet(length=1., width=1.):
+    """Generates a unileaflet shape
+
+    :param length: length of the shape, defaults to 1.
+    :type length: float, optional
+    :param width: width of the shape, defaults to 1.
+    :type width: float, optional
+    :return: the shape
+    :rtype: pgl.Group
+    """  
+    disc = pgl.Translated((-0.5,0,0), pgl.Disc())
+    disc = pgl.Scaled((length, width,1), disc)
+    disc = pgl.AxisRotated(axis=(0,1,0), angle=radians(90.), geometry=disc)
+
+    d3 = pgl.AxisRotated(axis=(1,0,0), angle=0., geometry=disc)
+
+    shape = pgl.Group([d3])
+    return shape
+
+leafshape=unileaflet()
 
 
 import numpy
@@ -462,7 +482,7 @@ def bell_shaped_dist(total_area=1, nb_phy=15, rmax=.7, skewness=5):
     return leaf_area.tolist()
 
 
-def phenotype(g,
+def phenotype_very_old(g,
     leaf_max: int=0.5,
     skew: int=5,
     phyllot : int = 137.5,
@@ -498,6 +518,106 @@ def phenotype(g,
     update_MTG(g,sortie)
 
 
+def phenotype_alt_old(g,
+    leaf_max: int=0.5,
+    skew: int=5,
+    phyllot : int = 137.5,
+    ins_angle : int = 60,
+    total_surface: int=300, #surface to be shared following bell proportion (cm2)
+    coeff_length: int =3.4029,
+    coeff_width: int =0.831562, #length to width
+    coeff_petiole: int =0.31017, #length to petiole length 0.51017
+    stem_d: int=0.1,
+    coeff_petiole_d : int=0.5
+    ): 
+    """
+    applies phenotypical attributes to an MTG based on parameters. 
+    """
+    #print(coeff_length)
+    coeff_length=coeff_length/10
+    #print(coeff_length)
+
+    #print(coeff_width)
+    coeff_width=coeff_width*(0.34029/coeff_length)**2 #0.34029 from data
+    #print(coeff_width)
+
+    sortie=dict()
+    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
+    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
+    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
+    
+    surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew)
+    sortie['SurfaceRepartition']=dict(zip(leaves,surface*len(leaves)))
+
+    sortie['LeafSurface']=dict(zip(leaves,[element * total_surface for element in surface]*len(leaves)))
+    sortie['LeafLength']=dict(zip(leaves,[element * total_surface * coeff_length for element in surface]*len(leaves)))
+    sortie['LeafWidth']=dict(zip(leaves,[element * total_surface * coeff_length * coeff_width for element in surface]*len(leaves)))
+    sortie['PetioleLength']=dict(zip(leaves,[element * total_surface * coeff_length * coeff_petiole for element in surface]*len(leaves)))
+    
+    sortie['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
+    sortie['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
+
+    sortie['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
+    sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
+
+    update_MTG(g,sortie)
+
+
+def phenotype(g,
+    leaf_max: int=0.5,
+    skew: int=5,
+    phyllot : int = 137.5,
+    ins_angle : int = 60,
+    total_surface: int=300, #surface to be shared following bell proportion (cm2)
+    coeff_length: int =1/(0.2939*10),
+    coeff_width: int =0.831562, #length to width
+    coeff_petiole: int =0.31017, #length to petiole length 0.51017
+    stem_d: int=0.1,
+    coeff_petiole_d : int=0.5
+    ): 
+    """
+    applies phenotypical attributes to an MTG based on parameters. 
+    """
+
+    sortie=dict()
+    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
+    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
+    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
+    
+    surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew)
+    sortie['SurfaceRepartition']=dict(zip(leaves,surface*len(leaves)))
+    sortie['LeafSurface']=dict(zip(leaves,[element * total_surface for element in surface]*len(leaves)))
+
+
+    #L=2*(total_surface *(2**(0.5)))**(0.5)/(1+coeff_width)
+    #L=2*(total_surface/(coeff_width*pi))**(0.5)
+
+    #sortie['LeafLength']=dict(zip(leaves,[element * total_surface * coeff_length for element in surface]*len(leaves)))
+    sortie['LeafLength']= dict(zip(leaves,
+             [2*(element/(coeff_width*pi))**(0.5) for element in sortie['LeafSurface'].values()]*len(leaves)))
+
+
+    #b=racine de A/(k*pi) => L=2b=2racine(A/(k*pi))
+
+    #sortie['LeafWidth']=dict(zip(leaves,[element * total_surface * coeff_length * coeff_width for element in surface]*len(leaves)))
+    sortie['LeafWidth']=dict(zip(leaves,
+                     [element *coeff_width for element in sortie['LeafLength'].values()]*len(leaves)))
+    
+    #sortie['SurfTheo']=dict(zip(leaves,[element * 1/(2**(0.5))*(L/2+L/2*0.5)**2 for element in surface]*len(leaves)))
+    sortie['SurfTheo']=dict(zip(leaves,[pi*(element/2)*(coeff_width*element/2) for element in sortie['LeafLength'].values()]*len(leaves)))
+
+    sortie['PetioleLength']=dict(zip(leaves,[element * coeff_petiole for element in sortie['LeafLength'].values()]*len(leaves)))
+    
+    sortie['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
+    sortie['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
+
+    sortie['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
+    sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
+
+    update_MTG(g,sortie)
+
+
+
 
 #1 create an MTG for a plant at a certain age (DD), for a given phyllochron (n_leaves/DD)
 g=vegetative_rapeseed_DJ(950).above 
@@ -507,12 +627,38 @@ phenotype(g)
 #%gui qt
 Viewer.display(scene3d(g))
 
-""" OBSOLETE leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
-ref=bell_shaped_dist(1,len(leaves),.7,5)
-sortie=dict()
-sortie['LeafSurface']=dict(zip(leaves,ref))
-update_MTG(g,sortie)
+parcelle=agronomicplot(nplants=30,length=1, width=1,sowing_density=35,inter_row=0.45,plant_density=35)
+"""verification plots
+
+
+from matplotlib import pyplot as plt
+
+
+figure, axis = plt.subplots(1,3)
+
+axis[0].plot(g.property('SurfaceRepartition').values(),g.property('LeafSurface').values(),'bo') 
+axis[0].set_title("Surf/Prop")
+
+axis[1].plot(g.property('LeafSurface').values(),g.property('LeafLength').values(),'bo') 
+axis[1].set_title("Length/Surf") 
+
+axis[2].plot(g.property('LeafLength').values(),g.property('LeafWidth').values(),'bo') 
+axis[2].set_title("Width/Length")
+
+#axis[1,1].plot(LeafW,RealLeafS,'bo') 
+#axis[1,1].set_title("Width/RealLS")
+
+#axis[2,0].plot(LeafS,RealLeafS,'bo') 
+#axis[2,0].set_title("LeafS/RealLeafS")
+
+#axis[2,1].plot(RealLeafS,sumLight,'bo') 
+#axis[2,1].set_title("RealLeafS/E_imin")
+
+plt.show()
 """
+
+
+
 
 ################ CARIBU
 
@@ -524,17 +670,43 @@ from alinea.caribu.data_samples import data_path
 #can = str(data_path('f331s1_100plantes.can'))
 can = scene3d(g)
 sky = str(data_path('Turtle16soc.light'))
+zenith=[(100,(0,0,-1))]
 #opts = list(map(str, [data_path('par.opt'), data_path('nir.opt')]))
 pattern = str(data_path('filter.8'))
-#pattern = (-0.5,-0.5,0.5,0.5)    
+domain = (-0.5,-0.5,0.5,0.5)   
+field=(parcelle[1][0][0:2],parcelle[1][-1][0:2]) 
 # complete set of files
-cs = CaribuScene(scene=can,pattern=pattern)
+cs = CaribuScene(scene=can,light=zenith,pattern=field)
 raw,agg=cs.run(simplify=True)
-
+ 
 
 #scene,values = cs.plot(raw['par']['Ei'],display=False)
 
 #cs.plot(agg['par']['Ei'],display=True)
 
-cs.plot(raw['Ei'],display=True)
-"""
+cs.plot(agg['Ei'],display=False)
+
+
+
+
+
+def generate_skewed_distribution_points(mean, std_dev, skewness, N):
+    # Calculate the parameters for the log-normal distribution
+    sigma = numpy.sqrt(numpy.log(1 + (std_dev / mean)**2))
+    mu = numpy.log(mean) - 0.5 * sigma**2
+    
+    # Generate log-normal distribution
+    log_normal_values = numpy.random.lognormal(mean=mu, sigma=sigma, size=N)
+    
+    # Apply skewness
+    skewed_values = numpy.power(log_normal_values, skewness)
+    
+    # Normalize the skewed values
+    normalized_skewed_values = skewed_values / numpy.sum(skewed_values)
+    
+    # Create x values
+    x_values = numpy.linspace(numpy.min(skewed_values), numpy.max(skewed_values), N)
+    
+    points = list(zip(x_values, normalized_skewed_values))
+    return points
+
