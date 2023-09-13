@@ -43,7 +43,7 @@ pattern='Homogeneous' # pattern can be 'Rows' or 'Homogeneous'   /!\ if numofsee
 outputfilename='Results_'+str(round(PlantAge*phylloc))+'L_'+str(numofseeds)+pattern[0]
 
 
-data = pandas.read_csv("/Users/armangrumel/Documents/CEC ECOSYS/COLZA/docs_stats/ValeursParam.csv",sep=";")
+data = pandas.read_csv("ValeursParam.csv",sep=";")
 
 ### paramètres visuels : 
 # couleur des elements 
