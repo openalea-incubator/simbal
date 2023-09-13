@@ -20,13 +20,6 @@ def generate_centered_mesh_points(n):
     
     return points
 
-# Number of points
-N = 25
-
-centered_mesh_points = generate_centered_mesh_points(N)
-for point in centered_mesh_points:
-    print(point)
-
 
 
 import math
@@ -50,7 +43,7 @@ def generate_centered_diagonal_mesh_points(n):
                 points.append((x, y, z))
             else:
                 break
-    limits= ((-0.75,-0.75),(0.75,0.75))
+    limits= ((-75,-75),(75,75))
     return n,points,limits
 
 

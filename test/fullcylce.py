@@ -15,8 +15,6 @@ import pandas
 
 import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
-from alinea.caribu.data_samples import data_path
-from alinea.caribu.caribu import radiosity
 
 from colzette_lib import *
 from semis import * 
@@ -38,11 +36,13 @@ tps1 = time.process_time()
 # Le dataframe 'Results' collecte l'ensemble des variables intermédiaires utiles et des variables de sorties
 
 PlantAge=950 #plant age in DD 
-numofseeds=1 #number of plants to simulate 
-pattern='Rows' # pattern can be 'Rows' or 'Homogeneous'
+numofseeds=25 #number of plants to simulate
+pattern='Homogeneous' # pattern can be 'Rows' or 'Homogeneous'   /!\ if numofseeds=1, 'Rows' is applied by default
+
+outputfilename='Results_'+str(PlantAge)+'DD_'+str(numofseeds)+pattern[0]
 
 
-data = pandas.read_csv("/Users/armangrumel/Documents/CEC ECOSYS/COLZA/docs_stats/NonCorrelated.csv",sep=";")
+data = pandas.read_csv("/Users/armangrumel/Documents/CEC ECOSYS/COLZA/docs_stats/ValeursParam.csv",sep=";")
 
 ### paramètres visuels : 
 # couleur des elements 
@@ -88,7 +88,7 @@ for index,row in data.iterrows() :
     print('Progress : ' , progress, '/', len(data))
     #1 create an MTG for a plant at a certain age (DD), for a given phyllochron (n_leaves/DD)
     
-    if pattern=='Rows':
+    if pattern=='Rows' or numofseeds==1:
         parcelle = agronomicplot(nplants=numofseeds,length=1, width=1,sowing_density=35,inter_row=0.45,plant_density=35)
         #parcelle[0] : nb de plantes, 
         #parcelle[1] : coordonnées, 
@@ -143,4 +143,4 @@ tps2 = time.process_time()
 print('Execution time: ', tps2 - tps1)
  
 #Results.to_csv('Colzetteresults2.csv')
-filtered_results.to_csv('ColzetteresultsSimu1.csv')
+filtered_results.to_csv(outputfilename+'.csv')
