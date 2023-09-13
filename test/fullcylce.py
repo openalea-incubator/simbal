@@ -40,7 +40,7 @@ phylloc=0.015 #plant phyllochrone Leaf/DD
 numofseeds=36 #number of plants to simulate
 pattern='Homogeneous' # pattern can be 'Rows' or 'Homogeneous'   /!\ if numofseeds=1, 'Rows' is applied by default
 
-outputfilename='Results_'+str(PlantAge*phylloc)+'L_'+str(numofseeds)+pattern[0]
+outputfilename='Results_'+str(round(PlantAge*phylloc))+'L_'+str(numofseeds)+pattern[0]
 
 
 data = pandas.read_csv("/Users/armangrumel/Documents/CEC ECOSYS/COLZA/docs_stats/ValeursParam.csv",sep=";")
