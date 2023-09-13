@@ -36,10 +36,11 @@ tps1 = time.process_time()
 # Le dataframe 'Results' collecte l'ensemble des variables intermédiaires utiles et des variables de sorties
 
 PlantAge=950 #plant age in DD 
-numofseeds=25 #number of plants to simulate
+phylloc=0.015 #plant phyllochrone Leaf/DD
+numofseeds=36 #number of plants to simulate
 pattern='Homogeneous' # pattern can be 'Rows' or 'Homogeneous'   /!\ if numofseeds=1, 'Rows' is applied by default
 
-outputfilename='Results_'+str(PlantAge)+'DD_'+str(numofseeds)+pattern[0]
+outputfilename='Results_'+str(PlantAge*phylloc)+'L_'+str(numofseeds)+pattern[0]
 
 
 data = pandas.read_csv("/Users/armangrumel/Documents/CEC ECOSYS/COLZA/docs_stats/ValeursParam.csv",sep=";")
@@ -97,11 +98,11 @@ for index,row in data.iterrows() :
         #parcelle[4] : coefficient de conversion de mètre à l'unitée utilisée dans la scène
             
             
-        g = vegetative_rapeseed_field(PlantAge,phyllochrone=0.015,coord=parcelle[1]).above 
+        g = vegetative_rapeseed_field(PlantAge,phyllochrone=phylloc,coord=parcelle[1]).above 
 
     elif pattern=='Homogeneous': 
         parcelle = generate_centered_diagonal_mesh_points(numofseeds)
-        g = vegetative_rapeseed_field(PlantAge,phyllochrone=0.015,coord=multiply(parcelle[1],100)).above 
+        g = vegetative_rapeseed_field(PlantAge,phyllochrone=phylloc,coord=multiply(parcelle[1],100)).above 
         
 
     #2 attribute architectural properties to the MTG 
