@@ -23,9 +23,10 @@ class Leaf:
 
         return self
 
-    def define_N_potential_shoot_offer(g, self,
-                                N_potential_plant_offer: float, 
-                                N_potential_root_demand: float):
+
+    #def N_potential_shoot_offer(g, self,
+                                #N_potential_plant_offer: float, 
+                                #N_potential_root_demand: float):
         """Calculation of the potential shoot demand (gN) in function of 
         N available to the plant (gN) and potential root N demand (gN)
 
@@ -46,29 +47,30 @@ class Leaf:
         H1 Roots take precedence on the nitrogen uptake
 
         """
-        max_scale = g.max_scale()
+        #max_scale = g.max_scale()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
-                  if g.class_name(lid)=='Leaf']
-        alive = [l for l in leaves if not self.leaf_fall and self.senescence]
-        senescence = [l for l in alive if self.senescence]
+        #leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
+                  #if g.class_name(lid)=='Leaf']
+        #alive = [l for l in leaves if not self.leaf_fall and self.senescence]
+        #senescence = [l for l in alive if self.senescence]
 
-        N_shoot = N_potential_plant_offer - N_potential_root_demand
-        PAR_total = sum(self.PAR for l in leaves)
+        #N_shoot = N_potential_plant_offer - N_potential_root_demand
+        #PAR_total = sum(self.PAR for l in leaves)
 
-        for l in alive:
-            l.weight = self.PAR / PAR_total
-            l.N_available = self.N * l.weight
+        #for l in alive:
+            #l.weight = self.PAR / PAR_total
+            #l.N_available = self.N * l.weight
     
-        for l in senescence:
-            l.N_available = self.N
+        #for l in senescence:
+            #l.N_available = self.N
         
-        N_pool = sum(l.N_available for l in alive) 
-        N_potential_shoot_offer = N_shoot + N_pool
+        #N_pool = sum(l.N_available for l in alive) 
+        #N_potential_shoot_offer = N_shoot + N_pool
     
-        return PAR_total, N_pool, N_potential_shoot_offer
+        #return PAR_total, N_pool, N_potential_shoot_offer
 
-    def define_leaf_area(g, self):
+
+    def leaf_area(g, self):
         """Calculation of the mtg leaf surface 
 
         Parameters
@@ -99,7 +101,7 @@ class Leaf:
     
         return g
     
-    def define_photosynthetic_leaf_area(g, self):
+    def photosynthetic_leaf_area(g, self):
         """Calculation of the photosynthetic leaf area (m2) 
 
         Parameters
@@ -137,7 +139,7 @@ class Leaf:
         return g
 
 
-    def define_leaf_photosynthesis(g, self,
+    def leaf_photosynthesis(g, self,
                             RUE: float):
         """Transform radiation intercepted into biomass by the leaf
 
@@ -176,7 +178,7 @@ class Leaf:
 
         return g
 
-    def define_leaf_N_potential_offer(g, self,
+    def leaf_N_potential_offer(g, self,
                                PAR_total,
                                N_potential_shoot_offer):
         """Calculation of leaves N potential demand (in gN) in function of 
@@ -231,7 +233,7 @@ class Leaf:
 
         return g, PAR_total, plant_N_by_lightunit
 
-    def define_potential_leaf_area(g, self):
+    def leaf_potential_area(g, self):
         """Calculation of potential formed leaf area  (cm2) in function of 
         potential N leaf offer (gN) 
         and the coefficient of the relationship of leaf area - leaf N quantity (cm2.g-1)
@@ -275,7 +277,7 @@ class Leaf:
         
         return g
 
-    def define_potential_leaf_light_interception(g, self,
+    def leaf_potential_light_interception(g, self,
                                           k: int,
                                           e_amax: float):
         """Intercepted light by the leaf
@@ -320,7 +322,7 @@ class Leaf:
   
         return  g
 
-    def define_leaf_potential_photosynthesis(g, self,
+    def leaf_potential_photosynthesis(g, self,
                                       RUE: float):
         """Transform radiation intercepted into biomass by the leaf
 
@@ -359,7 +361,7 @@ class Leaf:
 
         return g
 
-    def define_FSPM_Allirand_law(g, self):
+    #def FSPM_Allirand_law(g, self):
         """Allirand law ; relationship between the light intercepted by 
         the leaf and the nitrogen content
 
@@ -391,18 +393,18 @@ class Leaf:
         Allirand (2009)
         
         """
-        max_scale = g.max_scale()
+        #max_scale = g.max_scale()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
-                  if g.class_name(lid)=='Leaf']
-        alive = [l for l in leaves if not self.leaf_fall]
+        #leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
+                  #if g.class_name(lid)=='Leaf']
+        #alive = [l for l in leaves if not self.leaf_fall]
 
-        for l in alive:
-            l.FSPM_Allirand = l.PAR_potential * l.N_potential
+        #for l in alive:
+            #l.FSPM_Allirand = l.PAR_potential * l.N_potential
 
-        return g
+        #return g
 
-    def define_C_potential_leaf_demand(g, self):
+    def C_potential_leaf_demand(g, self):
         """Calculation of C potential leaf demand (in gC) in function of the potential photosynthetic area and leaf N density
     
         Parameters
@@ -443,7 +445,7 @@ class Leaf:
         
         return g
 
-    def define_C_potential_leaf_offer(g, self):
+    def C_potential_leaf_offer(g, self):
         """Calculation of C available to the leaf (in gC), in function of 
         C uptake (in gC) 
     
