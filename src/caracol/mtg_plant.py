@@ -21,7 +21,7 @@ class Plant:
         vid = g.add_component(pid, label='Internode')
 
         g.node(vid).length = self.short_length
-        g.node(vid).short = True
+        g.node(vid).short = True #? 
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
     
         for i in range(self.n_short-1):
@@ -30,7 +30,7 @@ class Plant:
                                                 label='Internode')
             
             g.node(vid).length = self.short_length
-            g.node(vid).short = True
+            g.node(vid).short = True 
             leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
 
         for i in range(self.n_long):
