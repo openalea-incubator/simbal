@@ -1,5 +1,5 @@
 """
-Caracol is a FSPM model for agroecological simulation
+SIMBAL is a FSPM model for agroecological simulation
 """
 # {# pkglts, src
 # FYEO
