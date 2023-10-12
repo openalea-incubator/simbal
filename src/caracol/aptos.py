@@ -23,7 +23,7 @@ class leaf :
             
         return self
 
-    def define_leaf_senescence(_init_, g, self,
+    def leaf_senescence(_init_, g, self,
                                N_potential_shoot_offer) :
         """Leaf senescence mecanism and leaf falling
     
@@ -99,11 +99,12 @@ class leaf :
     References
     ----------
     Skulachev (2002)
+    Lemaire et al. (2008)
     Thomas (2013)
 
     Examples
     --------
-    >>> define_leaf_senescence()
+    >>> leaf_senescence()
 
     """
         max_scale = g.max_scale()
@@ -179,7 +180,7 @@ class leaf :
             return g, plant_area, plant_N, pool_N, N_plant_demand, 
         N_plant_deficit, N_plant_hunger, N_plant_remobilized
          
-    def define_leaf_necrotic_area(g, self):
+    def leaf_necrotic_area(g, self):
         """Leaf senescence necrotic surface after N remobilization 
         (yellowing area)
         
@@ -227,7 +228,7 @@ class leaf :
 
         return g
     
-    def define_fall(_init_, g, self):
+    def fall(_init_, g, self):
         """Leaf fall mecanism 
         
         Parameters
@@ -360,7 +361,7 @@ class leaf :
 
         Examples
         --------
-        >>> define_fall()
+        >>> fall()
         
         """
             
@@ -405,7 +406,7 @@ class plant:
             
         return self
 
-    def define_leaf_status(g, self) :
+    def leaf_status(g, self) :
         """Evaluation of the leaf state to compute his value (weigth) 
         in the pool 
     
@@ -451,7 +452,7 @@ class plant:
 
     Examples
     --------
-    >>> define_leaf_status()
+    >>> leaf_status()
 
     """
         max_scale = g.max_scale()
@@ -477,7 +478,7 @@ class plant:
         return g
 
  
-    def define_C_pool_budget(g, self) :
+    def C_pool_budget(g, self) :
         """C distribution between leaves acording to their status 
         and value (weight)
         
@@ -531,7 +532,7 @@ class plant:
 
         Examples
         --------
-        >>> define_C_pool_budget()
+        >>> C_pool_budget()
 
         """
         max_scale = g.max_scale()
