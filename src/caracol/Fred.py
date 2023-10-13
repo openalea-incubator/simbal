@@ -1,332 +1,18 @@
 
 from openalea.mtg import *
+from openalea.mtg.turtle import *
 from openalea.mtg import turtle as turt
-from openalea.mtg.traversal import pre_order, post_order
 from openalea.mtg.plantframe import color
-import openalea.plantgl.all as pgl
+from openalea.plantgl import all as pgl
 from openalea.plantgl.all import Vector3, Color3, Scaled, Viewer
 
+from numpy import *
 import numpy as np
+from pandas import *
 import pandas as pd
 import os
 
-########################################################################################################################
-
-# DEFINING GENERAL FUNCTIONS:
-#############################
-
-#-----------------------------------------------------------------------------------------------------------------------
-# This function enables to generate an initial MTG with leaves and stems:
-#def create_shoot_MTG(number_of_leaves=3):
-
-    # We initialize an empty MTG:
-#    g = MTG()
-
-    # For each new leaf, we first create an internode, and then a connected leaf:
-#    for i in range(0, number_of_leaves):
-
-        # We first create a new internode.
-        # If it corresponds to the first element of the MTG, we create it directly from the 'root' of the MTG:
-#        if i == 0:
-#            id_internode = g.add_component(g.root,
-#                                           label='Internode',
-#                                          radius=0.1,
-#                                          length=0.2,
-#                                          angle_down = 0.,
-#                                          angle_roll = 0.)
-#           internode = g.node(id_internode)
-        # If an internode has already been created before, we simply add a new internode from it:
-#       else:
-#           internode = internode.add_child(edge_type='<',
-#                                           label='Internode',
-#                                           radius=0.1,
-#                                           length=0.1,
-#                                           angle_down=0.,
-#                                           angle_roll=138.5)
-
-        # Then we create a "branch" on this internode, which will correspond to a leaf:
-#       leaf = internode.add_child(edge_type='+',
-#                                  label='Leaf',
-#                                  radius=0.1,
-#                                 length=0.5,
-#                                   angle_down=60,
-#                                  angle_roll=0)
-#    return g
-
-#Colzette_lib.py (Armand)
-#MTG generation and edition
-
-class Plant:
-    """ Define a plant as an above and below ground MTG.
-    
-    """
-    def __init__(self, name='', above=None, below=None):
-        self.name = name
-        self.above = self.init_above_mtg() if above is None else above
-        self.below = self.init_below_mtg() if below is None else below
-
-
-    @staticmethod
-    def init_above_mtg():
-        """ Simple function to create a simple aerial MTG"""
-        g = MTG()
-        
-        # Add a plant (scale is 1)
-        vid = g.add_component(g.root, label='Plant')
-        vid = g.add_component(vid, label='Axis')
-        vid = g.add_component(vid, label='Phytomer')
-        
-        # Last scale
-        vid = g.add_component(vid, label='Internode')
-        leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-        bud_id = g.add_component(vid, edge_type='<', label='Bud')
-
-        fat_mtg(g)
-        return g
-
-    @staticmethod
-    def init_below_mtg():
-        """ Simple function to create a simple belowground MTG or RootSystem Architecture"""
-        g = MTG()
-        
-        # Add a plant (scale is 1)
-        vid = g.add_component(g.root, label='RSA')
-        vid = g.add_component(vid, label='Root')
-        
-        # Last scale
-        vid = g.add_component(vid, label='Segment')
-    
-        fat_mtg(g)
-        return g
-
-def vegetative_rapeseed(
-    n_nodes: int = 10,
-    node_length: float= 0.04):
-    """ Build a plant with n_nodes internodes
-    """
-
-    above = g = MTG()
-    vid = g.add_component(g.root, label='Plant')
-    vid = g.add_component(vid, label='Axis')
-
-    pid = g.add_component(vid, label='Phytomer')
-    vid = g.add_component(pid, label='Internode')
-    g.node(vid).NodeLength = node_length
-    #g.node(vid).short = True
-    leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-    
-    for i in range(n_nodes-1):
-        pid = g.add_child(pid, edge_type='<', label='Phytomer')
-        vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
-        g.node(vid).NodeLength = n_nodes
-        #g.node(vid).short = True
-
-        leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-
-    return Plant(name='rapeseed', above = above)
-
-
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# This function enables to plot a MTG with PlantGL:
-def plot_shoot_MTG(g,
-                   width=1200, height=900,
-                   x_center=0, y_center=-0, z_center=0.,
-                   x_cam=5., y_cam=5., z_cam=-1,
-                   grid=True,
-                   background_color=[94, 76, 64],
-                   single_color=None,
-                   property_name='radius', cmap='jet', vmin=1e-4, vmax=1e-2, lognorm=True,
-                   recording_plot=True,
-                   plot_name='plot.png'):
-
-    # Sub-function for moving the turtle and create specific shapes for roots:
-    def shoot_visitor():
-        """
-        This function describes the movement of the 'turtle' along the MTG for creating a root graph on PlantGL.
-        :return: root_visitor
-        """
-
-        def shoot_visitor(g, v, turtle):
-            n = g.node(v) #retrieves the current vertex based on its ID
-            label = g.label(v) #retrieves the current vertex's label
-
-            # We look at the geometrical properties already defined within the shoot element:
-            radius = n.radius
-            length = n.length
-            width = n.width
-            diameter = n.diameter
-            angle_insertion = n.insertion
-            angle_down = n.angle_down
-            angle_roll = n.angle_roll
-
-            # # We get the x,y,z coordinates from the beginning of the shoot, before the turtle moves:
-            # position1 = turtle.getPosition()
-            # n.x1 = position1[0]
-            # n.y1 = position1[1]
-            # n.z1 = position1[2]
-
-            # The direction of the turtle is changed:
-            turtle.down(angle_down)
-            turtle.rollL(angle_roll)
-
-            # The turtle is moved:
-            turtle.setId(v)
-
-            if g.edge_type(v) == '+': #if '+', an element is added to the scene
-        
-                if n.label == 'Internode':
-                    # We define the geometrical properties and color of the object to be displayed:
-                    turtle.setWidth(radius)
-                    turtle.setWidth(diameter) 
-                    turtle.setColor(1)
-                    # We move the turtle by the length of the shoot:
-                    turtle.F(length)#turtle moves forward and draws an internode
-                
-                elif n.label == 'Leaf':
-                    leafscale = Vector3(1, n.width, n.length) #(bending,width,length) of a leaf
-                    # We define the radius of the cylinder to be displayed:
-                    turtle.setWidth(radius)
-                    turtle.down(angle_insertion)#turtle rotates vertically to match the insertion angle
-                    turtle.setColor(2)
-                    # We move the turtle by the length of the root segment:
-                    turtle.F(length)
-
-
-                # # We get the x,y,z coordinates from the end of the root segment, after the turtle has moved:
-                # position2 = turtle.getPosition()
-                # n.x2 = position2[0]
-                # n.y2 = position2[1]
-                # n.z2 = position2[2]
-
-        return shoot_visitor
-
-    # Function for creating a color map for a MTG:
-    def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
-        """
-        This function computes a property 'color' on a MTG based on a given MTG's property.
-        :param g: the investigated MTG
-        :param property_name: the name of the property of the MTG that will be displayed
-        :param cmap: the type of color map
-        :param vmin: the min value to be displayed
-        :param vmax: the max value to be displayed
-        :param lognorm: a Boolean describing whether the scale is logarithmic or not
-        :return: the MTG with the corresponding color
-        """
-
-        # We make sure that the user did not accidently switch between vmin and vmax:
-        if vmin >= vmax:
-            raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
-        if lognorm and (vmin <= 0 or vmax <= 0):
-            raise Exception(
-                "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
-
-        prop = g.property(property_name)
-        keys = prop.keys()
-        values = list(prop.values())
-        # m, M = int(values.min()), int(values.max())
-
-        _cmap = color.get_cmap(cmap)
-        norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
-        values = norm(values)
-
-        colors = (_cmap(values)[:, 0:3]) * 255
-        colors = np.array(colors, dtype=int).tolist()
-
-        g.properties()['color'] = dict(zip(keys, colors))
-
-        return g
-
-    # Function for setting the center anc camera position in a scene:
-    def setting_PGLViewer(width=1200, height=1200,
-                          x_center=0., y_center=0., z_center=0.,
-                          x_cam=0., y_cam=0., z_cam=-0.2,
-                          grid=True,
-                          background_color=[255, 255, 255]):
-        """
-        This function sets the center of the graph and the relative position of the camera for displaying a scene in
-        PGL.
-        :param width: width of the window (pixels)
-        :param height: height of the window (pixels)
-        :param x_center: x-coordinate of the center at which the camera looks
-        :param y_center: y-coordinate of the center at which the camera looks
-        :param z_center: z-coordinate of the center at which the camera looks
-        :param x_cam: x-coordinate of the camera position
-        :param y_cam: y-coordinate of the camera position
-        :param z_cam: z-coordinate of the camera position
-        :param grid: if True, all grids will be displayed
-        :param background_color: a RGB vector corresponding to the background color of the graph
-        :return:
-        """
-
-        # We define the coordinates of the point cam_target that will be the center of the graph:
-        cam_target = pgl.Vector3(x_center, y_center, z_center)
-        # We define the coordinates of the point cam_pos that represents the position of the camera:
-        cam_pos = pgl.Vector3(x_cam, y_cam, z_cam)
-        # We position the camera in the scene relatively to the center of the scene:
-        pgl.Viewer.camera.lookAt(cam_pos, cam_target)
-        # We define the dimensions of the graph:
-        pgl.Viewer.frameGL.setSize(width, height)
-        # We define the background of the scene:
-        pgl.Viewer.frameGL.setBgColor(background_color[0], background_color[1], background_color[2])
-        # We define whether grids are displayed or not:
-        pgl.Viewer.grids.set(grid, grid, grid, grid)
-
-        return
-
-    # CREATING THE PLOT (scene 3D):
-    #-------------------
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-
-    # We initialize a scene:
-    new_scene = pgl.Scene()
-
-    # SETTING THE NEW SCENE WITH THE TURTLE:
-    # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=shoot_visitor(), turtle=turtle, gc=False)
-
-    # SETTING THE COLOR OF THE SHAPES:
-    # We compute the colors of the graph:
-    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    # We use the property 'color' of the MTG calculated by the function 'my_colormap':
-    colors = g.property('color')
-    # We get a dictionnary of all shapes in the scene:
-    shapes = dict((sh.id, sh) for sh in scene)
-    # We cover each node of the MTG:
-    for vid in colors:
-        if vid in shapes:
-            n = g.node(vid)
-            if single_color is None:
-                # We color it according to the property cmap defined by the user:
-                _color = pgl.Color3(*colors[vid])
-                shapes[vid].appearance = pgl.Material(_color, transparency=0.0)
-            else:
-                # Otherwise, we can print it with a unique color:
-                shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
-
-    # We add each shape of the current MTG to the final scene:
-    for shape in scene:
-        new_scene += shape
-
-    # SETTING THE VIEWER OPTIONS:
-    setting_PGLViewer(width=width, height=height,
-                      x_center=x_center, y_center=y_center, z_center=z_center,
-                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                      grid=grid,
-                      background_color=background_color)
-
-    # DISPLAYING THE MTG:
-    pgl.Viewer.display(new_scene)
-
-    # RECORDING THE MTG:
-    if recording_plot:
-        pgl.Viewer.saveSnapshot(plot_name)
-
-    return
-
-
-
+# GENERAL FUNCTIONS ########################################################################################################################
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to record the properties of each element of the MTG:
@@ -402,10 +88,285 @@ def create_MTG_from_csv_file(csv_filename):
             g.property(property)[vid] = dataframe[property].loc[dataframe['node_index'] == vid]
 
     return g
-#-----------------------------------------------------------------------------------------------------------------------
 
-# DEFINING METABOLIC FUNCTIONS:
-###############################
+
+
+
+
+# COLZETTE ########################################################################################################################
+
+#color dict of the 3D elements
+colors = dict()
+colors['Internode'] = (100, 100, 80)
+colors['Petiole'] = (100, 100, 80)
+colors['Leaf'] = (9, 82, 40)
+
+def unileaflet(length=1., width=1.):
+    """Generates a unileaflet shape (circle leaf) made with 8 triangles.
+
+    :param length: length of the shape, defaults to 1.
+    :type length: float, optional
+    :param width: width of the shape, defaults to 1.
+    :type width: float, optional
+    :return: the shape
+    :rtype: pgl.Group
+    """  
+    disc = pgl.Translated((-0.5,0,0), pgl.Disc())
+    disc = pgl.Scaled((length, width,1), disc)
+    disc = pgl.AxisRotated(axis=(0,1,0), angle=radians(90.), geometry=disc)
+    d3 = pgl.AxisRotated(axis=(1,0,0), angle=0., geometry=disc)
+
+    shape = pgl.Group([d3])
+
+    return shape
+
+leafshape=unileaflet()
+
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# This function enables to set a MTG with properties:
+class Plant:
+    """ Define a plant as an above and below ground MTG.
+
+    Some usefull functions can be defined as proxies.
+    
+    """
+    def __init__(self, name='Rapessed', above=None, below=None):
+        self.name = name
+        self.above = self.init_above_mtg() if above is None else above
+        self.below = self.init_below_mtg() if below is None else below
+
+
+    @staticmethod
+    def init_above_mtg():
+        """ Simple function to create a simple aerial MTG"""
+        g = MTG()
+        
+        # Add a plant (scale is 1)
+        vid = g.add_component(g.root, label='Plant')
+        vid = g.add_component(vid, label='Axis')
+        vid = g.add_component(vid, label='Phytomer')
+        
+        # Last scale
+        vid = g.add_component(vid, label='Internode')
+        lid = g.add_child(vid, edge_type='+', label='Leaf')
+        bid = g.add_component(vid, edge_type='<', label='Bud')
+
+        fat_mtg(g)
+
+        return g
+
+    @staticmethod
+    def init_below_mtg():
+        """ Simple function to create a simple belowground MTG or RootSystem Architecture"""
+        g = MTG()
+        
+        # Add a plant (scale is 1)
+        vid = g.add_component(g.root, label='RSA')
+        vid = g.add_component(vid, label='Root')
+        
+        # Last scale
+        vid = g.add_component(vid, label='Segment')
+    
+        fat_mtg(g)
+
+        return g
+
+
+def vegetative_rapeseed(
+    n_nodes: int = 6,
+    length_node: float= 2.0
+    ):
+    """ Build a rapeseed plant with n_nodes internodes and other properties
+    """
+    above = g = MTG()
+
+    vid = g.add_component(g.root, label='Plant')
+    vid = g.add_component(vid, label='Axis')
+    pid = g.add_component(vid, label='Phytomer')
+    vid = g.add_component(pid, label='Internode')
+    
+    g.node(vid).NodeLength = length_node 
+    #g.node(vid).short = True
+
+    lid = g.add_child(vid, 
+                          edge_type='+', 
+                          label='Leaf')
+    
+    for i in range(n_nodes-1):
+        pid = g.add_child(pid, 
+                          edge_type='<', 
+                          label='Phytomer')
+        vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
+        
+        g.node(vid).NodeLength = n_nodes
+        #g.node(vid).short = True
+
+        lid = g.add_child(vid, edge_type='+', label='Leaf')
+
+    return Plant(name='rapeseed', above = above)
+
+def update_MTG(g, outputs):
+    """
+    Update the MTG 
+    :param dict outputs: {'param1': { vid1: , vid2, ...}, 'param2': { vid1: , vid2, ...}}
+    """
+     # add the missing property
+    for param in outputs.keys():
+        if param not in g.properties():
+            g.add_property(param)
+
+        # update the MTG
+        g.property(param).update(outputs[param])  
+
+
+def generate_normalized_bell_curve_points(mean, std_dev, amplitude, N):
+    """ returns the leaf area of individual leaves along a bell shaped model, as a proportion of the total leaf area """
+    x_values = np.linspace(mean - 3 * std_dev, mean + 3 * std_dev, N)
+    y_values = amplitude * np.exp(-0.5 * ((x_values - mean) / std_dev)**2)
+    
+    # Normalize y values to ensure the sum is 1
+    normalized_y_values = y_values / np.sum(y_values)
+    
+    points = list(normalized_y_values)
+    return points
+
+def phenotype(g,
+    leaf_max: float=0.6587057,
+    skew: float=5,
+    sd: float= 0.246378, 
+    amp: float=0.1188,
+    phyllot : float = 137.5,
+    ins_angle : float = 60,
+    leaf_angle : float = 80, #/!\à mesurer expérimentallement/!\
+    total_surface: float=300, 
+    coeff_width: float =0.831562, 
+    coeff_petiole: float =0.51017, #limb length to petiole length , 0.31017 length/whole leag length
+    stem_d: float=0.1,
+    coeff_petiole_d : float=0.5): 
+    """
+    applies phenotypical attributes to an MTG based on parameters. 
+        leaf_max : [float between 0 and 1] Expectation of the bell curve => Position of the biggest leaf along the stem.
+        sd: [float] Standard deviation of the bell curve => repartition of the leaf surface
+        amp: [float] amplitude of the bell curve 
+        phyllot: [float, degrees] phyllotaxy angle 
+        ins_angle: [float, degrees] insertion angle of the petiole
+        leaf_angle: [float, degrees] angle of the flat of the leaf
+        total_surface: [int, cm2] surface to be shared following the bell proportion
+        coeff_width: [float] Leaf Width / Leaf Length ratio (limb only)
+        coeff_petiole: [float] Petiole Length / Leaf Length 
+        stem_d: [float, cm] stem diameter
+        coeff_petiole_d : [float] petiole diameter / stem diameter ration 
+    """
+    outputs=dict()
+
+    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
+    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
+    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
+
+    surface=generate_normalized_bell_curve_points(mean=leaf_max,std_dev=sd,amplitude=amp,N=int(len(leaves)/len(plants)))
+   
+    outputs['SurfaceRepartition']= dict(zip(leaves,surface*len(leaves)))
+    outputs['LeafSurface']=dict(zip(leaves,[element * total_surface for element in surface]*len(leaves)))
+
+    outputs['LeafLength']= dict(zip(leaves,
+             [2*(element/(coeff_width*pi))**(0.5) for element in outputs['LeafSurface'].values()]*len(leaves)))
+    
+    outputs['LeafWidth']=dict(zip(leaves,
+                     [element *coeff_width for element in outputs['LeafLength'].values()]*len(leaves)))
+    
+    outputs['SurfTheo']=dict(zip(leaves,[pi*(element/2)*(coeff_width*element/2) for element in outputs['LeafLength'].values()]*len(leaves)))
+    outputs['PetioleLength']=dict(zip(leaves,[element * coeff_petiole for element in outputs['LeafLength'].values()]*len(leaves)))
+    outputs['InsertionAngle']=dict(zip(leaves,[ins_angle]*len(leaves)))
+    outputs['LeafAngle']=dict(zip(leaves,[leaf_angle]*len(leaves)))
+    outputs['Phyllotaxy']=dict(zip(leaves,[phyllot]*len(leaves)))
+    outputs['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
+    outputs['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
+    
+    update_MTG(g, outputs) 
+
+    
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# This function enables to plot an above MTG with PlantGL:
+
+def rapeseed_visitor(
+    g, 
+    v, 
+    turtle):
+    """
+    OpenAlea visitor
+    This function is called by the scene3D() function when creating the 3D scene
+    
+    g is an MTG tree. In contains all the geometrical information needed by the visitor 
+    v is the ID of the vertex being generated (int)
+    turtle is the turtle used to create the 3D space
+    """
+
+    nid = g.node(v) #retrieves the current vertex based on its ID
+    label = g.label(v) #retrieves the current vertex's label
+    turtle.rollL(137.5) #rotates the turtle laterally by 137.5° = leaf insertion angle
+    
+
+    if g.edge_type(v) == '+': #if '+', an element is added to the scene
+        turtle.setWidth(nid.PetioleDiam)
+
+        if label == 'Leaf':
+            leafscale = Vector3(1, nid.LeafWidth, nid.LeafLength) #(bending,width,length) of a leaf
+
+        turtle.down(nid.InsertionAngle) #turtle rotates vertically to match the insertion angle
+        turtle.setColor(2)
+        turtle.F(nid.PetioleLength) #turtle moves forward and draws a petiole
+        turtle.setColor(3)
+
+        my_leaf = Scaled(leafscale, leafshape) 
+        turtle.customGeometry(my_leaf) #a leaf is generated at the end of the petiole
+
+        if label == 'Internode': 
+            turtle.setWidth(nid.StemDiam) 
+            turtle.setColor(1)
+            turtle.F(nid.NodeLength) #turtle moves forward and draws an internode
+
+    turtle.setId(v) 
+
+
+def scene3d(g, select_visitor=rapeseed_visitor):
+    """
+    calls a PlantGL turtle to generate a 3D scene g is an MTG file
+    
+    """
+    t = pgl.PglTurtle()
+    # set colors 
+    color = Color3(*colors['Internode'])
+    t.setColorAt(1, color)
+    color = Color3(*colors['Petiole'])
+    t.setColorAt(2, color)
+    color = Color3(*colors['Leaf'])
+    t.setColorAt(3, color)
+
+    max_scale = g.max_scale()
+
+    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
+
+    scene = turtle.TurtleFrame(
+        g, 
+        visitor=select_visitor, turtle=t, gc=False, all_roots=False)
+    
+    return scene
+
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+#DISPLAYING THE MTG:
+g=vegetative_rapeseed().above
+phenotype(g)
+
+#print(display(g))
+#print(g.properties)
+
+pgl.Viewer.display(scene3d(g))
+
+
+# DEFINING METABOLIC FUNCTIONS ##############################################################################################################
 
 # This function considers whether a leaf should start senescing or not:
 def starting_senescence(g):
@@ -429,11 +390,8 @@ def leaves_falling(g, N_treshold):
 
     return
 
-########################################################################################################################
-########################################################################################################################
 
-# MAIN SIMULATION:
-##################
+# MAIN SIMULATION ##############################################################################################################################
 
 # We read the environemental/initial conditions:
 input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
@@ -442,7 +400,7 @@ input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app
 #g = create_MTG_from_csv_file()
 
 # OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
-g = create_shoot_MTG()
+g = vegetative_rapeseed().above
 
 # We initialize the content of N in each leaf/internode:
 for vid in g.vertices_iter(scale=1):
@@ -459,17 +417,6 @@ for vid in g.vertices_iter(scale=1):
 for vid in g.vertices_iter(scale=1):
     n = g.node(vid)
     n.fallen = False
-
-# We display the MTG in its initial state:
-plot_shoot_MTG(g, width=1200, height=900,
-               x_center=0, y_center=0, z_center=0.,
-               x_cam=5., y_cam=5., z_cam=1.,
-               grid=False,
-               background_color=[150, 200, 250],
-               single_color=None,
-               property_name='N_content', cmap='jet', vmin=0, vmax=0.2, lognorm=False,
-               recording_plot=True,
-               plot_name='plot_0000.png')
 
 # We record the properties in its initial state:
 recording_MTG_properties(g, 'MTG_0000.csv')
@@ -490,17 +437,6 @@ for step in range(initial_step, final_step+1):
     starting_senescence(g)
     N_exchange_within_shoots(g)
     leaves_falling(g, N_treshold = 0.02)
-
-    # We display the MTG in its new state:
-    plot_shoot_MTG(g, width=1200, height=900,
-                   x_center=0, y_center=0, z_center=0.,
-                   x_cam=5., y_cam=5., z_cam=1.,
-                   grid=False,
-                   background_color=[150, 200, 250],
-                   # single_color=[100,150,50],
-                   property_name='N_content', cmap='jet', vmin=0, vmax=0.2, lognorm=False,
-                   recording_plot=True,
-                   plot_name = 'plot_%.5d.png' % step)
 
     # We record the main properties of the plant:
     properties_filename = 'MTG_%.5d.csv' % step
