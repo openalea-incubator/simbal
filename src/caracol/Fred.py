@@ -437,12 +437,11 @@ pgl.Viewer.display(scene3d(g))
 # DEFINING METABOLIC FUNCTIONS ##############################################################################################################
 # This function considers whether a leaf should start senescing or not:
 
-class Growth:
+class Photosynthesis:
+    print("Checking the carbon produced of leaves according to incident light...")
 
     def _init_(self, g) :
-        """Leaf scale turnover module initial parameters
-          
-        """
+        
         for vid in g.vertices(scale=1):
             l = g.node(vid)
 
@@ -450,25 +449,45 @@ class Growth:
             
         return self
     
+    # This function calculates the carbon produced by a leaf:
+    def leaf_photosynthesis(_init_, g) :
+        return
+    
+class Growth:
+
+    def _init_(self, g) :
+
+        for vid in g.vertices(scale=1):
+            l = g.node(vid)
+
+        self = l 
+            
+        return self
+    
+    # This function calculates the potential growth of the leaf surface according to RUE:
     def leaf_potential_area(_init_, g) :
         return
     
+    # This function calculates the leaf nitrogen demand according to the potential leaf area:
     def leaf_nitrogen_demand(_init_, g) :
         return
     
+    # This function calculates the potntial photosynthesis according to the potential leaf area:
     def leaf_potential_photosynthesis(_init_, g) :
         return
     
-    def leaf_actual_growth(_init_, g) :
+    # This function calculates the carbon finally available for growth after nutrient redistribution:
+    def leaf_carbon_growth(_init_, g) :
         return
     
+    # This function calculates the carbon demand according to the potential carbon produced associated with the potential leaf area:
     def leaf_carbon_demand(_init_, g) :
         return
     
+    # This function calculates the final leaf area according to the carbon demand:
     def leaf_actual_area(_init_, g) :
         return
     
-
 class Competition:
     print("Checking whether leaves are in source or sink status in carbon or not...")
     print("Checking whether leaves are in source or sink status in nitrogen or not...")
@@ -754,7 +773,7 @@ for step in range(initial_step, final_step+1):
     print("")
     print("For step", step,":")
 
-    # We successively call the different modules:
+    # We successively call the different methods:
     starting_senescence(g)
     N_exchange_within_shoots(g)
     leaves_falling(g, N_treshold = 0.02)
