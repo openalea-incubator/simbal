@@ -6,6 +6,7 @@ class leaf :
         """Leaf scale turnover module initial parameters
           
         """
+
         self.N
         self.N_potential_offer
         self.C
@@ -30,14 +31,14 @@ class leaf :
     Parameters
     ----------
     g: MTG
-        the above part
+        the above part of the plant
     N_potential_plant_offer : float
         plant potential nitrogen content
 
     Returns
     -------
     g : MTG
-        the above part
+        the above part of the plant
     plant_area : float
         plant total area 
     PAR_total :
@@ -90,10 +91,10 @@ class leaf :
     
     Hypothesis
     ----------
-    H10 Senescence initiation of leaf choose according to their PAR 
+    > Senescence initiation of leaf choose according to their PAR 
         (lowest PAR = sacrificial leaf) // Samurai law
 
-    H11 Senescent leaf participation to the N pool according to their PAR 
+    > Senescent leaf participation to the available N pool according to their PAR 
         (higher PAR = greater weight)
 
     References
@@ -349,15 +350,13 @@ class leaf :
         Khudairi (1970),
         Aerts and Caluwe (1994),
         Paul and Driscoll (1997),
-        Wingler (2004),
-        Asim (2022),
+        Wingler (2004)
 
         Skulachev (2002),
         Thomas (2013),
 
         Thornley (1998),
-        Kull (2002),
-        Bertheloot(2008)
+        Kull (2002)
 
         Examples
         --------
