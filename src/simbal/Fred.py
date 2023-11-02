@@ -54,7 +54,9 @@ def recording_MTG_properties(g, file_name='g_properties.csv'):
     g_properties = []
 
     # We cover all the vertices in the MTG:
-    for vid in g.vertices_iter(scale=1):
+    max_scale = g.max_scale()
+
+    for vid in g.vertices_iter(scale = max_scale):
         # Initializing an empty list of properties for the current node:
         node_properties = []
         # Adding the index at the beginning of the list:
@@ -719,7 +721,7 @@ class Photosynthesis:
     # This function calculates the carbon produced by a leaf:
     @classmethod
     def leaf_photosynthesis(self, g, alpha = 0.1) :
-        """Calculation of a potential (optimum) quantity of carbon produced of each organ.
+        """Calculation of the actual quantity of carbon produced of each organ.
     
         Parameters
         ---------
@@ -751,7 +753,7 @@ class Photosynthesis:
         """
         sortie=dict()
 
-        alive= [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items() if v == False]
         par = [v for k, v in g.properties()['PAR'].items()]
         respiration = [v for k, v in g.properties()['Respiration'].items()]
 
@@ -805,7 +807,7 @@ class PotentialGrowth:
         """
         sortie=dict()
 
-        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         rue = [v for k, v in g.properties()['RUE'].items()]
         par = [v for k, v in g.properties()['PAR'].items()]
 
@@ -855,7 +857,7 @@ class PotentialGrowth:
         """
         sortie=dict()
 
-        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         par = [v for k, v in g.properties()['PAR'].items()]
 
         sortie['PotentialPhotosynthesis']= dict(zip(alive,[((a*epsilon_a)*epsilon_b) for a in par]))
@@ -912,7 +914,7 @@ class Competition:
         """
         sortie=dict()
 
-        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         photosynthesis = [v for k, v in g.properties()['Photosynthesis'].items()]
         carbon_demand = [v for k, v in g.properties()['CarbonDemand'].items()]
 
@@ -952,7 +954,7 @@ class Competition:
 
         sortie=dict()
 
-        alive =[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         carbon_deficit =[v for k, v in g.properties()['CarbonDeficit'].items()]
         nitrogen_source =[v for k, v in g.properties()['NitrogenSource'].items()]
         nitrogen_sink =[v for k, v in g.properties()['NitrogenSink'].items()]
@@ -1035,7 +1037,7 @@ class Nitrogen:
         """
         sortie=dict()
 
-        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive=[k for k, v in g.properties()['Fall'].items()  if v == False]
         potential_area = [v for k, v in g.properties()['PotentialArea'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
@@ -1084,7 +1086,7 @@ class Nitrogen:
         """
         sortie=dict()
 
-        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v == True]
         par =[v for k, v in g.properties()['PAR'].items()]
         sink =[k for k, v in g.properties()['NitrogenSink'].items() if v=='True']
         nitrogen_content =[v for k, v in g.properties()['NitrogenContent'].items()]
@@ -1092,16 +1094,16 @@ class Nitrogen:
         weight_import =[v for k, v in g.properties()['PonderationImport'].items()]
 
         for  k, v in g.properties()['Fall'].items() :
-            if v =='False' :
+            if v == False :
                 for k, v in g.properties()['NitrogenSource'].items() :
-                    if v =='True' :
+                    if v == True :
                         sortie['PonderationExport']= dict(zip(senescent,[a/PAR for a in par]))
 
                         weight_export =[v for k, v in g.properties()['PonderationExport'].items()]
                         sortie['NitrogenExport']= dict(zip(senescent,[a*b for a, b in zip(nitrogen_content,weight_export)]))
 
-                        pool =[v for k, v in g.properties()['NitrogenExport'].items()]
-                        pool_N = sum(pool[value] for value in pool)
+                        pool = [v for k, v in g.properties()['NitrogenExport'].items()]
+                        pool_N = sum(pool)
 
                     else :
                     
@@ -1156,7 +1158,7 @@ class Nitrogen:
         """
         sortie=dict()
 
-        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive=[k for k, v in g.properties()['Fall'].items()  if v == False]
         par = [v for k, v in g.properties()['PAR'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
@@ -1203,7 +1205,7 @@ class Nitrogen:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
@@ -1244,14 +1246,14 @@ class Nitrogen:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
         nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
         nitrogen_export = [v for k, v in g.properties()['NitrogenExport'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
         for k, v in g.properties()['Fall'].items() :
-            if v=='False' :
+            if v == False :
 
                 sortie['NitrogenContent']= dict(zip(alive,[a-b for a, b in zip(nitrogen_content, nitrogen_import)]))
 
@@ -1295,7 +1297,7 @@ class Nitrogen:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         carbon_growth = [v for k, v in g.properties()['CarbonGrowth'].items()]
         nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
 
@@ -1351,7 +1353,7 @@ class Carbon:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         photosynthesis = [v for k, v in g.properties()['Photosynthesis'].items()]
         carbon_spend = [v for k, v in g.properties()['CarbonSpend'].items()]
 
@@ -1387,7 +1389,7 @@ class Carbon:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
         potential_photosynthesis = [v for k, v in g.properties()['PotentialPhotosynthesis'].items()]
         carbon_growth = [v for k, v in g.properties()['CarbonGrowth'].items()]
 
@@ -1428,25 +1430,25 @@ class Carbon:
         """
         sortie=dict()
 
-        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v == True]
         growth =[v for k, v in g.properties()['Growth'].items()]
-        sink =[k for k, v in g.properties()['NitrogenSink'].items() if v=='True']
-        carbon_growth =[k for k, v in g.properties()['CarbonGrowth'].items() if v=='True']
-        carbon_import =[k for k, v in g.properties()['CarbonImport'].items() if v=='True']
-        carbon_storage =[k for k, v in g.properties()['CarbonStorage'].items() if v=='True']
+        sink =[k for k, v in g.properties()['NitrogenSink'].items() if v == True]
+        carbon_growth =[k for k, v in g.properties()['CarbonGrowth'].items() if v ==True]
+        carbon_import =[k for k, v in g.properties()['CarbonImport'].items() if v ==  True]
+        carbon_storage =[k for k, v in g.properties()['CarbonStorage'].items() if v == True]
         weight_import =[v for k, v in g.properties()['PonderationImport'].items()]
         weight_export =[v for k, v in g.properties()['PonderationExport'].items()]
 
         for  k, v in g.properties()['Fall'].items() :
-            if v=='False' :
+            if v == False :
 
                 sortie['CarbonExport']= dict(zip(senescent,[a*b for a, b in zip(carbon_storage, weight_export)]))
 
                 pool =[v for k, v in g.properties()['CarbonExport'].items()]
-                pool_C = sum(pool[value] for value in pool)
+                pool_C = sum(pool)
 
                 for  k, v in g.properties()['NitrogenSink'].items() :
-                    if v=='True' :
+                    if v == True :
                         for k, v in g.properties()['CarbonGrowth'].items() :
                             if v < 0 :
                     
@@ -1510,7 +1512,7 @@ class Growth:
         """
         sortie=dict()
 
-        growing =[k for k, v in g.properties()['Growth'].items()  if v=='True']
+        growing =[k for k, v in g.properties()['Growth'].items()  if v == True]
         potential_area =[v for k, v in g.properties()['PotentialArea'].items()]
         area =[v for k, v in g.properties()['LeafSurface'].items()]
         carbon_content =[v for k, v in g.properties()['CarbonContent'].items()]
@@ -1577,12 +1579,12 @@ class Fall:
         """
         sortie = dict()
 
-        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
-        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
+        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v ==True]
         fall = [v for k, v in g.properties()['Fall'].items()]
         
         for k, v in g.properties()['Fall'].items() :
-            if v=='False' :
+            if v ==False :
                 for k, v in g.properties()['CarbonGrowth'].items() :
                     if v < 0 :
                         sortie['Fall']= dict(zip(senescent,[a == True for a in fall]))
@@ -1624,12 +1626,12 @@ class Fall:
         """
         sortie = dict()
 
-        fall = [v for k, v in g.properties()['Fall'].items() if v=='True']
+        fall = [v for k, v in g.properties()['Fall'].items() if v == True]
         carbon_content = [v for k, v in g.properties()['CarbonContent'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
         for k, v in g.properties()['Fall'].items() :
-            if v=='True' :
+            if v == True:
                 
                 sortie['CarbonFallThresholdMecanism']= dict(zip(fall,[a for a in carbon_content]))
                 sortie['NitrogenFallThresholdMecanism']= dict(zip(fall,[a for a in nitrogen_content]))
@@ -1668,12 +1670,12 @@ class Fall:
         """
         sortie = dict()
 
-        fall = [v for k, v in g.properties()['Fall'].items() if v=='True']
+        fall = [v for k, v in g.properties()['Fall'].items() if v == True]
         par = [v for k, v in g.properties()['PAR'].items()]
         nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
         for k, v in g.properties()['Fall'].items() :
-            if v=='True' :
+            if v == True :
                 
                 sortie['PARFallThresholdEmpirical']= dict(zip(fall,[a for a in par]))
                 sortie['NitrogenFallThresholdEmpirical']= dict(zip(fall,[a for a in nitrogen_content]))
