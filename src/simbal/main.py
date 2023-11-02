@@ -1,46 +1,159 @@
-from . import mtg_rapeseed
-from . import photosynthesis as ph
-from . import aptos as apt
+from openalea.mtg import *
 
+from numpy import *
+from pandas import *
+import pandas as pd
 
-class Main :
-    def _init_(self) :
-        self.mtg = mtg_rapeseed.Rapseed()
-        above = self.mtg.above() 
-        self.g = above
+import mtg_rapeseed as mtg_rapeseed
+import mtg_visualization as mtg_visualization
+import aptos as aptos
+import files_management as files
+
+# SIMULATIONS ##############################################################################################################################
+class ScratchMTG:
     
-    def run(self, n=10) :
-        g = self.g
-        leaves = [ph.Leaf(vid) for vid in g if g.label(vid)=='Leaf']
+    def __init__(self, csv_filename = False, input_dataframe = None) :
+        
+        self.csv_filename = self.create_MTG_from_csv_file() if csv_filename is None else input_dataframe
+        self.input_dataframe = self.create_MTG_from_scratch() if input_dataframe is None else csv_filename
 
-        for i in range(n) :
-            for leaf in leaves:
-                PAR_total,N_pool, N_potential_shoot_offer = leaf.N_potential_shoot_offer(g,...)
-                plant_N_by_lightunit = ph.leaf.leaf_N_potential_offer
-                g = ph.leaf.leaf_area
-                g = ph.leaf.leaf_photosynthesis
-                g = ph.leaf.potential_leaf_area
-                g = ph.leaf.potential_leaf_light_interception
-                g = ph.leaf.leaf_potential_photosynthesis
-                g = ph.leaf.FSPM_Allirand_law
-                g = ph.leaf.C_potential_leaf_demand
-                g = ph.leaf.C_potential_leaf_offer
+        return 
+
+    # OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
+    @staticmethod
+    def create_MTG_from_csv_file():
+        
+        csv_filename='MTG_00003.csv'
+
+        # We first read the csv file where all the properties of each vertex has been previously recorded:
+        dataframe = pd.read_csv(csv_filename, sep=',', header=0)
+    
+        # We initialize an empty MTG:
+        g = MTG()
+
+        # We define the list of vertices and properties to be added to the MTG:
+        list_of_vid = dataframe['node_index']
+        list_of_properties = list(dataframe.columns.values)
+        list_of_properties.remove('node_index')
+
+        # We cover each new vertex to be added to the MTG:
+        for vid in list_of_vid:
+            # We get the previous element on which to add the new element:
+            n = g.node(vid-1)
+            # We now define the new element as the child of the previous element:
+            n = n.add_child()
+            # For this new element, we cover all the properties defined in the csv file:
+            for property in list_of_properties:
+                # For the specific property, we get the single value corresponding to the current vertex ID:
+                selected_series = dataframe[property].loc[dataframe['node_index'] == vid].iloc[0]
+                # NB: we need to add 'iloc[0]' as the previous expression otherwise returns a series, not a single value.
+        
+        return g
+
+    # OPTION 2: We create before a generic MTG:
+    @staticmethod
+    def create_MTG_from_scratch():
+    # We read the environemental/initial conditions:
+        #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
+
+        #We plot the MTG:
+        g = mtg_rapeseed.vegetative_rapeseed().above
+        mtg_rapeseed.phenotype(g)
+        mtg_rapeseed.metabolism(g)
+
+        # We initialize the content of N in each leaf/internode:
+        #for vid in g.vertices_iter(scale=1):
+            #n = g.node(vid)
+            # n.N_content = input_dataframe['Initial_N_content'].loc[vid-1]
+            #n.N_content =input_dataframe['Initial_N_content'].loc[input_dataframe['element_ID'] == vid]
+
+        # We initialize the PAR in each leaf/internode:
+        #for vid in g.vertices_iter(scale=1):
+            #n = g.node(vid)
+            #n.PAR = input_dataframe['PAR'].loc[input_dataframe['element_ID'] == vid]
+
+        # We initialize a new property of the MTG g that corresponds to the status "Fallen / Not fallen":
+        #for vid in g.vertices_iter(scale=1):
+            #n = g.node(vid)
+            #n.fallen = False
+
+        # We record the properties in its initial state:
+        files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
+
+        return g
+
+
+class Simulation:
+    # We define an initial and final step for covering a certain period:
+    def __init__(self, g, initial_step = 1, final_step = 3) :
+        
+        self.g = g
+        self.initial_step = initial_step
+        self.final_step = final_step 
+
+    @classmethod
+    def main(self, g, initial_step = 1, final_step = 3):
+
+        self.g = g
+
+        # For each time step covering the simulation period:
+        for step in range(initial_step, final_step+1):
+            print("")
+            print("For step", step,":")
+
+            # We successively call the different class and methods:
+            aptos.Photosynthesis(g, photosynthesis = None)
             
-                g = apt.plant.leaf_status
-                g = apt.plant.C_pool_budget
+            aptos.PotentialGrowth(g,
+                            potential_photosynthesis = None,
+                            potential_area = None, 
+                            area = None)
+            
+            aptos.Competition(g, 
+                        carbon_deficit = None,
+                        source_N = None, 
+                        sink_N = None)
+            
+            aptos.Nitrogen(g,
+                     nitrogen_demand = None,
+                     weight_import = None,
+                     weight_export = None,
+                     nitrogen_import =None,
+                     nitrogen_export = None,
+                     nitrogen_storage = None,
+                     carbon_expend = None,
+                     nitrogen_content = None,
+                     RUE = None,
+                     carbon_nitrogen_ratio = None)
+            
+            aptos.Carbon(g, 
+                   carbon_growth = None,
+                   carbon_demand = None,
+                   carbon_import = None,
+                   carbon_export = None)
+            
+            aptos.Growth(g, area = None)
+            
+            aptos.Fall(g, 
+                 fall = None,
+                 nitrogen_fall_threshold = None,
+                 nitrogen_fall_threshold_empirical = False,
+                 PAR_fall_threshold_empirical = False,
+                 carbon_fall_threshold = None)
+            
+            # We view the plant MTG with PlantGL:
+            mtg_visualization.pgl.Viewer.display(mtg_visualization.scene3d(g))
 
-                g = apt.leaf.leaf_senescence
-                g = apt.leaf.leaf_necrotic_area
+            # We record the main properties of the plant:
+            properties_filename = 'MTG_%.5d.csv' % step
+            files.recording_MTG_properties(g, properties_filename)
 
-                g = apt.leaf.fall
+        print("")
+        print("Simulation is done!")
 
-                return g, PAR_total,N_pool, N_potential_shoot_offer, PAR_total, plant_N_by_lightunit
 
-
-if __name__ == "__main__" :
-    """Run the unit test suite 
-
-    """
-    import doctest
-    doctest.testmod()
-
+#RUN
+mtg = ScratchMTG(input_dataframe=None)
+g = mtg.create_MTG_from_scratch()
+scenario_0 = Simulation(g, initial_step = 1.0, final_step = 3.0)
+scenario_0.main(g)
