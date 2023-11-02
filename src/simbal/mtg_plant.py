@@ -1,53 +1,61 @@
-from openalea.mtg import *#/!\DANGEROUS/!\
+from openalea.mtg import *
+
+from numpy import *
+from pandas import *
+
 
 
 class Plant:
     """ Define a plant as an above and below ground MTG.
+
+    Some usefull functions can be defined as proxies.
+
+    Authors
+    -------
+    Arman GRUMEL and Laurène PERTHAME
+        Colzette model
+
     """
-    def _init_(self):
-        self.n_short
-        self.n_long
-        self.short_length
-        self.long_length
-    
-    def above(self):
-        """ Build shoot plant with n_short internodes and n_long ones.
+    def __init__(self, name='Rapessed', above=None, below=None):
+        self.name = name
+        self.above = self.init_above_mtg() if above is None else above
+        self.below = self.init_below_mtg() if below is None else below
+
+    @staticmethod
+    def init_above_mtg():
+        """ Simple function to create a simple aerial MTG
+
+        Authors
+        -------
+        Arman GRUMEL and Laurène PERTHAME
+            Colzette model
+
         """
-        above = g = MTG()
+        g = MTG()
+        
+        # Add a plant (scale is 1)
         vid = g.add_component(g.root, label='Plant')
         vid = g.add_component(vid, label='Axis')
-
-        pid = g.add_component(vid, label='Phytomer')
-        vid = g.add_component(pid, label='Internode')
-
-        g.node(vid).length = self.short_length
-        g.node(vid).short = True #? 
-        leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-    
-        for i in range(self.n_short-1):
-            pid = g.add_child(pid, edge_type='<', label='Phytomer')
-            vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<',
-                                                label='Internode')
-            
-            g.node(vid).length = self.short_length
-            g.node(vid).short = True 
-            leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-
-        for i in range(self.n_long):
-            pid = g.add_child(pid, edge_type='<', label='Phytomer')
-            vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<',
-                                                label='Internode')
-            
-            g.node(vid).length = self.long_length
-            g.node(vid).short = False
-            leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
-
-        return Plant(name='plant', above=above, leaf_id=leaf_id)
-    
-    def below():
-        """ Simple function to create a simple belowground MTG 
-        or RootSystem Architecture
+        vid = g.add_component(vid, label='Phytomer')
         
+        # Last scale
+        vid = g.add_component(vid, label='Internode')
+        lid = g.add_child(vid, edge_type='+', label='Leaf')
+        bid = g.add_component(vid, edge_type='<', label='Bud')
+
+        fat_mtg(g)
+
+        return g
+
+    @staticmethod
+    def init_below_mtg():
+        """ Simple function to create a simple belowground MTG or RootSystem Architecture
+
+        Authors
+        -------
+        Arman GRUMEL and Laurène PERTHAME
+            Colzette model
+
         """
         g = MTG()
         
@@ -59,11 +67,5 @@ class Plant:
         vid = g.add_component(vid, label='Segment')
     
         fat_mtg(g)
+
         return g
-
-if __name__ == "__main__" :
-    """Run the unit test suite 
-
-    """
-    import doctest
-    doctest.testmod()
