@@ -469,37 +469,80 @@ def phenotype(g,
     update_MTG(g,sortie)
 
 def metabolism(g,
-    fall : bool,
+    fall : bool = False,
+    growth : bool = True,
     photosynthesis = 0.1,
-    nitrogen_content = 0.1,
-    carbon_content= 0.1,
+    par = 100,
+    respiration = 0.1,
     potential_photosynthesis= 0.1,
     potential_area= 0.1,
+    nitrogen_source : bool = True,
+    nitrogen_sink : bool = True,
+    nitrogen_content = 0.1,
+    nitrogen_demand = 0.1,
+    nitrogen_storage= 0.1,
     nitrogen_import= 0.1,
     nitrogen_export= 0.1,
+    rue = 0.1,
     weight_import= 0.1,
     weight_export= 0.1,
+    carbon_content= 0.1,
+    carbon_demand = 0.1,
+    carbon_deficit = 0.1,
     carbon_import= 0.1,
     carbon_export= 0.1,
     carbon_spend= 0.1,
+    carbon_growth = 0.1,
+    carbon_storage = 0.1,
     carbon_nitrogen_ratio= 0.1,
-    nitrogen_storage= 0.1,
-    N_fall_threshold_empirical= 0.1,
+    nitrogen_fall_threshold_empirical= 0.1,
     PAR_fall_threshold_empirical= 0.1,
-    N_fall_threshold_mecanism= 0.1): 
+    carbon_fall_threshold_mecanism= 0.1,
+    nitrogen_fall_threshold_mecanism = 0.1): 
     """
     """
     sortie=dict()
-    plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
+
     leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
-    internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
 
-    #surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew) Old functio
+    sortie['Growth']=dict(zip(leaves,[growth]*len(leaves)))
+
+    sortie['PAR']=dict(zip(leaves,[par]*len(leaves)))
+    sortie['Photosynthesis']=dict(zip(leaves,[photosynthesis]*len(leaves)))
+    sortie['Respiration']=dict(zip(leaves,[respiration]*len(leaves)))
+
+    sortie['PotentialPhotosynthesis']=dict(zip(leaves,[potential_photosynthesis]*len(leaves)))
+    sortie['PotentialArea']=dict(zip(leaves, [potential_area]*len(leaves)))
+
+    sortie['NitrogenSource']=dict(zip(leaves,[nitrogen_source]*len(leaves)))
+    sortie['NitrogenSink']=dict(zip(leaves,[nitrogen_sink]*len(leaves)))
     
-    sortie['NitrogenContent']=dict(zip(leaves,nitrogen_content))
-    sortie['CarbonContent']=dict(zip(leaves,carbon_content))
+    sortie['NitrogenContent']=dict(zip(leaves,[nitrogen_content]*len(leaves)))
+    sortie['NitrogenDemand']=dict(zip(leaves,[nitrogen_demand]*len(leaves)))
+    sortie['NitrogenImport']=dict(zip(leaves,[nitrogen_import]*len(leaves)))
+    sortie['NitrogenExport']=dict(zip(leaves,[nitrogen_export]*len(leaves)))
+    sortie['NitrogenStorage']=dict(zip(leaves,[nitrogen_storage]*len(leaves)))
+    sortie['RUE']=dict(zip(leaves,[rue]*len(leaves)))
 
-    sortie['Fall']= dict(zip(leaves,fall))
+
+    sortie['PonderationExport']=dict(zip(leaves,[weight_export]*len(leaves)))
+    sortie['PonderationImport']=dict(zip(leaves,[weight_import]*len(leaves)))
+    
+    sortie['CarbonContent']=dict(zip(leaves,[carbon_content]*len(leaves)))
+    sortie['CarbonDemand']=dict(zip(leaves,[carbon_demand]*len(leaves)))
+    sortie['CarbonDeficit']=dict(zip(leaves,[carbon_deficit]*len(leaves)))
+    sortie['CarbonImport']=dict(zip(leaves,[carbon_import]*len(leaves)))
+    sortie['CarbonExport']=dict(zip(leaves,[carbon_export]*len(leaves)))
+    sortie['CarbonSpend']=dict(zip(leaves,[carbon_spend]*len(leaves)))
+    sortie['CarbonGrowth']=dict(zip(leaves,[carbon_growth]*len(leaves)))
+    sortie['CarbonStorage']=dict(zip(leaves,[carbon_storage]*len(leaves)))
+    sortie['CarbonNitrogenRatio']=dict(zip(leaves,[carbon_nitrogen_ratio]*len(leaves)))
+
+    sortie['Fall']= dict(zip(leaves,[fall]*len(leaves)))
+    sortie['NirogenFallThresholdEmpirical']=dict(zip(leaves,[nitrogen_fall_threshold_empirical]*len(leaves)))
+    sortie['NirogenFallThresholdMecanism']=dict(zip(leaves,[nitrogen_fall_threshold_mecanism]*len(leaves)))
+    sortie['CarbonFallThresholdMecanism']=dict(zip(leaves,[carbon_fall_threshold_mecanism]*len(leaves)))
+    sortie['PARFallThresholdEmpirical']=dict(zip(leaves,[PAR_fall_threshold_empirical]*len(leaves)))
 
     update_MTG(g,sortie)
 
@@ -648,8 +691,9 @@ def scene3d(g,select_visitor=ColzetteVisitor):
 #-----------------------------------------------------------------------------------------------------------------------
 #DISPLAYING AND VIEW THE MTG:
 
-g = vegetative_rapeseed().above
-phenotype(g)
+#g = vegetative_rapeseed().above
+#phenotype(g)
+#metabolism(g)
 #print(display(g))
 #print(g.properties)
 #pgl.Viewer.display(scene3d(g))
@@ -667,13 +711,14 @@ class Photosynthesis:
 
     def __init__(self, g, photosynthesis = None) :
 
+        self.g = g
         self.photosynthesis = self.leaf_photosynthesis(g) if photosynthesis is None else photosynthesis
 
         return
     
     # This function calculates the carbon produced by a leaf:
     @classmethod
-    def leaf_photosynthesis(self, g) :
+    def leaf_photosynthesis(self, g, alpha = 0.1) :
         """Calculation of a potential (optimum) quantity of carbon produced of each organ.
     
         Parameters
@@ -704,17 +749,17 @@ class Photosynthesis:
         Drouet (1998)
 
         """
+        sortie=dict()
 
-        max_scale = g.max_scale()
+        alive= [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        par = [v for k, v in g.properties()['PAR'].items()]
+        respiration = [v for k, v in g.properties()['Respiration'].items()]
 
-        leaves=[l for l, v in g.properties()['label'].items()  if v=='Leaf']
-        alive = [l for l in leaves if not l.fall]
+        sortie['Photosynthesis']= dict(zip(alive,[(alpha*a)-b for a, b in zip(par, respiration)]))
 
-        for l in alive :
-            l.photosynthesis = (l.alpha * l.PAR) - l.respiration
+        return update_MTG(g,sortie)
 
-        return g
-class Growth:
+class PotentialGrowth:
     """Growth methods. 
 
     Authors
@@ -728,8 +773,7 @@ class Growth:
         
         self.g = g
         self.potential_area = self.leaf_potential_area(g) if potential_area is None else potential_area
-        self.potential_photosynthesis = self.potential_photosynthesis(g) if potential_photosynthesis is None else potential_photosynthesis
-        self.area = self.leaf_area(g) if area is None else area
+        self.potential_photosynthesis = self.leaf_potential_photosynthesis(g) if potential_photosynthesis is None else potential_photosynthesis
 
         return 
     
@@ -759,23 +803,21 @@ class Growth:
         Solen FARRA
 
         """
-        g = self.g
+        sortie=dict()
 
-        max_scale = g.max_scale()
+        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        rue = [v for k, v in g.properties()['RUE'].items()]
+        par = [v for k, v in g.properties()['PAR'].items()]
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        sortie['PotentialArea']= dict(zip(alive,[a*b for a, b in zip(rue, par)]))
 
-        for l in alive :
-            l.potential_area = l.RUE * l.PAR
-
-        return g
+        return update_MTG(g,sortie)
     
     # This function calculates the potential net photosynthesis according to the potential leaf area:
     @classmethod
     def leaf_potential_photosynthesis(self, g,
-                                      epsilon_a: float, epsilon_b: float ):
+                                      epsilon_a : float = 0.1, 
+                                      epsilon_b : float = 0.2 ):
         """Calculation of a potential (optimum) quantity of carbon produced of each organ.
     
         Parameters
@@ -811,64 +853,14 @@ class Growth:
             Penman-Monteith equation
 
         """
-        g = self.g
+        sortie=dict()
 
-        max_scale = g.max_scale()
+        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        par = [v for k, v in g.properties()['PAR'].items()]
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        sortie['PotentialPhotosynthesis']= dict(zip(alive,[((a*epsilon_a)*epsilon_b) for a in par]))
 
-        for l in alive :
-            l.potential_photosynthesis = (l.PAR*epsilon_a)*epsilon_b
-
-        return g
-    
-    @classmethod
-    def leaf_area(self, g) :
-        """leaf area extend according to final carbon content.
-        
-        Parameters
-        ----------
-        g: MTG
-            the above part of the plant
-
-        carbon_demand : MTG proporties
-            Nitrogen content of each organs (g)
-
-        potential_area : MTG proporties
-            Potential area of each organs according to a radiation use efficiency (m2)
-
-        carbon_growth : MTG proporties
-            Carbon quantity left to growth after nitrogen exchange among leaves (g)
-
-        carbon_content : MTG proporties 
-            Carbon content of each organs (g)
-
-        Returns
-        -------
-        g : MTG
-            the above part of the plant
-
-        """
-        g = self.g
-
-        max_scale = g.max_scale()
-
-        leaves = [g.node(lid) for lid in g.vertices(scale=max_scale) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not self.leaf_fall]
-        growing = [l for l in alive if self.growth]
-
-        for l in growing :
-            
-            if self.carbon_demand < 0 :
-                l.area = self.potential_area
-            
-            else :
-                l.area = (self.carbon_growth*self.area)/self.carbon_content
-
-        return g
+        return update_MTG(g,sortie)
     
 class Competition:
     """Nutrient competition status methods. 
@@ -884,9 +876,9 @@ class Competition:
                  carbon_deficit = None, source_N = None, sink_N = None) :
     
         self.g = g
-        self.carbon_deficit = self.leaf_carbon_deficit() if carbon_deficit is None else carbon_deficit
-        self.source_N = self.leaf_nitrogen_competition_status() if source_N is None else source_N
-        self.sink_N = self.leaf_nitrogen_competition_status() if sink_N is None else sink_N
+        self.carbon_deficit = self.leaf_carbon_deficit(g) if carbon_deficit is None else carbon_deficit
+        self.source_N = self.leaf_nitrogen_competition_status(g) if source_N is None else source_N
+        self.sink_N = self.leaf_nitrogen_competition_status(g) if sink_N is None else sink_N
     
         return 
     
@@ -918,16 +910,15 @@ class Competition:
         Solen FARRA
 
         """
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        photosynthesis = [v for k, v in g.properties()['Photosynthesis'].items()]
+        carbon_demand = [v for k, v in g.properties()['CarbonDemand'].items()]
 
-        for l in alive :
-            l.carbon_deficit = l.photosynthesis - l.carbon_demand
+        sortie['CarbonDeficit']= dict(zip(alive,[a-b for a, b in zip(photosynthesis, carbon_demand)]))
 
-        return g
+        return update_MTG(g,sortie)
     
     @classmethod
     def leaf_nitrogen_competition_status(self, g):
@@ -959,21 +950,23 @@ class Competition:
         """
         print("Cheking the nitrogen source-sink relationship between organs") 
 
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive =[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        carbon_deficit =[v for k, v in g.properties()['CarbonDeficit'].items()]
+        nitrogen_source =[v for k, v in g.properties()['NitrogenSource'].items()]
+        nitrogen_sink =[v for k, v in g.properties()['NitrogenSink'].items()]
 
-        for l in alive :
-            if l.carbon_deficit < 0 :
-                l.source_N = True
-                l.sink_N = False
-            else :
-                l.source_N = False
-                l.sink_N = True
+        for v in carbon_deficit :
+            if v < 0 : 
+                sortie['NitrogenSource']= dict(zip(alive,[a == True for a in nitrogen_source]))
+                sortie['NitrogenSink']= dict(zip(alive,[a == False for a in nitrogen_sink]))
             
-        return g
+            else :
+                sortie['NitrogenSource']= dict(zip(alive,[a == False for a in nitrogen_source]))
+                sortie['NitrogenSink']= dict(zip(alive,[a == True for a in nitrogen_sink]))  
+
+        return update_MTG(g,sortie)
 
 class Nitrogen:
     """Nitrogen exchange methods. 
@@ -987,26 +980,32 @@ class Nitrogen:
     print("Checking nitrogen quantities re-allocate between leaves...")
     print("Cheking leaf yellowing area evolution...")
 
-    def __init__(self, g, nitrogen_demand = None, weight_export = None, 
-               weight_import = None, nitrogen_import = None, nitrogen_export = None,
-               nitrogen_storage = None, RUE = None, carbon_expend = None, nitrogen_content = None,
-               carbon_nitrogen_ratio = None) :
+    def __init__(self, g,
+                 nitrogen_demand = None,
+                 weight_export = None,
+                 weight_import = None,
+                 nitrogen_import = None,
+                 nitrogen_export = None,
+                 nitrogen_storage = None,
+                 RUE = None,
+                 carbon_expend = None,
+                 nitrogen_content = None,
+                 carbon_nitrogen_ratio = None) :
     
         self.g = g
 
-        self.nitrogen_demand = self.leaf_nitrogen_demand() if nitrogen_demand is None else nitrogen_demand
-        self.weight_export = self.N_exchange_within_shoots() if weight_export is None else weight_export
-        self.weight_import = self.N_exchange_within_shoots() if weight_import is None else weight_import
-        self.nitrogen_import = self.N_exchange_within_shoots() if nitrogen_import is None else nitrogen_import
-        self.nitrogen_export = self.N_exchange_within_shoots() if nitrogen_export is None else nitrogen_export
-        self.nitrogen_storage = self.N_exchange_within_shoots() if nitrogen_storage is None else nitrogen_storage
-        self.RUE = self.leaf_RUE() if RUE is None else RUE
-        self.carbon_expend = self.leaf_senescence_carbon_cost() if carbon_expend is None else carbon_expend
-        self.nitrogen_content = self.leaf_nitrogen_content if nitrogen_content is None else nitrogen_content
-        self.carbon_nitrogen_ratio = self.leaf_carbon_nitrogen_ratio() if carbon_nitrogen_ratio is None else carbon_nitrogen_ratio
+        self.nitrogen_demand = self.leaf_nitrogen_demand(g) if nitrogen_demand is None else nitrogen_demand
+        self.weight_export = self.N_exchange_within_shoots(g) if weight_export is None else weight_export
+        self.weight_import = self.N_exchange_within_shoots(g) if weight_import is None else weight_import
+        self.nitrogen_import = self.N_exchange_within_shoots(g) if nitrogen_import is None else nitrogen_import
+        self.nitrogen_export = self.N_exchange_within_shoots(g) if nitrogen_export is None else nitrogen_export
+        self.nitrogen_storage = self.N_exchange_within_shoots(g) if nitrogen_storage is None else nitrogen_storage
+        self.RUE = self.leaf_RUE(g) if RUE is None else RUE
+        self.carbon_expend = self.leaf_senescence_carbon_cost(g) if carbon_expend is None else carbon_expend
+        self.nitrogen_content = self.leaf_nitrogen_content(g) if nitrogen_content is None else nitrogen_content
+        self.carbon_nitrogen_ratio = self.leaf_carbon_nitrogen_ratio(g) if carbon_nitrogen_ratio is None else carbon_nitrogen_ratio
     
         return 
-    
 
     # This function calculates the leaf nitrogen demand according to the potential leaf area:
     @classmethod
@@ -1034,24 +1033,22 @@ class Nitrogen:
         Solen FARRA
 
         """
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        potential_area = [v for k, v in g.properties()['PotentialArea'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        for l in alive :
-            l.nitrogen_demand = l.potential_area - l.nitrogen_content
-        
-        return g
-    
+        sortie['NitrogenDemand']= dict(zip(alive,[a-b for a, b in zip(potential_area, nitrogen_content)]))
+
+        return update_MTG(g,sortie)
 
     # This function calculates the nitrogen remobilised quantity according to ponderation,
     # the redistribution of N among leaves according to ponderation,
     # and the final leaf nitrogen content:
     @classmethod
     def N_exchange_within_shoots(self, g,
-                                 PAR: float = None) :
+                                 PAR: float = 100.1) :
         """Leaf senescence mecanism 
         
         Parameters
@@ -1085,31 +1082,46 @@ class Nitrogen:
         >>> leaf_senescence()
 
         """
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
-        senescence = [l for l in alive if l.source_N]
+        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        par =[v for k, v in g.properties()['PAR'].items()]
+        sink =[k for k, v in g.properties()['NitrogenSink'].items() if v=='True']
+        nitrogen_content =[v for k, v in g.properties()['NitrogenContent'].items()]
+        nitrogen_demand =[v for k, v in g.properties()['NitrogenDemand'].items()]
+        weight_import =[v for k, v in g.properties()['PonderationImport'].items()]
 
-        for l in senescence :
-            l.weight_export = l.PAR/PAR
-            l.nitrogen_exported = l.nitrogen_content * l.weight_export
+        for  k, v in g.properties()['Fall'].items() :
+            if v =='False' :
+                for k, v in g.properties()['NitrogenSource'].items() :
+                    if v =='True' :
+                        sortie['PonderationExport']= dict(zip(senescent,[a/PAR for a in par]))
+
+                        weight_export =[v for k, v in g.properties()['PonderationExport'].items()]
+                        sortie['NitrogenExport']= dict(zip(senescent,[a*b for a, b in zip(nitrogen_content,weight_export)]))
+
+                        pool =[v for k, v in g.properties()['NitrogenExport'].items()]
+                        pool_N = sum(pool[value] for value in pool)
+
+                    else :
+                    
+                        sortie['PonderationImport']= dict(zip(sink,[a/PAR for a in par]))
+
+                        weight_export =[v for k, v in g.properties()['PonderationExport'].items()]
+                        sortie['NitrogenExport']= dict(zip(senescent,[a*b for a, b in zip(nitrogen_content,weight_export)]))
+
+                        for k, v in g.properties()['NitrogenDemand'].items() :
+                            if v < 0 :
+
+                                sortie['NitrogenImport']= dict(zip(sink,[a*pool_N for a in weight_import]))
+                            
+                            else :
+
+                                sortie['NitrogenStorage']= dict(zip(sink,[a for a in nitrogen_demand]))
+                                sortie['NitrogenContent']= dict(zip(sink,[a for a in nitrogen_content]))
+
+        return update_MTG(g,sortie)
             
-
-            pool_N = sum(l.N_exported)
-        
-            for l in alive :
-                l.weight_import = l.PAR/PAR
-
-                if l.nitrogen_demand < 0 :
-                    l.nitrogen_import = pool_N * l.weight_import
-
-                else :
-                    l.nitrogen_storage = l.nitrogen_demand
-                    l.nitrogen_content = l.nitrogen_content
-
-        return g
 
     # This function calculates the final radiation use efficiency leaf coefficient:
     @classmethod
@@ -1142,17 +1154,17 @@ class Nitrogen:
             EcoMeristem model
 
         """
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
-        
-        for l in alive : 
-            l.RUE = l.nitrogen_content/l.PAR
+        alive=[k for k, v in g.properties()['Fall'].items()  if v=='False']
+        par = [v for k, v in g.properties()['PAR'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        return g
+        sortie['RUE']= dict(zip(alive,[a/b for a, b in zip(nitrogen_content, par)]))
+
+        return update_MTG(g,sortie)
     
+
     # This function calculates the carbon cost of the redistribution of N among leaves:
     @classmethod
     def leaf_senescence_carbon_cost(self, g,
@@ -1189,16 +1201,15 @@ class Nitrogen:
             FUN 2.0 model
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        for l in alive : 
-            l.carbon_expend = (kr/l.nitrogen_content)*l.nitrogen_import
-            
-        return g
+        sortie['CarbonSpend']= dict(zip(alive,[(kr/a)*b for a, b in zip(nitrogen_content, nitrogen_import)]))
+
+        return update_MTG(g,sortie)
     
     @classmethod
     def leaf_nitrogen_content(self, g):
@@ -1231,18 +1242,25 @@ class Nitrogen:
             FUN 2.0 model
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
-        senescence = [l for l in alive if l.source_N]
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
+        nitrogen_export = [v for k, v in g.properties()['NitrogenExport'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        for l in alive : 
-            l.nitrogen_content = l.N_content - l.N_import
+        for k, v in g.properties()['Fall'].items() :
+            if v=='False' :
 
-        for l in senescence :
-            l.nitrogen_content = l.N_content - l.N_export
+                sortie['NitrogenContent']= dict(zip(alive,[a-b for a, b in zip(nitrogen_content, nitrogen_import)]))
+
+                for k, v in g.properties()['NitrogenSource'].items() :
+                    if v=='True' :
+
+                        sortie['NitrogenContent']= dict(zip(senescent,[a-b for a, b in zip(nitrogen_content, nitrogen_export)]))
+
+        return update_MTG(g,sortie)
 
     @classmethod
     def leaf_carbon_nitrogen_ratio(self, g):
@@ -1275,16 +1293,15 @@ class Nitrogen:
             FUN 2.0 model
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        carbon_growth = [v for k, v in g.properties()['CarbonGrowth'].items()]
+        nitrogen_import = [v for k, v in g.properties()['NitrogenImport'].items()]
 
-        for l in alive : 
-            l.carbon_nitrogen_ratio = l.carbon_growth/l.N_import
+        sortie['CarbonNitrogenRatio']= dict(zip(alive,[a/b for a, b in zip(carbon_growth, nitrogen_import)]))
 
-        return g
+        return update_MTG(g,sortie)
     
 class Carbon:
     """Carbon balance methods. 
@@ -1298,11 +1315,11 @@ class Carbon:
                carbon_import = None, growth = None) :
 
         self.g = g
-        self.carbon_growth = self.leaf_carbon_growth() if carbon_growth is None else carbon_growth
-        self.carbon_demand = self.leaf_carbon_demand() if carbon_demand is None else carbon_demand
-        self.carbon_export = self.C_exchange_within_shoots() if carbon_export is None else carbon_export
-        self.carbon_import = self.C_exchange_within_shoots() if carbon_import is None else carbon_import
-        self.growth = self.C_exchange_within_shoots() if growth is None else growth
+        self.carbon_growth = self.leaf_carbon_growth(g) if carbon_growth is None else carbon_growth
+        self.carbon_demand = self.leaf_carbon_demand(g) if carbon_demand is None else carbon_demand
+        self.carbon_export = self.C_exchange_within_shoots(g) if carbon_export is None else carbon_export
+        self.carbon_import = self.C_exchange_within_shoots(g) if carbon_import is None else carbon_import
+        self.growth = self.C_exchange_within_shoots(g) if growth is None else growth
             
         return 
     
@@ -1332,16 +1349,15 @@ class Carbon:
         Solen FARRA
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        photosynthesis = [v for k, v in g.properties()['Photosynthesis'].items()]
+        carbon_spend = [v for k, v in g.properties()['CarbonSpend'].items()]
 
-        for l in alive :
-            l.carbon_growth = l.photosynthesis - l.carbon_spend
-        
-        return g
+        sortie['CarbonGrowth']= dict(zip(alive,[a-b for a, b in zip(photosynthesis, carbon_spend)]))
+
+        return update_MTG(g,sortie)
     
     # This function calculates the carbon demand according to the potential carbon produced associated with the potential leaf area:
     @classmethod
@@ -1369,16 +1385,15 @@ class Carbon:
         Solen FARRA
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                  if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
-    
-        for l in alive :
-            l.carbon_demand = l.potential_photosynthesis - l.carbon_growth
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        potential_photosynthesis = [v for k, v in g.properties()['PotentialPhotosynthesis'].items()]
+        carbon_growth = [v for k, v in g.properties()['CarbonGrowth'].items()]
 
-        return g
+        sortie['CarbonDemand']= dict(zip(alive,[a-b for a, b in zip(potential_photosynthesis, carbon_growth)]))
+
+        return update_MTG(g,sortie)
     
     @classmethod
     def C_exchange_within_shoots(self, g) :
@@ -1411,34 +1426,104 @@ class Carbon:
         Lemaire et al. (2008)
 
         """
-        g = self.g
+        sortie=dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.leaf_fall]
-        sink = [l for l in alive if l.sink_N]
+        senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        growth =[v for k, v in g.properties()['Growth'].items()]
+        sink =[k for k, v in g.properties()['NitrogenSink'].items() if v=='True']
+        carbon_growth =[k for k, v in g.properties()['CarbonGrowth'].items() if v=='True']
+        carbon_import =[k for k, v in g.properties()['CarbonImport'].items() if v=='True']
+        carbon_storage =[k for k, v in g.properties()['CarbonStorage'].items() if v=='True']
+        weight_import =[v for k, v in g.properties()['PonderationImport'].items()]
+        weight_export =[v for k, v in g.properties()['PonderationExport'].items()]
 
-        for l in alive :
-            l.carbon_export = l.carbon_storage*l.weight_export
-            
-            pool_C = sum(l.carbon_export)
+        for  k, v in g.properties()['Fall'].items() :
+            if v=='False' :
+
+                sortie['CarbonExport']= dict(zip(senescent,[a*b for a, b in zip(carbon_storage, weight_export)]))
+
+                pool =[v for k, v in g.properties()['CarbonExport'].items()]
+                pool_C = sum(pool[value] for value in pool)
+
+                for  k, v in g.properties()['NitrogenSink'].items() :
+                    if v=='True' :
+                        for k, v in g.properties()['CarbonGrowth'].items() :
+                            if v < 0 :
+                    
+                                sortie['CarbonImport']= dict(zip(sink,[pool_C/a for a in weight_import]))
+                                sortie['CarbonGrowth']= dict(zip(sink,[a+b for a, b in zip(carbon_growth, carbon_import)]))
+
+                            for  k, v in g.properties()['CarbonGrowth'].items() :
+                                if v > 0 : 
+
+                                    sortie['Growth']= dict(zip(sink,[a == True for a in growth]))
+                            
+                            else :
+
+                                sortie['Growth']= dict(zip(sink,[a == False for a in growth]))
+
+                    else :
+                        
+                        sortie['Growth']= dict(zip(sink,[a == True for a in growth]))
+
+class Growth:
+    """Growth methods. 
+
+    Authors
+    -------
+    Solen FARRA
+
+    """
+    def __init__(self, g, area = None) :
+
+        self.g = g
+        self.area = self.leaf_area(g) if area is None else area
+    
+        return 
+
+    @classmethod
+    def leaf_area(self, g) :
+        """leaf area extend according to final carbon content.
         
-        for l in sink :
+        Parameters
+        ----------
+        g: MTG
+            the above part of the plant
 
-            if l.carbon_growth < 0 :
-                l.carbon_import = pool_C*l.weight_import
-                l.carbon_growth = l.carbon_growth + l.carbon_import
+        carbon_demand : MTG proporties
+            Nitrogen content of each organs (g)
 
-                if l.carbon_growth > 0 :
-                    l.growth = True
+        potential_area : MTG proporties
+            Potential area of each organs according to a radiation use efficiency (m2)
 
-                else :
-                    l.growth = False
+        carbon_growth : MTG proporties
+            Carbon quantity left to growth after nitrogen exchange among leaves (g)
 
-            else : l.growth = True    
+        carbon_content : MTG proporties 
+            Carbon content of each organs (g)
 
-        return g
+        Returns
+        -------
+        g : MTG
+            the above part of the plant
 
+        """
+        sortie=dict()
+
+        growing =[k for k, v in g.properties()['Growth'].items()  if v=='True']
+        potential_area =[v for k, v in g.properties()['PotentialArea'].items()]
+        area =[v for k, v in g.properties()['LeafSurface'].items()]
+        carbon_content =[v for k, v in g.properties()['CarbonContent'].items()]
+        carbon_growth =[v for k, v in g.properties()['CarbonGrowth'].items()]
+
+        for k, v in g.properties()['CarbonDemand'].items() :
+            if v < 0 : 
+                sortie['LeafSurface']= dict(zip(growing,[a for a in potential_area]))
+            
+            else :
+                sortie['LeafSurface']= dict(zip(growing,[(a*b)/c for a, b, c in zip(carbon_growth, area, carbon_content)]))  
+
+        return update_MTG(g,sortie)
     
 class Fall:
     """Leaves falling methods. 
@@ -1455,11 +1540,11 @@ class Fall:
                PAR_fall_threshold_empirical = False, carbon_fall_threshold = None) :
 
         self.g = g
-        self.fall = self.leaf_falling() if fall is None else fall
-        self.nitrogen_fall_threshold_empirical = self.leaf_falling_empirical_threshold() if nitrogen_fall_threshold_empirical is None else nitrogen_fall_threshold
-        self.nitrogen_fall_threshold = self.leaf_falling_mecanism_threshold() if nitrogen_fall_threshold is None else nitrogen_fall_threshold_empirical
-        self.PAR_fall_threshold_empirical = self.leaf_falling_empirical_threshold() if PAR_fall_threshold_empirical is None else carbon_fall_threshold
-        self.carbon_fall_threshold = self.leaf_falling_mecanism_threshold if carbon_fall_threshold is None else PAR_fall_threshold_empirical
+        self.fall = self.leaf_falling(g) if fall is None else fall
+        self.nitrogen_fall_threshold_empirical = self.leaf_falling_empirical_threshold(g) if nitrogen_fall_threshold_empirical is None else nitrogen_fall_threshold
+        self.nitrogen_fall_threshold = self.leaf_falling_mecanism_threshold(g) if nitrogen_fall_threshold is None else nitrogen_fall_threshold_empirical
+        self.PAR_fall_threshold_empirical = self.leaf_falling_empirical_threshold(g) if PAR_fall_threshold_empirical is None else carbon_fall_threshold
+        self.carbon_fall_threshold = self.leaf_falling_mecanism_threshold(g) if carbon_fall_threshold is None else PAR_fall_threshold_empirical
             
         return 
 
@@ -1490,21 +1575,22 @@ class Fall:
         Field (1983)
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        alive = [l for l in leaves if not l.fall]
-        senescence = [l for l in alive if l.source_N]
+        alive = [k for k, v in g.properties()['Fall'].items()  if v=='False']
+        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v=='True']
+        fall = [v for k, v in g.properties()['Fall'].items()]
         
-        for l in senescence :
-            if l.carbon_growth < 0:
-                l.fall = True
+        for k, v in g.properties()['Fall'].items() :
+            if v=='False' :
+                for k, v in g.properties()['CarbonGrowth'].items() :
+                    if v < 0 :
+                        sortie['Fall']= dict(zip(senescent,[a == True for a in fall]))
+                    
+                    else :
+                        sortie['Fall']= dict(zip(senescent,[a == False for a in fall]))
 
-            else:
-                l.fall = False
-
-        return g
+        return update_MTG(g,sortie)
     
     # This function considers the final carbon and nitrogen mecanistical threshold for leaf fall:
     @classmethod
@@ -1536,17 +1622,19 @@ class Fall:
         Field (1983)
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-                if g.class_name(lid) =='Leaf']
-        dead = [l for l in leaves if l.fall]
+        fall = [v for k, v in g.properties()['Fall'].items() if v=='True']
+        carbon_content = [v for k, v in g.properties()['CarbonContent'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        for l in dead :
-            l.C_fall_threshold = l.C_content
-            l.N_fall_threshold = l.N_content
+        for k, v in g.properties()['Fall'].items() :
+            if v=='True' :
+                
+                sortie['CarbonFallThresholdMecanism']= dict(zip(fall,[a for a in carbon_content]))
+                sortie['NitrogenFallThresholdMecanism']= dict(zip(fall,[a for a in nitrogen_content]))
 
-        return g
+        return update_MTG(g,sortie)
     
     # This function considers the final nitrogen and light empirical threshold for leaf fall:
     @classmethod
@@ -1578,20 +1666,22 @@ class Fall:
         Thomas (2013)
 
         """
-        g = self.g
+        sortie = dict()
 
-        leaves = [g.node(lid) for lid in g.vertices(scale=1) 
-            if g.class_name(lid) =='Leaf']
-        dead = [l for l in leaves if l.fall]
+        fall = [v for k, v in g.properties()['Fall'].items() if v=='True']
+        par = [v for k, v in g.properties()['PAR'].items()]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items()]
 
-        for l in dead :
-            l.PAR_fall_threshold = l.PAR
-            l.N_fall_threshold = l.N_content
+        for k, v in g.properties()['Fall'].items() :
+            if v=='True' :
+                
+                sortie['PARFallThresholdEmpirical']= dict(zip(fall,[a for a in par]))
+                sortie['NitrogenFallThresholdEmpirical']= dict(zip(fall,[a for a in nitrogen_content]))
 
-        return g
+        return update_MTG(g,sortie)
     
 # MAIN SIMULATION ##############################################################################################################################
-class plot_MTG:
+class ScratchMTG:
     
     def __init__(self, csv_filename = False, input_dataframe = None) :
         
@@ -1639,7 +1729,8 @@ class plot_MTG:
 
         #We plot the MTG:
         g = vegetative_rapeseed().above
-        g = phenotype(g)
+        phenotype(g)
+        metabolism(g)
 
         # We initialize the content of N in each leaf/internode:
         #for vid in g.vertices_iter(scale=1):
@@ -1682,73 +1773,64 @@ class Simulation:
             print("For step", step,":")
 
             # We successively call the different class and methods:
-            Main_photosynthesis = Photosynthesis(g, photosynthesis = None)
+            Photosynthesis(g, photosynthesis = None)
             
-            Main_growth = Growth(g, potential_photosynthesis = None,
-                                 potential_area = None, 
-                                 area = None)
+            PotentialGrowth(g,
+                            potential_photosynthesis = None,
+                            potential_area = None, 
+                            area = None)
             
-            Main_competition = Competition(g, carbon_deficit = None, 
-                                           source_N = None, 
-                                           sink_N = None)
+            Competition(g, 
+                        carbon_deficit = None,
+                        source_N = None, 
+                        sink_N = None)
             
-            Main_nitrogen = Nitrogen(g, nitrogen_demand = None, 
-                                     weigth_import = None, 
-                                     weigth_export = None,
-                                     nitrogen_import =None, 
-                                     nitrogen_export = None,
-                                     nitrogen_storage = None,
-                                     carbon_expend = None, 
-                                     nitrogen_content = None,
-                                     RUE = None, 
-                                     carbon_nitrogen_ratio = None)
+            Nitrogen(g,
+                     nitrogen_demand = None,
+                     weight_import = None,
+                     weight_export = None,
+                     nitrogen_import =None,
+                     nitrogen_export = None,
+                     nitrogen_storage = None,
+                     carbon_expend = None,
+                     nitrogen_content = None,
+                     RUE = None,
+                     carbon_nitrogen_ratio = None)
             
-            Main_carbon = Carbon(g, carbon_growth = None, 
-                                 carbon_demand = None,
-                                 carbon_import = None, 
-                                 carbon_export = None)
+            Carbon(g, 
+                   carbon_growth = None,
+                   carbon_demand = None,
+                   carbon_import = None,
+                   carbon_export = None)
             
-            Main_fall = Fall(g, fall = None,  
-                             nitrogen_fall_threshold = None, 
-                             nitrogen_fall_threshold_empirical = False,
-                             PAR_fall_threshold_empirical = False, 
-                             carbon_fall_threshold = None)
-
-            g = Main_photosynthesis.leaf_photosynthesis(g)
+            Growth(g, area = None)
             
-            g = Main_growth.leaf_potential_photosynthesis(g)
-            g = Main_growth.leaf_potential_area(g)
+            Fall(g, 
+                 fall = None,
+                 nitrogen_fall_threshold = None,
+                 nitrogen_fall_threshold_empirical = False,
+                 PAR_fall_threshold_empirical = False,
+                 carbon_fall_threshold = None)
             
-            g = Main_competition.leaf_carbon_deficit(g)
-            g = Main_competition.leaf_nitrogen_competition_status(g)
-            
-            g = Main_nitrogen.leaf_nitrogen_demand(g)
-            g = Main_nitrogen.N_exchange_within_shoots(g)
-            g = Main_nitrogen.leaf_senescence_carbon_cost(g)
-            g = Main_nitrogen.leaf_nitrogen_content(g)
-            g = Main_nitrogen.leaf_RUE(g)
-            g = Main_nitrogen.leaf_carbon_nitrogen_ratio(g)
-
-            g = Main_carbon.leaf_carbon_growth(g)
-            g = Main_carbon.leaf_carbon_demand(g)
-            g = Main_carbon.C_exchange_within_shoots(g)
-
-            g = Main_growth.leaf_area(g)
-
-            g = Main_fall.leaf_falling(g)
-            g = Main_fall.leaf_falling_empirical_threshold(g)
-            g = Main_fall.leaf_falling_mecanism_threshold(g)
+            # We view the plant MTG with PlantGL:
+            pgl.Viewer.display(scene3d(g))
 
             # We record the main properties of the plant:
             properties_filename = 'MTG_%.5d.csv' % step
             recording_MTG_properties(g, properties_filename)
 
-            return g
-
         print("")
         print("Simulation is done!")
 
+
+
+
+
+
+
+mtg = ScratchMTG(input_dataframe=None)
+g = mtg.create_MTG_from_scratch()
 scenario_0 = Simulation(g, initial_step = 1.0, final_step = 3.0)
 scenario_0.main(g)
 
-pgl.Viewer.display(scene3d(g))
+
