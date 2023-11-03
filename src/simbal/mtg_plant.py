@@ -1,9 +1,5 @@
 from openalea.mtg import *
 
-from numpy import *
-from pandas import *
-
-
 
 class Plant:
     """ Define a plant as an above and below ground MTG.
