@@ -1,4 +1,4 @@
-# Caracol
+# Simbal
 FSPM model for crop mixture with root and shoot, integrating C & N cycle
 
 # Final aim 
