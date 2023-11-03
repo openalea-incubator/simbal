@@ -10,11 +10,34 @@ import mtg_rapeseed as mtg_rapeseed
 ###################################
 
 def update_MTG(g, outputs):
+    """Update the MTG after run methods.
+
+    Parameters
+    ----------
+    g: MTG 
+        MTG where properties are recorded
+
+    outputs: dict
+        New properties values after run methods
+    
+    Returns
+    -------
+    g: MTG 
+        MTG where properties are recorded
+
+    Examples
+    --------
+    >>> outputs = {'param1': { vid1: , vid2, ...}, 'param2': { vid1: , vid2, ...}}
+
+    Authors
+    -------
+    Armand GRUMEL and Laurène PERTHAME
+        Colzette model
+
     """
-    Update the MTG 
-    :param dict outputs: {'param1': { vid1: , vid2, ...}, 'param2': { vid1: , vid2, ...}}
-    """
-     # add the missing property
+    print("Update the MTG...")
+
+    # add the missing property
     for param in outputs.keys():
         if param not in g.properties():
             g.add_property(param)
@@ -22,7 +45,7 @@ def update_MTG(g, outputs):
         # update the MTG
         g.property(param).update(outputs[param])
 
-# DEFINING METABOLIC FUNCTIONS ##############################################################################################################
+########################################################################################
 class Photosynthesis:
     """Photosynthesis methods.
 
@@ -73,6 +96,8 @@ class Photosynthesis:
         Drouet (1998)
 
         """
+        print("Run the actual photosynthesis...")
+
         sortie=dict()
 
         alive = [k for k, v in g.properties()['Fall'].items() if v == False]
@@ -127,6 +152,8 @@ class PotentialGrowth:
         Solen FARRA
 
         """
+        print("Run a potential area...")
+
         sortie=dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -161,7 +188,6 @@ class PotentialGrowth:
         epsilon_a: float
             Absorption efficiency coefficient
 
-        
         Returns
         ------
         g: MTG 
@@ -177,6 +203,8 @@ class PotentialGrowth:
             Penman-Monteith equation
 
         """
+        print("Run a potential photosynthesis...")
+
         sortie=dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -194,7 +222,7 @@ class Competition:
     Solen FARRA
 
     """
-    print("Checking whether leaves are in source or sink status in nitrogen or not...")
+    print("Checking whether leaves are nitrogen source or sink or not...")
 
     def __init__(self, g, 
                  carbon_deficit = None, source_N = None, sink_N = None) :
@@ -234,6 +262,8 @@ class Competition:
         Solen FARRA
 
         """
+        print("Run the actual carbon deficit...")
+
         sortie=dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -272,7 +302,7 @@ class Competition:
         Solen FARRA
 
         """
-        print("Cheking the nitrogen source-sink relationship between organs") 
+        print("Run the actual nitrogen competition status of each organ...") 
 
         sortie=dict()
 
@@ -300,9 +330,7 @@ class Nitrogen:
     Solen FARRA
 
     """
-    print("Checking whether leaves are in senescence state or not...")
-    print("Checking nitrogen quantities re-allocate between leaves...")
-    print("Cheking leaf yellowing area evolution...")
+    print("Checking the nitrogen balance...")
 
     def __init__(self, g,
                  nitrogen_demand = None,
@@ -357,6 +385,8 @@ class Nitrogen:
         Solen FARRA
 
         """
+        print("Run the actual nitrogen demand...")
+
         sortie=dict()
 
         alive=[k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -406,6 +436,8 @@ class Nitrogen:
         >>> leaf_senescence()
 
         """
+        print("Run the actual nitrogen re-allocation...")
+
         sortie=dict()
 
         senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v == True]
@@ -478,6 +510,8 @@ class Nitrogen:
             EcoMeristem model
 
         """
+        print("Run the actual RUE...")
+
         sortie=dict()
 
         alive=[k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -525,6 +559,8 @@ class Nitrogen:
             FUN 2.0 model
 
         """
+        print("Run the carbon cost of nitrogen re-allocation...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -566,6 +602,8 @@ class Nitrogen:
             FUN 2.0 model
 
         """
+        print("Run the nitrogen content...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -617,6 +655,8 @@ class Nitrogen:
             FUN 2.0 model
 
         """
+        print("Run the C:N ratio...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -635,6 +675,8 @@ class Carbon:
     Solen FARRA
 
     """
+    print("Checking the carbon balance...")
+
     def __init__(self, g, carbon_growth = None, carbon_demand = None, carbon_export = None, 
                carbon_import = None, growth = None) :
 
@@ -673,6 +715,8 @@ class Carbon:
         Solen FARRA
 
         """
+        print("Run the carbon available for growth...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -709,6 +753,8 @@ class Carbon:
         Solen FARRA
 
         """
+        print("Run the carbon demand...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -750,6 +796,8 @@ class Carbon:
         Lemaire et al. (2008)
 
         """
+        print("Run the re-allocation of storage carbon among organs...")
+
         sortie=dict()
 
         senescent =[k for k, v in g.properties()['NitrogenSource'].items()  if v == True]
@@ -798,6 +846,8 @@ class Growth:
     Solen FARRA
 
     """
+    print("Checking organs growth...")
+
     def __init__(self, g, area = None) :
 
         self.g = g
@@ -832,6 +882,8 @@ class Growth:
             the above part of the plant
 
         """
+        print("Run the leaf area evolution...")
+
         sortie=dict()
 
         growing =[k for k, v in g.properties()['Growth'].items()  if v == True]
@@ -858,7 +910,7 @@ class Fall:
 
     """
     print("Checking whether leaves should fall or not...")
-    print("Checking nitrogen and carbon quantity thresholds of leaves falling...")
+    print("Checking nitrogen and carbon quantity thresholds to fall...")
 
     def __init__(self, g, fall = None, nitrogen_fall_threshold = None, nitrogen_fall_threshold_empirical = False,
                PAR_fall_threshold_empirical = False, carbon_fall_threshold = None) :
@@ -899,6 +951,8 @@ class Fall:
         Field (1983)
 
         """
+        print("Run organs fall...")
+
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
@@ -946,6 +1000,8 @@ class Fall:
         Field (1983)
 
         """
+        print("Run fall thresholds (mecanistical hypothesis)...")
+
         sortie = dict()
 
         fall = [v for k, v in g.properties()['Fall'].items() if v == True]
@@ -990,6 +1046,8 @@ class Fall:
         Thomas (2013)
 
         """
+        print("Run fall thresholds (empirical hypothesis)...")
+
         sortie = dict()
 
         fall = [v for k, v in g.properties()['Fall'].items() if v == True]
