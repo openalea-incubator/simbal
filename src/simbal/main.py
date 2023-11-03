@@ -1,4 +1,5 @@
 from openalea.mtg import *
+import openalea.plantgl.all as pgl
 
 from numpy import *
 from pandas import *
@@ -164,9 +165,6 @@ class Simulation:
             print("")
             print("For step", step,":")
 
-            #We initialize the MTG
-            g = ScratchMTG.create_MTG_from_scratch()
-
             # We successively call the different class and methods:
             aptos.Photosynthesis(g, photosynthesis = None)
             
@@ -208,7 +206,11 @@ class Simulation:
                  carbon_fall_threshold = None)
             
             # We view the plant MTG with PlantGL:
-            mtg_visualization.pgl.Viewer.display(mtg_visualization.scene3d(g))
+            pgl.Viewer.display(mtg_visualization.scene3d(g))
+
+            # We recording a snapshot a the MTG:
+            plot_name = 'plot_%.5d.png' % step
+            pgl.Viewer.saveSnapshot(plot_name)
 
             # We record the main properties of the plant:
             properties_filename = 'MTG_%.5d.csv' % step
@@ -219,4 +221,5 @@ class Simulation:
 
         
 #RUN
+g = ScratchMTG.create_MTG_from_scratch()
 Simulation.main(initial_step = 1, final_step = 3)

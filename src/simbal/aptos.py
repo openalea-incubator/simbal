@@ -54,8 +54,6 @@ class Photosynthesis:
     Solen FARRA
 
     """
-    print("Checking the carbon produced of leaves according to incident light...")
-
     def __init__(self, g, photosynthesis = None) :
 
         self.g = g
@@ -116,8 +114,6 @@ class PotentialGrowth:
     Solen FARRA
 
     """
-    print("Checking the potentiality, demand and cost in nutrient of growth processus...")
-
     def __init__(self, g, potential_area = None, potential_photosynthesis = None, area = None) :
         
         self.g = g
@@ -222,8 +218,6 @@ class Competition:
     Solen FARRA
 
     """
-    print("Checking whether leaves are nitrogen source or sink or not...")
-
     def __init__(self, g, 
                  carbon_deficit = None, source_N = None, sink_N = None) :
     
@@ -330,8 +324,6 @@ class Nitrogen:
     Solen FARRA
 
     """
-    print("Checking the nitrogen balance...")
-
     def __init__(self, g,
                  nitrogen_demand = None,
                  weight_export = None,
@@ -433,7 +425,7 @@ class Nitrogen:
 
         Examples
         --------
-        >>> leaf_senescence()
+        >>> leaf_senescence() = 
 
         """
         print("Run the actual nitrogen re-allocation...")
@@ -675,8 +667,6 @@ class Carbon:
     Solen FARRA
 
     """
-    print("Checking the carbon balance...")
-
     def __init__(self, g, carbon_growth = None, carbon_demand = None, carbon_export = None, 
                carbon_import = None, growth = None) :
 
@@ -846,8 +836,6 @@ class Growth:
     Solen FARRA
 
     """
-    print("Checking organs growth...")
-
     def __init__(self, g, area = None) :
 
         self.g = g
@@ -909,9 +897,6 @@ class Fall:
     Solen FARRA
 
     """
-    print("Checking whether leaves should fall or not...")
-    print("Checking nitrogen and carbon quantity thresholds to fall...")
-
     def __init__(self, g, fall = None, nitrogen_fall_threshold = None, nitrogen_fall_threshold_empirical = False,
                PAR_fall_threshold_empirical = False, carbon_fall_threshold = None) :
 
