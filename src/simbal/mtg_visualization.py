@@ -9,12 +9,6 @@ from numpy import *
 from pandas import *
 
 
-#color dict of the 3D elements
-colors = dict()
-colors['Internode'] = (100, 100, 80)
-colors['Petiole'] = (100, 100, 80)
-colors['Leaf'] = (9, 82, 40)
-
 #leaf shape 
 def unileaflet(length=1., width=1.):
     """Generates a unileaflet shape (circle leaf) made with 8 triangles.
@@ -106,8 +100,7 @@ def ColzetteVisitor(
     v is the ID of the vertex being generated (int)
     turtle is the turtle used to create the 3D space
     """
-    
-   
+
     #retrieve the node and its label 
     nid = g.node(v)
     label = g.label(v)
@@ -155,12 +148,17 @@ def ColzetteVisitor(
     turtle.setId(v)
 
 #Scene creation
-
 def scene3d(g,select_visitor=ColzetteVisitor):
     """
     calls a PlantGL turtle to generate a 3D scene
     g is an MTG file
     """
+    #color dict of the 3D elements
+    colors = dict()
+    colors['Internode'] = (100, 100, 80)
+    colors['Petiole'] = (100, 100, 80)
+    colors['Leaf'] = (9, 82, 40)
+
     t = pgl.PglTurtle()
     # set colors 
     color = Color3(*colors['Internode'])
