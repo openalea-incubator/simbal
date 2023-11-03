@@ -11,7 +11,7 @@ import aptos as aptos
 import files_management as files
 
 
-class ScratchMTG:
+class PlotMTG:
     """Run MTG methods.
 
     Authors
@@ -158,6 +158,7 @@ class Simulation:
         Frederic REES
 
         """
+        print("")
         print("Start simulation...")
 
         # For each time step covering the simulation period:
@@ -221,5 +222,5 @@ class Simulation:
 
         
 #RUN
-g = ScratchMTG.create_MTG_from_scratch()
+g = PlotMTG.create_MTG_from_scratch()
 Simulation.main(initial_step = 1, final_step = 3)
