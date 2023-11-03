@@ -10,25 +10,21 @@ With default values and unit (see walter?).
     * in a test, explicitly in python
     * in visualea, in a given workflow
 
-### Basic
+### Basic (main.py)
 - Set the parameters directly in a test.
 
-## Architecture
+## Architecture (mtg_xxx.py)
 
-Define global simulation programs of several plant architectures (various varieties) (a list) with an above and below ground part.
+Define global simulation programs of several plant architectures (various phenotypes) (brassicaea napus cv. AVISO, VIGO+) with an above and below ground part.
 Each part is represented as an MTG. But may have different scale and properties for the above and below ground part.
 As well as for between plants.
 
-## Allocation CN
+## CN re-allocation (aptos.py)
 
-Manage the allocation (shoot & root) of C and N.
-
-## Senescence
-
-* Why ? : Define the senescence process into the CN allocation mecanism
+* Why ? : Define the nutrient re-allocation process into the CN allocation mecanism
 
 * Brief description of the concept : 
-Senescence = N remobilization, lead to leaf falling
+Senescence = N remobilization of N avalaible from N source organ (cf N source-sink competition status), and lead to leaf falling 
 
 * To who ? : researchers, students, programmers
 
