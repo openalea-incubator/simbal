@@ -1,5 +1,5 @@
 ========================
-caracol
+simbal
 ========================
 
 .. {# pkglts, doc
@@ -10,7 +10,7 @@ caracol
 
 .. #}
 
-Caracol is a FSPM model for agroecological simulation
+Simbal is a FSPM model for agroecological simulation
 
 --------------------------
 Model layout
@@ -32,13 +32,13 @@ Model layout
 - check available C : stored, acquired, remobilized 
 - distribute C among organs according to rules and hypothesis
 
-**simulation.py** : a  module that
-- integrate C,N dispo and thermal time 
-- modify organs properties : size, growth rate, senescence state
-- modify number of organs : apical growth 
+**aptos.py** : a  module based on optimization and turnover theory that :
+- integrate C-N availability, C-N potential acquisition, C-N re-allocation, processes carbon cost
+- modify organs metabolic properties : C-N demand, C-N deficit, C-N content
+- modify organs phenotypic properties : color, shape, area, size, growth
 - modify organs relations : 
-    * no leaf after floral transition but flower 
-    * flower give fruits after fruit transition
+    * nitrogen source-sink status
+- modify plant properties : number of organs, structure-function competition status
 
-**plot.py**:  visualisation of the plant development
+**main.py**:  run simulations and visualisation of the plant development
 
