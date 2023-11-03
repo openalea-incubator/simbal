@@ -9,10 +9,18 @@ import mtg_visualization as mtg_visualization
 import aptos as aptos
 import files_management as files
 
-# SIMULATIONS ##############################################################################################################################
+
 class ScratchMTG:
+    """Run MTG methods.
+
+    Authors
+    -------
+    Solen FARRA
+
+    """
+    print("Choose a method to create the MTG...")
     
-    def __init__(self, csv_filename = False, input_dataframe = None) :
+    def __init__(self, csv_filename, input_dataframe = None) :
         
         self.csv_filename = self.create_MTG_from_csv_file() if csv_filename is None else input_dataframe
         self.input_dataframe = self.create_MTG_from_scratch() if input_dataframe is None else csv_filename
@@ -22,7 +30,20 @@ class ScratchMTG:
     # OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
     @staticmethod
     def create_MTG_from_csv_file():
+        """Creation of the MTG from a initial csv file with properties datas.
         
+        Returns
+        ------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Frederic REES
+
+        """
+        print("Create the MTG from csv file...")
+
         csv_filename='MTG_00003.csv'
 
         # We first read the csv file where all the properties of each vertex has been previously recorded:
@@ -53,7 +74,20 @@ class ScratchMTG:
     # OPTION 2: We create before a generic MTG:
     @staticmethod
     def create_MTG_from_scratch():
-    # We read the environemental/initial conditions:
+        """Creation of the MTG from zero with a generic MTG pipeline and properties functions.
+        
+        Returns
+        ------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Frederic REES
+
+        """
+        print("Create the MTG from scratch...")
+        # We read the environemental/initial conditions:
         #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
 
         #We plot the MTG:
@@ -82,24 +116,56 @@ class ScratchMTG:
 
         return g
 
-
 class Simulation:
+    """Run a simulation according a configure scenario.
+
+    Authors
+    -------
+    Solen FARRA
+    Frederic REES
+
+    """
+    print("Choose and init a simulation scenario...")
     # We define an initial and final step for covering a certain period:
-    def __init__(self, g, initial_step = 1, final_step = 3) :
+    def __init__(self, default = None) :
+    
+        self.default = self.main() if default is None else default
+       
+    @staticmethod
+    def main(initial_step, final_step):
+        """Run a default simulation.
+
+        Parameters
+        ----------
+        g: MTG 
+            MTG where properties are recorded
+
+        initial_step : int
+            first time step of the simulation
         
-        self.g = g
-        self.initial_step = initial_step
-        self.final_step = final_step 
+        finl_step : int
+            end time step of the simulation
+        
+        Returns
+        -------
+        g: MTG 
+            MTG where properties are recorded
 
-    @classmethod
-    def main(self, g, initial_step = 1, final_step = 3):
+        Authors
+        -------
+        Solen FARRA
+        Frederic REES
 
-        self.g = g
+        """
+        print("Start simulation...")
 
         # For each time step covering the simulation period:
         for step in range(initial_step, final_step+1):
             print("")
             print("For step", step,":")
+
+            #We initialize the MTG
+            g = ScratchMTG.create_MTG_from_scratch()
 
             # We successively call the different class and methods:
             aptos.Photosynthesis(g, photosynthesis = None)
@@ -151,9 +217,6 @@ class Simulation:
         print("")
         print("Simulation is done!")
 
-
+        
 #RUN
-mtg = ScratchMTG(input_dataframe=None)
-g = mtg.create_MTG_from_scratch()
-scenario_0 = Simulation(g, initial_step = 1.0, final_step = 3.0)
-scenario_0.main(g)
+Simulation.main(initial_step = 1, final_step = 3)
