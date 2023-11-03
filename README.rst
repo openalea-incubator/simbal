@@ -27,18 +27,23 @@ Model layout
 - N spatial distribution and disponibility
 
 **balanceCN.py**: a C,N balance module : 
-- check available N : stored, acquired, remobilized
+- check available N : 
+    stored, acquired, remobilized
 - distribute N among organs according to rules and hypothesis 
-- check available C : stored, acquired, remobilized 
+- check available C : 
+    stored, acquired, remobilized 
 - distribute C among organs according to rules and hypothesis
 
 **aptos.py** : a  module based on optimization and turnover theory that :
 - integrate C-N availability, C-N potential acquisition, C-N re-allocation, processes carbon cost
-- modify organs metabolic properties : C-N demand, C-N deficit, C-N content
-- modify organs phenotypic properties : color, shape, area, size, growth
-- modify organs relations : 
-    * nitrogen source-sink status
-- modify plant properties : number of organs, structure-function competition status
+    * modify organs metabolic properties : 
+        C-N demand, C-N deficit, C-N content
+    * modify organs phenotypic properties : 
+        color, shape, area, size, growth
+    * modify organs relations : 
+        nitrogen source-sink status
+    * modify plant properties : 
+        number of organs, structure-function competition status
 
 **main.py**:  run simulations and visualisation of the plant development
 
