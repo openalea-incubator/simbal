@@ -889,6 +889,51 @@ class Growth:
 
         return update_MTG(g,sortie)
     
+   # @classmethod
+   # def plant_morphogenesis(self, g, initial_step, final_step) :
+       # """leaf morphogenesis dynamic.
+        
+      #  Parameters
+       # ----------
+      #  g: MTG
+      #      the above part of the plant
+
+       # initial_step: int
+       #     start time simulation
+
+       # final_step: int
+       #     end time simulation
+            
+       # N: MTG properties
+       #     the number of plant
+
+       # k: MTG properties
+       #     the number of organs by plant
+        
+      #  Returns
+       # -------
+      #  g : MTG
+      #      the above part of the plant
+        
+      #  References
+       # ----------
+      #  Oughou et al. (2022)
+
+       # """
+      #  print("Run the leaf morphogenesis dynamic...")
+
+       # plants =[k for k, v in g.properties()['label'].items()  if v == 'Plant']
+       # leaves =[k for k, v in g.properties()['label'].items()  if v == 'Leaf']
+
+       # k = len(leaves)
+
+       # alpha = 
+
+
+       # for step in range(initial_step, final_step) :
+
+       #   return update_MTG(g,sortie)
+    
 class Fall:
     """Leaves falling methods. 
 
