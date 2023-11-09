@@ -2,11 +2,17 @@ from openalea.mtg import *
 from openalea.mtg.turtle import *
 from openalea.mtg import turtle as turt
 from openalea.mtg.plantframe import color
+from openalea.plantgl.all import *
 from openalea.plantgl import all as pgl
 from openalea.plantgl.all import Vector3, Color3, Scaled
 
+import openalea.plantgl.all as pgl
+
 from numpy import *
 from pandas import *
+import pandas as pd
+import math
+import numpy as np
 
 
 #leaf shape 
@@ -178,6 +184,7 @@ def scene3d(g,select_visitor=ColzetteVisitor):
     
     return scene
 
+
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 #DISPLAYING AND VIEW THE MTG:
@@ -188,3 +195,43 @@ def scene3d(g,select_visitor=ColzetteVisitor):
 #print(display(g))
 #print(g.properties)
 #pgl.Viewer.display(scene3d(g))
+
+#SEMIS#######################################################################################################################
+def generate_centered_mesh_points(n):
+    side_length = int(math.sqrt(n))
+    if side_length * side_length < n:
+        side_length += 1
+    
+    points = []
+    for i in range(side_length):
+        for j in range(side_length):
+            if len(points) < n:
+                x = (i - (side_length - 1) / 2) / (side_length - 1)
+                y = (j - (side_length - 1) / 2) / (side_length - 1)
+                z = 0
+                points.append((x, y, z))
+            else:
+                break
+    
+    return points
+
+
+def generate_centered_diagonal_mesh_points(n):
+    side_length = int(math.sqrt(n))
+    if side_length * side_length < n:
+        side_length += 1
+    
+    points = []
+    for i in range(side_length):
+        for j in range(side_length):
+            if len(points) < n:
+                x = (i - (side_length - 1) / 2) / (side_length - 1)
+                y = (j - (side_length - 1) / 2) / (side_length - 1)
+                z = 0
+                if i % 2 == 1:  # Shift every other row
+                    y += 0.5 / side_length
+                points.append((x, y, z))
+            else:
+                break
+    limits= ((-75,-75),(75,75))
+    return n,points,limits
