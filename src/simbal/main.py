@@ -377,5 +377,5 @@ class Simulation:
 
         
 #RUN
-g = PlotMTG.create_MTG_from_Colzette()
+g = PlotMTG.create_MTG_from_scratch()
 Simulation.main(initial_step = 1, final_step = 3)
