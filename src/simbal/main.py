@@ -1,14 +1,19 @@
 from openalea.mtg import *
 import openalea.plantgl.all as pgl
+from openalea.plantgl.all import *
 
 from numpy import *
 from pandas import *
 import pandas as pd
+import time
 
-import mtg_rapeseed as mtg_rapeseed
-import mtg_visualization as mtg_visualization
-import aptos as aptos
+import mtg_rapeseed 
+import mtg_visualization 
+import aptos 
 import files_management as files
+
+from importlib.util import spec_from_loader, module_from_spec
+from importlib.machinery import SourceFileLoader 
 
 
 class PlotMTG:
@@ -116,6 +121,151 @@ class PlotMTG:
         files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
 
         return g
+    
+    @staticmethod
+    def create_MTG_from_Colzette(PlantAge = 950,
+                                  phylloc = 0.015,
+                                  numofseeds = 36,
+                                  pattern = 'Homogeneous') :
+        """Creation of the MTG base on Colzette model methodology
+        
+        Authors
+        -------
+        Arman GRUMEL & Laurène PERTHAME
+            Colzette model
+        
+        """
+
+        #PlantAge plant age in DD 
+        #phylloc plant phyllochrone Leaf/DD
+        #numofseeds number of plants to simulate
+        #pattern  pattern can be 'Rows' or 'Homogeneous'   /!\ if numofseeds=1, 'Rows' is applied by default
+
+        outputfilename ='Results_'+str(round(PlantAge*phylloc))+'L_'+str(numofseeds)+pattern[0]
+
+        data = pd.read_csv("ValeursParam.csv",sep=";")
+
+        ##Cycle 
+        Results = pd.DataFrame()
+        """
+        Results['SurfProp']=list() #Surface proportion repartition
+        Results['LeafS']=list()
+        Results['LeafL']=list()
+        Results['LeafW']=list()
+        Results['RealLeafS']=list()
+        Results['Ei']=list()
+        Results['Eabs']=list()
+        Results['TheoLeafS']=list()
+        Results['RatiosWL']=list()
+        """
+        progress = 0 
+
+        print(len(data),"combinations to run. Let's get started !")
+
+        for index,row in data.iterrows() :
+
+            Temporary_Res = dict()
+
+            progress += 1
+            print('Progress : ' , progress, '/', len(data))
+            
+            #1 create an MTG for a plant at a certain age (DD), for a given phyllochron (n_leaves/DD)
+            if pattern=='Rows' or numofseeds==1:
+                parcelle = mtg_rapeseed.agronomicplot(nplants = numofseeds,
+                                                    length=1,
+                                                    width=1,
+                                                    sowing_density=35,
+                                                    inter_row=0.45,
+                                                    plant_density=35)
+                #parcelle[0] : nb de plantes, 
+                #parcelle[1] : coordonnées, 
+                #parcelle[2] : limites du domaine (-x,-y,x,y),
+                #parcelle[3] : surface en m2 du domaine, 
+                #parcelle[4] : coefficient de conversion de mètre à l'unitée utilisée dans la scène
+                    
+                    
+                g = mtg_rapeseed.vegetative_rapeseed_field(PlantAge,
+                                                        phyllochrone = phylloc,
+                                                        coord=parcelle[1]).above 
+
+            elif pattern == 'Homogeneous': 
+                parcelle = mtg_visualization.generate_centered_diagonal_mesh_points(numofseeds)
+                g = mtg_rapeseed.vegetative_rapeseed_field(PlantAge,
+                                                           phyllochrone = phylloc,
+                                                           coord = multiply(parcelle[1],100)).above 
+                
+
+            #2 attribute architectural properties to the MTG 
+            mtg_rapeseed.phenotype(g,
+                                   skew = 5,
+                                   phyllot = 137.5,
+                                   leaf_angle = 80,
+                                   coeff_petiole = 0.51017, #limb length to petiole length , 0.31017 length/whole leag length
+                                   stem_d = 0.1,
+                                   coeff_petiole_d = 0.5,
+                                   total_surface=300,
+                                   leaf_max = row["LargLeafPos"],
+                                   sd = row["LS_spread"],
+                                   amp = row['Bell_amp'],
+                                   ins_angle = row["Ins_angle"],
+                                   coeff_width = row["coefLenWid"]
+                                   )
+            
+            #2bis attribute metabolic properties to the MTG 
+            mtg_rapeseed.metabolism(g,
+                                    fall = False,
+                                    growth = True,
+                                    photosynthesis = 0.1,
+                                    par = 100,
+                                    respiration = 0.1,
+                                    potential_photosynthesis= 0.1,
+                                    potential_area= 0.1,
+                                    nitrogen_source = True,
+                                    nitrogen_sink = True,
+                                    nitrogen_content = 10,
+                                    nitrogen_demand = 0.1,
+                                    nitrogen_storage= 0.1,
+                                    nitrogen_import= 0.1,
+                                    nitrogen_export= 0.1,
+                                    rue = 0.1,
+                                    weight_import= 0.1,
+                                    weight_export= 0.1,
+                                    carbon_content= 0.1,
+                                    carbon_demand = 0.1,
+                                    carbon_deficit = 0.1,
+                                    carbon_import= 0.1,
+                                    carbon_export= 0.1,
+                                    carbon_spend= 0.1,
+                                    carbon_growth = 0.1,
+                                    carbon_storage = 0.1,
+                                    carbon_nitrogen_ratio= 0.1,
+                                    nitrogen_fall_threshold_empirical= 0.1,
+                                    PAR_fall_threshold_empirical= 0.1,
+                                    carbon_fall_threshold_mecanism= 0.1,
+                                    nitrogen_fall_threshold_mecanism = 0.1
+                                    )
+
+
+            Temporary_Res = Temporary_Res | g.properties()
+        
+            #TO DO (optional) : generate 3D archi and save picture 
+
+            #3 CARIBU
+            can = mtg_visualization.scene3d(g)
+            zenith=[(100,(0,0,-1))]
+            #opts = list(map(str, [data_path('par.opt'), data_path('nir.opt')]))
+
+            cs = CaribuScene(scene=can,light=zenith,pattern=parcelle[2])
+            raw,agg=cs.run(infinite=True,simplify=True,direct=False)
+
+            Temporary_Res = Temporary_Res | agg
+            Temporary_Res=pd.DataFrame.from_dict(Temporary_Res,orient='columns')
+
+            Results=pd.concat([Results,Temporary_Res])
+            filtered_results = Results[Results['label']=='Leaf']
+            
+            #Results.to_csv('Colzetteresults2.csv')
+            filtered_results.to_csv(outputfilename+'.csv')
 
 class Simulation:
     """Run a simulation according a configure scenario.
@@ -160,6 +310,8 @@ class Simulation:
         """
         print("")
         print("Start simulation...")
+
+        tps1 = time.process_time()
 
         # For each time step covering the simulation period:
         for step in range(initial_step, final_step+1):
@@ -220,7 +372,10 @@ class Simulation:
         print("")
         print("Simulation is done!")
 
+        tps2 = time.process_time()
+        print('Execution time: ', tps2 - tps1)
+
         
 #RUN
-g = PlotMTG.create_MTG_from_scratch()
+g = PlotMTG.create_MTG_from_Colzette()
 Simulation.main(initial_step = 1, final_step = 3)
