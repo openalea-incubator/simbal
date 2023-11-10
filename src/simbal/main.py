@@ -12,8 +12,8 @@ import mtg_visualization
 import aptos 
 import files_management as files
 
-from importlib.util import spec_from_loader, module_from_spec
-from importlib.machinery import SourceFileLoader 
+import alinea.caribu 
+from alinea.caribu.CaribuScene import CaribuScene
 
 
 class PlotMTG:
@@ -79,7 +79,7 @@ class PlotMTG:
 
     # OPTION 2: We create before a generic MTG:
     @staticmethod
-    def create_MTG_from_scratch():
+    def create_plant_MTG_from_scratch(n_nodes, node_length):
         """Creation of the MTG from zero with a generic MTG pipeline and properties functions.
         
         Returns
@@ -97,36 +97,72 @@ class PlotMTG:
         #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
 
         #We plot the MTG:
-        g = mtg_rapeseed.vegetative_rapeseed().above
+        g = mtg_rapeseed.vegetative_rapeseed(n_nodes, node_length).above
         mtg_rapeseed.phenotype(g)
         mtg_rapeseed.metabolism(g)
 
-        # We initialize the content of N in each leaf/internode:
-        #for vid in g.vertices_iter(scale=1):
-            #n = g.node(vid)
-            # n.N_content = input_dataframe['Initial_N_content'].loc[vid-1]
-            #n.N_content =input_dataframe['Initial_N_content'].loc[input_dataframe['element_ID'] == vid]
-
-        # We initialize the PAR in each leaf/internode:
-        #for vid in g.vertices_iter(scale=1):
-            #n = g.node(vid)
-            #n.PAR = input_dataframe['PAR'].loc[input_dataframe['element_ID'] == vid]
-
-        # We initialize a new property of the MTG g that corresponds to the status "Fallen / Not fallen":
-        #for vid in g.vertices_iter(scale=1):
-            #n = g.node(vid)
-            #n.fallen = False
-
-        # We record the properties in its initial state:
         files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
 
         return g
     
+    def create_field_MTG_from_scratch(numofseeds,
+                                      nplants,
+                                      length,
+                                      width,
+                                      sowing_density,
+                                      inter_row,
+                                      nrow,
+                                      plant_density,
+                                      DJ,
+                                      node_length,
+                                      phyllochrone
+                                      ):
+        """Creation of the MTG from zero with a generic MTG pipeline and properties functions.
+        
+        Returns
+        ------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Frederic REES
+
+        """
+        print("Create the field MTG from scratch...")
+        # We read the environemental/initial conditions:
+        #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
+
+        #We plot the MTG:
+        parcelle = mtg_rapeseed.agronomicplot(numofseeds,
+                                      nplants,
+                                      length,
+                                      width,
+                                      sowing_density,
+                                      inter_row,
+                                      nrow,
+                                      plant_density)
+             
+        g = mtg_rapeseed.vegetative_rapeseed_field( DJ,
+                                           node_length,
+                                           phyllochrone,
+                                           coord=parcelle[1]).above
+        mtg_rapeseed.phenotype(g)
+        mtg_rapeseed.metabolism(g)
+
+        files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
+
+        return g, parcelle
+    
+    
+
     @staticmethod
-    def create_MTG_from_Colzette(PlantAge = 950,
-                                  phylloc = 0.015,
-                                  numofseeds = 36,
-                                  pattern = 'Homogeneous') :
+    def create_MTG_from_Colzette(PlantAge,
+                                  phylloc,
+                                  numofseeds,
+                                  pattern,
+                                  inter_row,
+                                  plant_density) :
         """Creation of the MTG base on Colzette model methodology
         
         Authors
@@ -174,9 +210,9 @@ class PlotMTG:
                 parcelle = mtg_rapeseed.agronomicplot(nplants = numofseeds,
                                                     length=1,
                                                     width=1,
-                                                    sowing_density=35,
-                                                    inter_row=0.45,
-                                                    plant_density=35)
+                                                    sowing_density = plant_density,
+                                                    inter_row = inter_row,
+                                                    plant_density = plant_density)
                 #parcelle[0] : nb de plantes, 
                 #parcelle[1] : coordonnées, 
                 #parcelle[2] : limites du domaine (-x,-y,x,y),
@@ -259,13 +295,16 @@ class PlotMTG:
             raw,agg=cs.run(infinite=True,simplify=True,direct=False)
 
             Temporary_Res = Temporary_Res | agg
+
             Temporary_Res=pd.DataFrame.from_dict(Temporary_Res,orient='columns')
 
             Results=pd.concat([Results,Temporary_Res])
             filtered_results = Results[Results['label']=='Leaf']
             
-            #Results.to_csv('Colzetteresults2.csv')
+            Results.to_csv('Colzetteresults2.csv')
             filtered_results.to_csv(outputfilename+'.csv')
+
+            return g
 
 class Simulation:
     """Run a simulation according a configure scenario.
@@ -313,53 +352,59 @@ class Simulation:
 
         tps1 = time.process_time()
 
+        global parcelle
+
+
         # For each time step covering the simulation period:
         for step in range(initial_step, final_step+1):
             print("")
             print("For step", step,":")
 
             # We successively call the different class and methods:
-            aptos.Photosynthesis(g, photosynthesis = None)
+            aptos.Photosynthesis(g, parcelle,
+                                  photosynthesis = None, 
+                                  caribu = None)
             
-            aptos.PotentialGrowth(g,
-                            potential_photosynthesis = None,
-                            potential_area = None, 
-                            area = None)
+            #aptos.PotentialGrowth(g,
+                            #potential_photosynthesis = None,
+                            #potential_area = None, 
+                            #area = None)
             
-            aptos.Competition(g, 
-                        carbon_deficit = None,
-                        source_N = None, 
-                        sink_N = None)
+            #aptos.Competition(g, 
+                        #carbon_deficit = None,
+                        #source_N = None, 
+                        #sink_N = None)
             
-            aptos.Nitrogen(g,
-                     nitrogen_demand = None,
-                     weight_import = None,
-                     weight_export = None,
-                     nitrogen_import =None,
-                     nitrogen_export = None,
-                     nitrogen_storage = None,
-                     carbon_expend = None,
-                     nitrogen_content = None,
-                     RUE = None,
-                     carbon_nitrogen_ratio = None)
+            #aptos.Nitrogen(g,
+                     #nitrogen_demand = None,
+                     #weight_import = None,
+                     #weight_export = None,
+                     #nitrogen_import =None,
+                     #nitrogen_export = None,
+                     #nitrogen_storage = None,
+                     #carbon_expend = None,
+                     #nitrogen_content = None,
+                     #RUE = None,
+                     #carbon_nitrogen_ratio = None)
             
-            aptos.Carbon(g, 
-                   carbon_growth = None,
-                   carbon_demand = None,
-                   carbon_import = None,
-                   carbon_export = None)
+            #aptos.Carbon(g, 
+                   #carbon_growth = None,
+                   #carbon_demand = None,
+                   #carbon_import = None,
+                   #carbon_export = None)
             
-            aptos.Growth(g, area = None)
+            #aptos.Growth(g, area = None)
             
-            aptos.Fall(g, 
-                 fall = None,
-                 nitrogen_fall_threshold = None,
-                 nitrogen_fall_threshold_empirical = False,
-                 PAR_fall_threshold_empirical = False,
-                 carbon_fall_threshold = None)
+            #aptos.Fall(g, 
+                 #fall = None,
+                 #nitrogen_fall_threshold = None,
+                 #nitrogen_fall_threshold_empirical = False,
+                 #PAR_fall_threshold_empirical = False,
+                 #carbon_fall_threshold = None)
             
             # We view the plant MTG with PlantGL:
-            pgl.Viewer.display(mtg_visualization.scene3d(g))
+            pgl.Viewer.display(mtg_visualization.scene3d(g, 
+                                                         select_visitor = mtg_visualization.ColzetteVisitor))
 
             # We recording a snapshot a the MTG:
             plot_name = 'plot_%.5d.png' % step
@@ -377,5 +422,26 @@ class Simulation:
 
         
 #RUN
-g = PlotMTG.create_MTG_from_scratch()
+g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
+                                                    nplants = 18,
+                                                    sowing_density = 35,
+                                                    inter_row = 0.2,
+                                                    nrow = 3,#raw by box (PHOCUS)
+                                                    plant_density = 35,
+                                                    DJ = 950,
+                                                    node_length = 0.02,
+                                                    phyllochrone = 0.015,
+                                                    length = None,
+                                                    width = None)#if nplants is not None, keep always length and width = None
+
+#g = PlotMTG.create_MTG_from_Colzette(PlantAge = 950,
+                                  #phylloc = 0.015,
+                                  #numofseeds = 9,
+                                  #pattern = 'Rows',
+                                  #inter_row = 0.2,
+                                  #plant_density = 35)
+
+#g = PlotMTG.create_MTG_from_scratch(n_nodes = 10, 
+                                    # node_length = 0.02)
+
 Simulation.main(initial_step = 1, final_step = 3)
