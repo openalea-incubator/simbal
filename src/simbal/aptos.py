@@ -1,11 +1,15 @@
 from openalea.mtg import *
 
+import alinea.caribu 
+from alinea.caribu.CaribuScene import CaribuScene
+
 from numpy import *
 import numpy as np
 from pandas import *
 import pandas as pd
 
-import mtg_rapeseed as mtg_rapeseed
+import mtg_rapeseed 
+import mtg_visualization
 
 ###################################
 
@@ -54,13 +58,41 @@ class Photosynthesis:
     Solen FARRA
 
     """
-    def __init__(self, g, photosynthesis = None) :
+    def __init__(self, g, parcelle,
+                  caribu, photosynthesis) :
 
         self.g = g
+        self.caribu = self.caribu(g, parcelle) if caribu is None else caribu
         self.photosynthesis = self.leaf_photosynthesis(g) if photosynthesis is None else photosynthesis
 
         return
     
+    @staticmethod
+    def caribu(g, parcelle):
+       
+        sortie=dict()
+
+        zenith=[(100,(0,0,-1))]
+        
+        can = mtg_visualization.scene3d(g)
+        
+        cs = CaribuScene(scene=can,light=zenith,pattern=parcelle[2])
+        # cs = CaribuScene(scene=g,light=zenith,pattern=parcelle[2])
+        
+        raw,agg=cs.run(infinite=True,simplify=True,direct=False)
+
+        Eabs = agg['Eabs']
+        Ei = agg['Ei']
+        area = agg['area']
+
+        alive = [k for k, v in g.properties()['Fall'].items() if v == False]
+       
+        sortie['Eabs']= dict(zip(alive,Eabs.values()))
+        sortie['Ei']= dict(zip(alive,Ei.values()))
+        sortie['area']= dict(zip(alive,area.values()))
+
+        return update_MTG(g,sortie)
+
     # This function calculates the carbon produced by a leaf:
     @classmethod
     def leaf_photosynthesis(self, g, alpha = 0.1) :
