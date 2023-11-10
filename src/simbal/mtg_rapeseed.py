@@ -24,8 +24,8 @@ def update_MTG(g, outputs):
 ###########################################
 
 def vegetative_rapeseed(
-    n_nodes: int = 10,
-    node_length: float= 0.04,
+    n_nodes,
+    node_length
     ):
     """ Build a plant with n_nodes internodes
     """
@@ -43,7 +43,7 @@ def vegetative_rapeseed(
     for i in range(n_nodes-1):
         pid = g.add_child(pid, edge_type='<', label='Phytomer')
         vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
-        g.node(vid).NodeLength = n_nodes
+        g.node(vid).NodeLength = node_length
         #g.node(vid).short = True
 
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
@@ -90,13 +90,22 @@ def adel_regular(nb_plants, nb_rank, dx, dy, nx=None):
     domain = ((0,0),(nx*dx, ny*dy))
     return [(i*dx+dx/2., j*dy+dy/2., 0.) for j in range(ny) for i in range(nx)], domain
 
-def agronomicplot(nplants=None, length=None, width=None, sowing_density=None, 
-                  plant_density=None, inter_row=None, noise=0, convunit=100, center_scene=True):
+def agronomicplot(nplants, 
+                  length, 
+                  width, 
+                  sowing_density, 
+                  plant_density, 
+                  inter_row,
+                  nrow, 
+                  noise=0, 
+                  convunit=100, 
+                  center_scene=True
+                  ):
     """ Returns the number of plants, the positions, the domain (scene units), the domain area (square meter) and the conversion coefficient for meter to scene unit (1/convunit) of a micro-plot specified with agronomical variables
     nplants is the number of plants of the micro-plot (mandatory if length or width is None)
     length (m) is plot dimension along row direction (mandatory if nplants is None)
     width (m) is plot dimension perpendicular to row direction (mandatory if nplants is None)
-    sowing density is the density of seeds sawn (mandatory)
+    sowing density is the density of seeds sawn (mandatory) #surfacic density ?
     plant_density is the density of plants that are present (after loss due to bad emergence, early death...) (mandatory)
     inter_row (m) is for the  distance between rows (mandatory)
     noise (%), indicates the precision of the sowing for the inter plant spacing
@@ -108,8 +117,9 @@ def agronomicplot(nplants=None, length=None, width=None, sowing_density=None,
     """
     from operator import itemgetter
     import random
-    
-    
+
+    sowing_density = plant_density
+
     inter_plant = 1. / inter_row / sowing_density
     
     if nplants is None: # length and width are NOT None
@@ -118,8 +128,9 @@ def agronomicplot(nplants=None, length=None, width=None, sowing_density=None,
         nplants = nrow * plant_per_row
         
     else: # nplants is NOT None ; length and width are None 
-        import math
-        nrow = max(1, int(math.sqrt(nplants)))
+        #import math
+        #nrow = max(1, int(math.sqrt(nplants)))
+        nrow = nrow
         
     dx = inter_plant * convunit
     dy = inter_row * convunit
@@ -138,10 +149,10 @@ def agronomicplot(nplants=None, length=None, width=None, sowing_density=None,
     return n_emerged, positions, domain, domain_area, 1. / convunit
 
 def vegetative_rapeseed_field(
-    DJ: int = 950,
-    node_length: float= 0.02,
-    phyllochrone = 0.015,
-    coord = [(0,0,0)]
+    DJ,
+    node_length,
+    phyllochrone,
+    coord
     
     ):
     """ Build a field with nrows(coord) plants that have n_nodes internodes
@@ -200,7 +211,7 @@ def phenotype(g,
     sd: float= 0.246378, 
     amp: float=0.1188,
     phyllot : float = 137.5,
-    ins_angle : float = 60,
+    ins_angle : float = 40,
     leaf_angle : float = 80, #à mesurer expérimentallement 
     total_surface: float=300, 
     coeff_width: float =0.831562, 
@@ -251,6 +262,13 @@ def phenotype(g,
     sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
 
     update_MTG(g,sortie)
+#TO DO: 
+# + add elongation coefficient = node_length, petiole length
+# + add growth coefficient = leaf length, leaf width, leaf surface
+# + add diameter coefficient = stem diam, petiole diam
+# + add limb curve angle = curve
+
+
 
 def metabolism(g,
     fall : bool = False,
