@@ -1974,4 +1974,4 @@ tps2 = time.process_time()
 print('Execution time: ', tps2 - tps1)
  
 #Results.to_csv('Colzetteresults2.csv')
-filtered_results.to_csv(outputfilename+'.csv')
+filtered_results.to_csv(outputfilename,'.csv')
