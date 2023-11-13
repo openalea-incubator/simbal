@@ -1,21 +1,26 @@
-from openalea.mtg import *
 import openalea.plantgl.all as pgl
 from openalea.plantgl.all import *
-from openalea.plantgl.all import Viewer
 
+from openalea.mtg import *
+
+import numpy as np
 from numpy import *
-from pandas import *
+
 import pandas as pd
+from pandas import *
+
 import time
 
+import mtg_main as mtg
 import mtg_rapeseed 
+import mtg_faba_bean
 import mtg_visualization 
 import aptos 
 import files_management as files
 
-import alinea.caribu 
 from alinea.caribu.CaribuScene import CaribuScene
 
+###################################
 
 class PlotMTG:
     """Run MTG methods.
@@ -27,10 +32,11 @@ class PlotMTG:
     """
     print("Choose a method to create the MTG...")
     
-    def __init__(self, csv_filename, input_dataframe = None) :
+    def __init__(self, csv_filename, plant_dataframe, field_dataframe = None) :
         
-        self.csv_filename = self.create_MTG_from_csv_file() if csv_filename is None else input_dataframe
-        self.input_dataframe = self.create_MTG_from_scratch() if input_dataframe is None else csv_filename
+        self.csv_filename = self.create_MTG_from_csv_file() if csv_filename is None else None
+        self.plant_dataframe = self.create_plant_MTG_from_scratch() if plant_dataframe is None else field_dataframe
+        self.field_dataframe = self.create_field_MTG_from_scratch() if field_dataframe is None else plant_dataframe
 
         return 
 
@@ -98,14 +104,15 @@ class PlotMTG:
         #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
 
         #We plot the MTG:
-        g = mtg_rapeseed.vegetative_rapeseed(n_nodes, node_length).above
-        mtg_rapeseed.phenotype(g)
+        g = mtg.vegetative(n_nodes, node_length).above
+        mtg_rapeseed.rapeseed_phenotype(g)
         mtg_rapeseed.metabolism(g)
 
         files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
 
         return g
     
+    @staticmethod
     def create_field_MTG_from_scratch(numofseeds,
                                       nplants,
                                       length,
@@ -116,7 +123,8 @@ class PlotMTG:
                                       plant_density,
                                       DJ,
                                       node_length,
-                                      phyllochrone
+                                      phyllochrone,
+                                      name
                                       ):
         """Creation of the MTG from zero with a generic MTG pipeline and properties functions.
         
@@ -143,15 +151,29 @@ class PlotMTG:
                                       inter_row,
                                       nrow,
                                       plant_density)
-             
-        g = mtg_rapeseed.vegetative_rapeseed_field( DJ,
+        coord=parcelle[1]
+
+
+        g = mtg_rapeseed.vegetative_field( DJ,
                                            node_length,
                                            phyllochrone,
-                                           coord=parcelle[1]).above
-        mtg_rapeseed.phenotype(g)
+                                           coord,
+                                           name
+                                           ).above
+        for pl in coord :
+            for x, y, z in pl :
+                if y < 0 and y > 0 :
+                    mtg_rapeseed.rapeseed_phenotype(g)
+                else :
+                    mtg_faba_bean.faba_bean_phenotype(g)
+
+
+
+       
+        mtg_rapeseed.rapeseed_phenotype(g)
         mtg_rapeseed.metabolism(g)
 
-        files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
+        #files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
 
         return g, parcelle
     
@@ -313,18 +335,22 @@ class Simulation:
     Authors
     -------
     Solen FARRA
-    Frederic REES
 
     """
     print("Choose and init a simulation scenario...")
     # We define an initial and final step for covering a certain period:
-    def __init__(self,g, default = None) :
+    def __init__(self,
+                 g,
+                 parcelle,
+                 default,
+                 initial_step, 
+                 final_step) :
     
-        self.g
-        self.default = self.main() if default is None else default
+        self.parcelle = parcelle
+        self.default = self.main(g, parcelle, default, initial_step, final_step) if default is None else default
        
     @staticmethod
-    def main(g, initial_step, final_step):
+    def main(g, parcelle, default, initial_step, final_step):
         """Run a default simulation.
 
         Parameters
@@ -354,17 +380,20 @@ class Simulation:
 
         tps1 = time.process_time()
 
-        global parcelle
-
         # For each time step covering the simulation period:
         for step in range(initial_step, final_step+1):
             print("")
             print("For step", step,":")
 
             # We successively call the different class and methods:
-            aptos.Photosynthesis(g, parcelle = parcelle,
-                                  photosynthesis = None, 
-                                  caribu = None)
+            
+            aptos.Photosynthesis.caribu(g = g, parcelle = parcelle)
+            
+            # We recording a snapshot a the MTG with caribu color legend:
+            plot_name = 'plot_caribu_%.5d.png' % step
+            pgl.Viewer.saveSnapshot(plot_name)
+
+            aptos.Photosynthesis.leaf_photosynthesis(g, alpha = 0.1)
             
             #aptos.PotentialGrowth(g,
                             #potential_photosynthesis = None,
@@ -402,22 +431,24 @@ class Simulation:
                  #nitrogen_fall_threshold_empirical = False,
                  #PAR_fall_threshold_empirical = False,
                  #carbon_fall_threshold = None)
-            
-            #cs = mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor)
+           
             # We view the plant MTG with PlantGL:
-            Viewer.display(mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor))
-            #cs = mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor)
-            #cs.plot(g.properties()['Ei'],display=True)
-
+            pgl.Viewer.display(mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor))
+           
             # We recording a snapshot a the MTG:
             plot_name = 'plot_%.5d.png' % step
             pgl.Viewer.saveSnapshot(plot_name)
 
             # We record the main properties of the plant:
-            properties_filename = 'MTG_%.5d.csv' % step
-            files.recording_MTG_properties(g, properties_filename)
+            file_name = 'MTG_%.5d.xlsx' % step
+            #files.recording_MTG_properties(g, file_name)
+            files.recording_MTG_df(g, file_name)
 
-            return g
+            #Results = pd.DataFrame()
+            #Results = pd.concat([Results,results_df])
+            
+            #leaf_results = Results[Results['label']=='Leaf']
+            #plant_results = Results[Results['label']=='Plant']
 
         print("")
         print("Simulation is done!")
@@ -426,10 +457,48 @@ class Simulation:
         print('Execution time: ', tps2 - tps1)
 
         return g
+    
+class Run :
+    """Run all.
 
+    Authors
+    -------
+    Solen FARRA
+
+    """
+    print("Choose and init a mtg type simulation ...")
+
+    def __init__():
         
-#RUN
-g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
+        return
+        
+    @staticmethod
+    def field_simulation(default, initial_step, final_step):
+        """Run with a field MTG (multiple plant).
+
+        Parameters
+        ----------
+        default: NoneType 
+            Class parameter to activate the default method simulation
+
+        initial_step : int
+            first time step of the simulation
+        
+        finl_step : int
+            end time step of the simulation
+        
+        Returns
+        -------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Solen FARRA
+        Frederic REES
+
+        """
+        g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
                                                     nplants = 18,
                                                     sowing_density = 35,
                                                     inter_row = 0.2,
@@ -438,18 +507,91 @@ g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
                                                     DJ = 950,
                                                     node_length = 0.02,
                                                     phyllochrone = 0.015,
+                                                    name = 'Rapeseed',
                                                     length = None,
                                                     width = None)#if nplants is not None, keep always length and width = None
 
-#g = PlotMTG.create_MTG_from_Colzette(PlantAge = 950,
-                                  #phylloc = 0.015,
-                                  #numofseeds = 9,
-                                  #pattern = 'Rows',
-                                  #inter_row = 0.2,
-                                  #plant_density = 35)
+        Simulation(g, parcelle, default, initial_step, final_step)
 
-#g = PlotMTG.create_MTG_from_scratch(n_nodes = 10, 
-                                    # node_length = 0.02)
+        return g, parcelle
+    
+    @staticmethod
+    def colzette_simulation(default, initial_step, final_step):
+        """Run with algo from Colzette model.
 
-Simulation.main(g, initial_step = 1, final_step = 3)
+        Parameters
+        ----------
+        g: MTG 
+            MTG where properties are recorded
 
+        initial_step : int
+            first time step of the simulation
+        
+        finl_step : int
+            end time step of the simulation
+        
+        Returns
+        -------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Solen FARRA
+        Armand GRUMEL
+        Laurène PERTHAME
+    
+        """
+        g = PlotMTG.create_MTG_from_Colzette(PlantAge = 950,
+                                  phylloc = 0.015,
+                                  numofseeds = 9,
+                                  pattern = 'Rows',
+                                  inter_row = 0.2,
+                                  plant_density = 35)
+
+        Simulation.main(g, default, initial_step, final_step)
+
+        return g
+
+    @staticmethod
+    def plant_simulation(default, initial_step, final_step):
+        """Run with a single plant MTG.
+
+        Parameters
+        ----------
+        g: MTG 
+            MTG where properties are recorded
+
+        initial_step : int
+            first time step of the simulation
+        
+        finl_step : int
+            end time step of the simulation
+        
+        Returns
+        -------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Solen FARRA
+        Frederic REES
+
+        """
+        g = PlotMTG.create_MTG_from_scratch(n_nodes = 10, 
+                                    node_length = 0.02)
+
+        Simulation.main(g, default, initial_step, final_step)
+
+        return g
+
+
+######################################################################################################################################""
+Run.field_simulation(default = None, 
+                     initial_step = 1, 
+                     final_step = 3)
+
+
+
+    
