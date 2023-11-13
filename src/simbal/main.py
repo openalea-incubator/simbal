@@ -1,6 +1,7 @@
 from openalea.mtg import *
 import openalea.plantgl.all as pgl
 from openalea.plantgl.all import *
+from openalea.plantgl.all import Viewer
 
 from numpy import *
 from pandas import *
@@ -317,12 +318,13 @@ class Simulation:
     """
     print("Choose and init a simulation scenario...")
     # We define an initial and final step for covering a certain period:
-    def __init__(self, default = None) :
+    def __init__(self,g, default = None) :
     
+        self.g
         self.default = self.main() if default is None else default
        
     @staticmethod
-    def main(initial_step, final_step):
+    def main(g, initial_step, final_step):
         """Run a default simulation.
 
         Parameters
@@ -354,14 +356,13 @@ class Simulation:
 
         global parcelle
 
-
         # For each time step covering the simulation period:
         for step in range(initial_step, final_step+1):
             print("")
             print("For step", step,":")
 
             # We successively call the different class and methods:
-            aptos.Photosynthesis(g, parcelle,
+            aptos.Photosynthesis(g, parcelle = parcelle,
                                   photosynthesis = None, 
                                   caribu = None)
             
@@ -402,9 +403,11 @@ class Simulation:
                  #PAR_fall_threshold_empirical = False,
                  #carbon_fall_threshold = None)
             
+            #cs = mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor)
             # We view the plant MTG with PlantGL:
-            pgl.Viewer.display(mtg_visualization.scene3d(g, 
-                                                         select_visitor = mtg_visualization.ColzetteVisitor))
+            Viewer.display(mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor))
+            #cs = mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor)
+            #cs.plot(g.properties()['Ei'],display=True)
 
             # We recording a snapshot a the MTG:
             plot_name = 'plot_%.5d.png' % step
@@ -414,11 +417,15 @@ class Simulation:
             properties_filename = 'MTG_%.5d.csv' % step
             files.recording_MTG_properties(g, properties_filename)
 
+            return g
+
         print("")
         print("Simulation is done!")
 
         tps2 = time.process_time()
         print('Execution time: ', tps2 - tps1)
+
+        return g
 
         
 #RUN
@@ -444,4 +451,5 @@ g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
 #g = PlotMTG.create_MTG_from_scratch(n_nodes = 10, 
                                     # node_length = 0.02)
 
-Simulation.main(initial_step = 1, final_step = 3)
+Simulation.main(g, initial_step = 1, final_step = 3)
+
