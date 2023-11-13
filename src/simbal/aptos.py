@@ -1,7 +1,10 @@
 from openalea.mtg import *
+from openalea.mtg import traversal
+from openalea.plantgl.all import Scene
 
 import alinea.caribu 
 from alinea.caribu.CaribuScene import CaribuScene
+from oawidgets.plantgl import *
 
 from numpy import *
 import numpy as np
@@ -80,6 +83,7 @@ class Photosynthesis:
         # cs = CaribuScene(scene=g,light=zenith,pattern=parcelle[2])
         
         raw,agg=cs.run(infinite=True,simplify=True,direct=False)
+        cs.plot(raw['Ei'],display=True)
 
         Eabs = agg['Eabs']
         Ei = agg['Ei']
