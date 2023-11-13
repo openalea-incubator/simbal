@@ -179,7 +179,7 @@ def scene3d(g,select_visitor=ColzetteVisitor):
     t.setColorAt(3, color)
 
     max_scale = g.max_scale()
-
+    
     vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
 
     scene = turtle.TurtleFrame(
