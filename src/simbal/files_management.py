@@ -1,23 +1,23 @@
 from openalea.mtg import *
 from openalea.mtg.turtle import *
 
+import numpy as np
 from numpy import *
-from pandas import *
-import pandas as pd
 
-# GENERAL FUNCTIONS ########################################################################################################################
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
+import pandas as pd
+from pandas import *
+
+###################################
 
 # This function enables to record the properties of each element of the MTG:
-def recording_MTG_properties(g, file_name='g_properties.csv'):
+def recording_MTG_properties(g, file_name):
     """This function records the properties of each node of the MTG "g" inside a csv file.
     
     Parameters
     ---------
     g: MTG 
         MTG where properties are recorded
-    file_name: csv fil name
+    file_name: csv fil name (or xlsx)
         the name of the csv file where properties of each node will be recorded
     
     Returns
@@ -69,9 +69,51 @@ def recording_MTG_properties(g, file_name='g_properties.csv'):
     # We create the final dataframe:
     data_frame = pd.DataFrame(g_properties, columns=column_names)
     # We record the dataframe as a csv file:
-    data_frame.to_csv(file_name, na_rep='NA', index=False, header=True)
+    #data_frame.to_csv(file_name, na_rep='NA', index=False, header=True)
+    # We record the dataframe as a excel file:
+    data_frame.to_excel(file_name,  na_rep='NA', index=False, header=True)
 
     return
+
+def recording_MTG_df(g, file_name):
+    """This function records the properties of each node of the MTG "g" from a dataframe to a csv (or xlsx) file.
+    
+    Parameters
+    ---------
+    g: MTG 
+        MTG where properties are recorded
+    file_name: csv fil name (or xlsx)
+        the name of the csv file where properties of each node will be recorded
+    
+    Returns
+    ------
+    [no return]
+
+    Authors
+    -------
+    Armand GRUMEL
+    Solen FARRA
+
+    """
+    
+    results =dict()
+    results = g.properties()
+    results =pd.DataFrame.from_dict(results, orient='columns')
+
+    #results.to_excel(file_name,  na_rep='NA', index=False, header=True)
+    
+    #filtered_results = Results[Results['label']=='Plant']
+    #filtered_results.to_excel(file_name,  na_rep='NA', index=False, header=True)
+    
+    #filtered_results = Results[Results['label']=='Leaf']
+    #filtered_results.to_excel(file_name,  na_rep='NA', index=False, header=True)
+
+    filtered_results = results[results['label'].isin(['Leaf', 'Plant'])]
+    #filtered_results = results[results['label'].isin(['Leaf', 'Plant', 'Internode'])]
+    filtered_results.to_excel(file_name,  na_rep='NA', index=False, header=True)
+
+    return
+
 
 def create_MTG_from_csv_file(_init_, csv_filename):
     """This function use datas from the csv file to create each node of the MTG "g".
