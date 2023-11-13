@@ -1,15 +1,15 @@
+import openalea.plantgl.all as pgl
+from openalea.plantgl.all import *
+
 from openalea.mtg import *
-from openalea.mtg import traversal
-from openalea.plantgl.all import Scene
 
-import alinea.caribu 
 from alinea.caribu.CaribuScene import CaribuScene
-from oawidgets.plantgl import *
 
-from numpy import *
 import numpy as np
-from pandas import *
+from numpy import *
+
 import pandas as pd
+from pandas import *
 
 import mtg_rapeseed 
 import mtg_visualization
@@ -61,10 +61,10 @@ class Photosynthesis:
     Solen FARRA
 
     """
-    def __init__(self, g, parcelle,
-                  caribu, photosynthesis) :
+    def __init__(self, g,
+                 parcelle,
+                 caribu, photosynthesis) :
 
-        self.g = g
         self.caribu = self.caribu(g, parcelle) if caribu is None else caribu
         self.photosynthesis = self.leaf_photosynthesis(g) if photosynthesis is None else photosynthesis
 
@@ -72,6 +72,7 @@ class Photosynthesis:
     
     @staticmethod
     def caribu(g, parcelle):
+
        
         sortie=dict()
 
@@ -80,10 +81,11 @@ class Photosynthesis:
         can = mtg_visualization.scene3d(g)
         
         cs = CaribuScene(scene=can,light=zenith,pattern=parcelle[2])
-        # cs = CaribuScene(scene=g,light=zenith,pattern=parcelle[2])
+        #cs = CaribuScene(scene=g,light=zenith,pattern=parcelle[2])
         
         raw,agg=cs.run(infinite=True,simplify=True,direct=False)
-        cs.plot(raw['Ei'],display=True)
+        
+        cs.plot(agg['Ei'],display=True)
 
         Eabs = agg['Eabs']
         Ei = agg['Ei']
@@ -98,8 +100,8 @@ class Photosynthesis:
         return update_MTG(g,sortie)
 
     # This function calculates the carbon produced by a leaf:
-    @classmethod
-    def leaf_photosynthesis(self, g, alpha = 0.1) :
+    @staticmethod
+    def leaf_photosynthesis(g, alpha = 0.1) :
         """Calculation of the actual quantity of carbon produced of each organ.
     
         Parameters
