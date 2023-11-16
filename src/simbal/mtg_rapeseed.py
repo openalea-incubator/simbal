@@ -24,19 +24,20 @@ def update_MTG(g, outputs):
 ###########################################
 
 def rapeseed_phenotype(g,
-    leaf_max: float=0.6587057,
-    skew: float=5,  #
-    sd: float= 0.246378, 
-    amp: float=0.1188,
-    phyllot : float = 137.5,
-    ins_angle : float = 40,
-    leaf_angle : float = 80, #à mesurer expérimentallement 
-    total_surface: float=300, 
-    coeff_width: float =0.831562, 
-    coeff_petiole: float =0.51017, #limb length to petiole length , 0.31017 length/whole leag length
-    stem_d: float=0.1,
-    coeff_petiole_d : float=0.5
-    ): 
+                       node_length: float = 0.2,
+                       leaf_max: float=0.6587057,
+                       skew: float=5,
+                       sd: float= 0.246378,
+                       amp: float=0.1188,
+                       phyllot : float = 137.5,
+                       ins_angle : float = 40,
+                       leaf_angle : float = 80, #à mesurer expérimentallement
+                       total_surface: float=300, 
+                       coeff_width: float =0.831562, 
+                       coeff_petiole: float =0.51017, #limb length to petiole length , 0.31017 length/whole leag length
+                       stem_d: float=0.1,
+                       coeff_petiole_d : float=0.5
+                        ): 
     """
     applies phenotypical attributes to an MTG based on parameters. 
         leaf_max : [float between 0 and 1] Expectation of the bell curve => Position of the biggest leaf along the stem.
@@ -52,21 +53,22 @@ def rapeseed_phenotype(g,
         coeff_petiole_d : [float] petiole diameter / stem diameter ration 
     """
     sortie=dict()
+        
+    leaves=[k for k, v in g.properties()['label'].items()  if v =='Leaf']
+    nodes = [k for k, v in g.properties()['NodeLength'].items()]
     plants=[k for k, v in g.properties()['label'].items()  if v=='Plant']
-    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
     internodes=[k for k, v in g.properties()['label'].items()  if v=='Internode']
-    
-    #surface=bell_shaped_dist(1,int(len(leaves)/len(plants)),leaf_max,skew) Old functio
+
+      
     surface=mtg.generate_normalized_bell_curve_points(mean=leaf_max,std_dev=sd,amplitude=amp,N=int(len(leaves)/len(plants)))
     sortie['SurfaceRepartition']=dict(zip(leaves,surface*len(leaves)))
     sortie['LeafSurface']=dict(zip(leaves,[element * total_surface for element in surface]*len(leaves)))
 
-
     sortie['LeafLength']= dict(zip(leaves,
-             [2*(element/(coeff_width*pi))**(0.5) for element in sortie['LeafSurface'].values()]*len(leaves)))
+            [2*(element/(coeff_width*pi))**(0.5) for element in sortie['LeafSurface'].values()]*len(leaves)))
 
     sortie['LeafWidth']=dict(zip(leaves,
-                     [element *coeff_width for element in sortie['LeafLength'].values()]*len(leaves)))
+                    [element *coeff_width for element in sortie['LeafLength'].values()]*len(leaves)))
     
     sortie['SurfTheo']=dict(zip(leaves,[pi*(element/2)*(coeff_width*element/2) for element in sortie['LeafLength'].values()]*len(leaves)))
 
@@ -79,17 +81,19 @@ def rapeseed_phenotype(g,
     sortie['StemDiam']=dict(zip(internodes,[stem_d]*len(internodes)))
     sortie['PetioleDiam']=dict(zip(leaves,[stem_d*coeff_petiole_d]*len(leaves)))
 
-    update_MTG(g,sortie)
+    sortie['NodeLength']=dict(zip(nodes,[node_length]*len(nodes)))
+
+    return update_MTG(g,sortie)
+
+            
 #TO DO: 
 # + add elongation coefficient = node_length, petiole length
 # + add growth coefficient = leaf length, leaf width, leaf surface
 # + add diameter coefficient = stem diam, petiole diam
 # + add limb curve angle = curve
 
-def faba_bean_phenotype():
-    return
 
-def metabolism(g,
+def rapeseed_metabolism(g,
     fall : bool = False,
     growth : bool = True,
     photosynthesis = 0.1,
@@ -124,46 +128,51 @@ def metabolism(g,
     """
     sortie=dict()
 
-    leaves=[k for k, v in g.properties()['label'].items()  if v=='Leaf']
+    for k, v in g.properties()['Species'].items() :
+        if v == 'Rapeseed': 
+                
+            leaves=[k for k, v in g.properties()['label'].items()  if v =='Leaf']
 
-    sortie['Growth']=dict(zip(leaves,[growth]*len(leaves)))
+            sortie['Growth']=dict(zip(leaves,[growth]*len(leaves)))
 
-    sortie['PAR']=dict(zip(leaves,[par]*len(leaves)))
-    sortie['Photosynthesis']=dict(zip(leaves,[photosynthesis]*len(leaves)))
-    sortie['Respiration']=dict(zip(leaves,[respiration]*len(leaves)))
+            sortie['PAR']=dict(zip(leaves,[par]*len(leaves)))
+            sortie['Photosynthesis']=dict(zip(leaves,[photosynthesis]*len(leaves)))
+            sortie['Respiration']=dict(zip(leaves,[respiration]*len(leaves)))
 
-    sortie['PotentialPhotosynthesis']=dict(zip(leaves,[potential_photosynthesis]*len(leaves)))
-    sortie['PotentialArea']=dict(zip(leaves, [potential_area]*len(leaves)))
+            sortie['PotentialPhotosynthesis']=dict(zip(leaves,[potential_photosynthesis]*len(leaves)))
+            sortie['PotentialArea']=dict(zip(leaves, [potential_area]*len(leaves)))
 
-    sortie['NitrogenSource']=dict(zip(leaves,[nitrogen_source]*len(leaves)))
-    sortie['NitrogenSink']=dict(zip(leaves,[nitrogen_sink]*len(leaves)))
-    
-    sortie['NitrogenContent']=dict(zip(leaves,[nitrogen_content]*len(leaves)))
-    sortie['NitrogenDemand']=dict(zip(leaves,[nitrogen_demand]*len(leaves)))
-    sortie['NitrogenImport']=dict(zip(leaves,[nitrogen_import]*len(leaves)))
-    sortie['NitrogenExport']=dict(zip(leaves,[nitrogen_export]*len(leaves)))
-    sortie['NitrogenStorage']=dict(zip(leaves,[nitrogen_storage]*len(leaves)))
-    sortie['RUE']=dict(zip(leaves,[rue]*len(leaves)))
+            sortie['NitrogenSource']=dict(zip(leaves,[nitrogen_source]*len(leaves)))
+            sortie['NitrogenSink']=dict(zip(leaves,[nitrogen_sink]*len(leaves)))
+            
+            sortie['NitrogenContent']=dict(zip(leaves,[nitrogen_content]*len(leaves)))
+            sortie['NitrogenDemand']=dict(zip(leaves,[nitrogen_demand]*len(leaves)))
+            sortie['NitrogenImport']=dict(zip(leaves,[nitrogen_import]*len(leaves)))
+            sortie['NitrogenExport']=dict(zip(leaves,[nitrogen_export]*len(leaves)))
+            sortie['NitrogenStorage']=dict(zip(leaves,[nitrogen_storage]*len(leaves)))
+            sortie['RUE']=dict(zip(leaves,[rue]*len(leaves)))
 
 
-    sortie['PonderationExport']=dict(zip(leaves,[weight_export]*len(leaves)))
-    sortie['PonderationImport']=dict(zip(leaves,[weight_import]*len(leaves)))
-    
-    sortie['CarbonContent']=dict(zip(leaves,[carbon_content]*len(leaves)))
-    sortie['CarbonDemand']=dict(zip(leaves,[carbon_demand]*len(leaves)))
-    sortie['CarbonDeficit']=dict(zip(leaves,[carbon_deficit]*len(leaves)))
-    sortie['CarbonImport']=dict(zip(leaves,[carbon_import]*len(leaves)))
-    sortie['CarbonExport']=dict(zip(leaves,[carbon_export]*len(leaves)))
-    sortie['CarbonSpend']=dict(zip(leaves,[carbon_spend]*len(leaves)))
-    sortie['CarbonGrowth']=dict(zip(leaves,[carbon_growth]*len(leaves)))
-    sortie['CarbonStorage']=dict(zip(leaves,[carbon_storage]*len(leaves)))
-    sortie['CarbonNitrogenRatio']=dict(zip(leaves,[carbon_nitrogen_ratio]*len(leaves)))
+            sortie['PonderationExport']=dict(zip(leaves,[weight_export]*len(leaves)))
+            sortie['PonderationImport']=dict(zip(leaves,[weight_import]*len(leaves)))
+            
+            sortie['CarbonContent']=dict(zip(leaves,[carbon_content]*len(leaves)))
+            sortie['CarbonDemand']=dict(zip(leaves,[carbon_demand]*len(leaves)))
+            sortie['CarbonDeficit']=dict(zip(leaves,[carbon_deficit]*len(leaves)))
+            sortie['CarbonImport']=dict(zip(leaves,[carbon_import]*len(leaves)))
+            sortie['CarbonExport']=dict(zip(leaves,[carbon_export]*len(leaves)))
+            sortie['CarbonSpend']=dict(zip(leaves,[carbon_spend]*len(leaves)))
+            sortie['CarbonGrowth']=dict(zip(leaves,[carbon_growth]*len(leaves)))
+            sortie['CarbonStorage']=dict(zip(leaves,[carbon_storage]*len(leaves)))
+            sortie['CarbonNitrogenRatio']=dict(zip(leaves,[carbon_nitrogen_ratio]*len(leaves)))
 
-    sortie['Fall']= dict(zip(leaves,[fall]*len(leaves)))
-    sortie['NirogenFallThresholdEmpirical']=dict(zip(leaves,[nitrogen_fall_threshold_empirical]*len(leaves)))
-    sortie['NirogenFallThresholdMecanism']=dict(zip(leaves,[nitrogen_fall_threshold_mecanism]*len(leaves)))
-    sortie['CarbonFallThresholdMecanism']=dict(zip(leaves,[carbon_fall_threshold_mecanism]*len(leaves)))
-    sortie['PARFallThresholdEmpirical']=dict(zip(leaves,[PAR_fall_threshold_empirical]*len(leaves)))
+            sortie['Fall']= dict(zip(leaves,[fall]*len(leaves)))
+            sortie['NirogenFallThresholdEmpirical']=dict(zip(leaves,[nitrogen_fall_threshold_empirical]*len(leaves)))
+            sortie['NirogenFallThresholdMecanism']=dict(zip(leaves,[nitrogen_fall_threshold_mecanism]*len(leaves)))
+            sortie['CarbonFallThresholdMecanism']=dict(zip(leaves,[carbon_fall_threshold_mecanism]*len(leaves)))
+            sortie['PARFallThresholdEmpirical']=dict(zip(leaves,[PAR_fall_threshold_empirical]*len(leaves)))
 
-    update_MTG(g,sortie)
+            return update_MTG(g,sortie)
+        
+        
 
