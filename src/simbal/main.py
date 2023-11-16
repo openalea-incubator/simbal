@@ -122,9 +122,9 @@ class PlotMTG:
                                       nrow,
                                       plant_density,
                                       DJ,
-                                      node_length,
                                       phyllochrone,
-                                      name
+                                      name,
+                                      species
                                       ):
         """Creation of the MTG from zero with a generic MTG pipeline and properties functions.
         
@@ -143,7 +143,7 @@ class PlotMTG:
         #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
 
         #We plot the MTG:
-        parcelle = mtg_rapeseed.agronomicplot(numofseeds,
+        parcelle = mtg.agronomicplot(numofseeds,
                                       nplants,
                                       length,
                                       width,
@@ -153,25 +153,21 @@ class PlotMTG:
                                       plant_density)
         coord=parcelle[1]
 
+        g = mtg.vegetative_field( DJ,
+                                phyllochrone,
+                                coord,
+                                name,
+                                species
+                                ).above
 
-        g = mtg_rapeseed.vegetative_field( DJ,
-                                           node_length,
-                                           phyllochrone,
-                                           coord,
-                                           name
-                                           ).above
-        for pl in coord :
-            for x, y, z in pl :
-                if y < 0 and y > 0 :
-                    mtg_rapeseed.rapeseed_phenotype(g)
-                else :
-                    mtg_faba_bean.faba_bean_phenotype(g)
+        mtg.species(g)
+        mtg.leaf_species(g)
 
-
-
-       
         mtg_rapeseed.rapeseed_phenotype(g)
-        mtg_rapeseed.metabolism(g)
+        mtg_rapeseed.rapeseed_metabolism(g)
+
+        mtg_faba_bean.faba_bean_phenotype(g)
+        mtg_faba_bean.faba_bean_metabolism(g)
 
         #files.recording_MTG_properties(g, file_name = 'MTG_0000.csv')
 
@@ -501,13 +497,13 @@ class Run :
         g, parcelle = PlotMTG.create_field_MTG_from_scratch(numofseeds = 18,
                                                     nplants = 18,
                                                     sowing_density = 35,
-                                                    inter_row = 0.2,
+                                                    inter_row = 0.1,
                                                     nrow = 3,#raw by box (PHOCUS)
                                                     plant_density = 35,
                                                     DJ = 950,
-                                                    node_length = 0.02,
                                                     phyllochrone = 0.015,
-                                                    name = 'Rapeseed',
+                                                    name = 'Solen',
+                                                    species = 'NA',
                                                     length = None,
                                                     width = None)#if nplants is not None, keep always length and width = None
 
