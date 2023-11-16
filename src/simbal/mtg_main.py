@@ -1,5 +1,23 @@
 from openalea.mtg import *
 
+import numpy as np
+
+##########################
+
+
+def update_MTG(g, outputs):
+    """
+    Update the MTG 
+    :param dict outputs: {'param1': { vid1: , vid2, ...}, 'param2': { vid1: , vid2, ...}}
+    """
+     # add the missing property
+    for param in outputs.keys():
+        if param not in g.properties():
+            g.add_property(param)
+        # update the MTG
+        g.property(param).update(outputs[param])
+
+###########################################
 
 class Plant:
     """ Define a plant as an above and below ground MTG.
@@ -68,7 +86,6 @@ class Plant:
 
 def vegetative(
         n_nodes,
-        node_length,
         name = 'rapeseed'):
     """ Build a plant with n_nodes internodes
     """
@@ -79,14 +96,14 @@ def vegetative(
 
     pid = g.add_component(vid, label='Phytomer')
     vid = g.add_component(pid, label='Internode')
-    g.node(vid).NodeLength = node_length
+    #g.node(vid).NodeLength = node_length
     #g.node(vid).short = True
     leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
     
     for i in range(n_nodes-1):
         pid = g.add_child(pid, edge_type='<', label='Phytomer')
         vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
-        g.node(vid).NodeLength = node_length
+        #g.node(vid).NodeLength = node_length
         #g.node(vid).short = True
 
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
@@ -122,6 +139,80 @@ def vegetative_DJ(
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
 
     return Plant(name, above = above)
+
+
+def species(g): 
+    """ Build an mtg of associated plant.
+    """
+    
+    sortie = dict()
+    
+    species = dict()
+
+    values = [v[1] for k, v in g.properties()['position'].items()]
+    keys = [k for k, v in g.properties()['position'].items()]
+
+    position = dict(zip(keys, values))
+
+    for k, v in position.items() : 
+        if v < 0 :
+            species[k] = 'Rapeseed'
+            
+        elif v > 0 :
+           species[k] = 'Rapeseed'
+
+        else :
+            species[k] = 'Faba bean'
+            
+    sortie['Species']= species
+
+    return update_MTG(g,sortie)
+    
+
+
+def leaf_species(g):
+    "bricolage..."
+    
+    sortie = dict()
+    rapeseed = dict()
+    faba = dict()
+
+    r = [k for k, v in g.properties()['Species'].items() if v == 'Faba bean']
+    n = [k for k, v in g.properties()['label'].items()]
+
+    min_r = min(r)
+    max_r = max(r)
+    
+    intervalle = [i for i in range(min_r, max_r+45)]
+
+    listSub = [k for k in n if k not in intervalle]
+    vv = [v for k, v in g.properties()['label'].items()]
+
+    list_r = dict(zip(listSub, vv))
+
+    d = dict(g.properties()['Species'].items())
+
+    for k, v in list_r.items() :
+        if not v == 'Plant' :
+            rapeseed[k] = 'Rapeseed'
+
+            for i in intervalle :
+                faba[i] = 'Faba bean'
+
+
+    leaf_species = d | rapeseed | faba
+    sortie['Species']= leaf_species
+
+    return update_MTG(g,sortie)
+
+
+
+        
+        
+
+
+
+
 
 
 ##Mtg builder with mutliple plants
@@ -194,14 +285,16 @@ def agronomicplot(nplants,
 
 def vegetative_field(
     DJ,
-    node_length,
     phyllochrone,
     coord,
-    name):
+    name,
+    species,
+    node_length = 0.0):
     """ Build a field with nrows(coord) plants that have n_nodes internodes
 
     """
     n_nodes=round(DJ*phyllochrone)
+    
     #print('plantes à',n_nodes,'entrenoeuds')
     above = g = MTG()
 
@@ -214,6 +307,7 @@ def vegetative_field(
         pid = g.add_component(vid, label='Phytomer') #pid= phytomer_id
         vid = g.add_component(pid, label='Internode') 
         g.node(vid).NodeLength = node_length
+        g.node(vid).Species = species
         #g.node(vid).short = True
         leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
         
@@ -221,11 +315,12 @@ def vegetative_field(
             pid = g.add_child(pid, edge_type='<', label='Phytomer')
             vid, pid = g.add_child_and_complex(vid, complex=pid, edge_type='<', label='Internode')
             g.node(vid).NodeLength = node_length
+            g.node(vid).Species = species
             #g.node(vid).short = True
 
             leaf_id = g.add_child(vid, edge_type='+', label='Leaf')
 
-    return Plant(name=name, above = above)   
+    return Plant(name=name, above = above) 
 
 def bell_shaped_dist(total_area=1, nb_phy=15, rmax=.7, skewness=5):
     """ OLD, use generate_normalized_bell_curve_points() instead
