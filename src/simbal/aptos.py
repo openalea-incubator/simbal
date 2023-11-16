@@ -1024,7 +1024,7 @@ class Fall:
         sortie = dict()
 
         alive = [k for k, v in g.properties()['Fall'].items()  if v == False]
-        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v ==True]
+        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v == True]
         fall = [v for k, v in g.properties()['Fall'].items()]
         
         for k, v in g.properties()['Fall'].items() :
