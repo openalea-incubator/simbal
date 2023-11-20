@@ -993,7 +993,7 @@ class Fall:
         return 
 
     # This function considers whether a leaf should fall or not:
-    @classmethod
+
     def leaf_falling(self, g):
         """Leaf fall mecanism.
     
@@ -1039,7 +1039,7 @@ class Fall:
         return update_MTG(g,sortie)
     
     # This function considers the final carbon and nitrogen mecanistical threshold for leaf fall:
-    @classmethod
+    
     def leaf_falling_mecanism_threshold(self, g):
         """Leaf fall nutrient threshold estimation.
     
@@ -1085,7 +1085,7 @@ class Fall:
         return update_MTG(g,sortie)
     
     # This function considers the final nitrogen and light empirical threshold for leaf fall:
-    @classmethod
+    
     def leaf_falling_empirical_threshold(self, g):
         """Leaf fall empirical (light) threshold estimation.
     
