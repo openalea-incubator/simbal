@@ -401,6 +401,7 @@ class Simulation:
                         sink_N = None)
             
             aptos.Nitrogen(g,
+                     potential_nitrogen_content = None,
                      nitrogen_demand = None,
                      weight_import = None,
                      weight_export = None,
@@ -409,14 +410,16 @@ class Simulation:
                      nitrogen_storage = None,
                      carbon_expend = None,
                      nitrogen_content = None,
-                     RUE = None,
+                     NRUE = None,
                      carbon_nitrogen_ratio = None)
             
             aptos.Carbon(g, 
                    carbon_growth = None,
                    carbon_demand = None,
                    carbon_import = None,
-                   carbon_export = None)
+                   carbon_export = None,
+                   carbon_storage = None,
+                   carbon_content = None)
             
             aptos.Growth(g, area = None)
             
