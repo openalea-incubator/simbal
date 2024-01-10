@@ -198,7 +198,7 @@ class PlotMTG:
 
         outputfilename ='Results_'+str(round(PlantAge*phylloc))+'L_'+str(numofseeds)+pattern[0]
 
-        data = pd.read_csv("ValeursParam.csv",sep=";")
+        data = pd.read_csv("Valeursparam.csv",sep=";")
 
         ##Cycle 
         Results = pd.DataFrame()
@@ -271,7 +271,7 @@ class PlotMTG:
                                     fall = False,
                                     growth = True,
                                     photosynthesis = 0.1,
-                                    par = 100,
+                                    Ei = 100,
                                     respiration = 0.1,
                                     potential_photosynthesis= 0.1,
                                     potential_area= 0.1,
@@ -295,11 +295,10 @@ class PlotMTG:
                                     carbon_storage = 0.1,
                                     carbon_nitrogen_ratio= 0.1,
                                     nitrogen_fall_threshold_empirical= 0.1,
-                                    PAR_fall_threshold_empirical= 0.1,
+                                    Ei_fall_threshold_empirical= 0.1,
                                     carbon_fall_threshold_mecanism= 0.1,
                                     nitrogen_fall_threshold_mecanism = 0.1
                                     )
-
 
             Temporary_Res = Temporary_Res | g.properties()
         
@@ -387,55 +386,55 @@ class Simulation:
             
             # We recording a snapshot a the MTG with caribu color legend:
             plot_name = 'plot_caribu_%.5d.png' % step
-            pgl.Viewer.saveSnapshot(plot_name)
+            pgl.Viewer.saveSnapshot(plot_name) 
 
-            aptos.Photosynthesis.leaf_photosynthesis(g, alpha = 0.1)
+            aptos.Photosynthesis.leaf_photosynthesis(g = g, alpha = 0.1)
             
-            #aptos.PotentialGrowth(g,
-                            #potential_photosynthesis = None,
-                            #potential_area = None, 
-                            #area = None)
+            aptos.PotentialGrowth(g,
+                            potential_photosynthesis = None,
+                            potential_area = None, 
+                            area = None)
             
-            #aptos.Competition(g, 
-                        #carbon_deficit = None,
-                        #source_N = None, 
-                        #sink_N = None)
+            aptos.Competition(g, 
+                        carbon_deficit = None,
+                        source_N = None, 
+                        sink_N = None)
             
-            #aptos.Nitrogen(g,
-                     #nitrogen_demand = None,
-                     #weight_import = None,
-                     #weight_export = None,
-                     #nitrogen_import =None,
-                     #nitrogen_export = None,
-                     #nitrogen_storage = None,
-                     #carbon_expend = None,
-                     #nitrogen_content = None,
-                     #RUE = None,
-                     #carbon_nitrogen_ratio = None)
+            aptos.Nitrogen(g,
+                     nitrogen_demand = None,
+                     weight_import = None,
+                     weight_export = None,
+                     nitrogen_import = None,
+                     nitrogen_export = None,
+                     nitrogen_storage = None,
+                     carbon_expend = None,
+                     nitrogen_content = None,
+                     RUE = None,
+                     carbon_nitrogen_ratio = None)
             
-            #aptos.Carbon(g, 
-                   #carbon_growth = None,
-                   #carbon_demand = None,
-                   #carbon_import = None,
-                   #carbon_export = None)
+            aptos.Carbon(g, 
+                   carbon_growth = None,
+                   carbon_demand = None,
+                   carbon_import = None,
+                   carbon_export = None)
             
-            #aptos.Growth(g, area = None)
+            aptos.Growth(g, area = None)
             
-            #aptos.Fall(g, 
-                 #fall = None,
-                 #nitrogen_fall_threshold = None,
-                 #nitrogen_fall_threshold_empirical = False,
-                 #PAR_fall_threshold_empirical = False,
-                 #carbon_fall_threshold = None)
+            aptos.Fall(g, 
+                 fall = None,
+                 nitrogen_fall_threshold = None,
+                 nitrogen_fall_threshold_empirical = False,
+                 Ei_fall_threshold_empirical = False,
+                 carbon_fall_threshold = None)
            
             # We view the plant MTG with PlantGL:
             pgl.Viewer.display(mtg_visualization.scene3d(g, select_visitor = mtg_visualization.ColzetteVisitor))
            
-            # We recording a snapshot a the MTG:
+            # We recording a snapshot of the MTG:
             plot_name = 'plot_%.5d.png' % step
             pgl.Viewer.saveSnapshot(plot_name)
 
-            # We record the main properties of the plant:
+            # We record the main properties of the MTG:
             file_name = 'MTG_%.5d.xlsx' % step
             #files.recording_MTG_properties(g, file_name)
             files.recording_MTG_df(g, file_name)
@@ -513,7 +512,7 @@ class Run :
     
     @staticmethod
     def colzette_simulation(default, initial_step, final_step):
-        """Run with algo from Colzette model.
+        """Run with Colzette model.
 
         Parameters
         ----------
@@ -586,7 +585,7 @@ class Run :
 ######################################################################################################################################""
 Run.field_simulation(default = None, 
                      initial_step = 1, 
-                     final_step = 3)
+                     final_step = 1)
 
 
 
