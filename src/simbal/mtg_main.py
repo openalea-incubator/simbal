@@ -8,7 +8,7 @@ import numpy as np
 def update_MTG(g, outputs):
     """
     Update the MTG 
-    :param dict outputs: {'param1': { vid1: , vid2, ...}, 'param2': { vid1: , vid2, ...}}
+    :Param dict outputs: {'Eiam1': { vid1: , vid2, ...}, 'Eiam2': { vid1: , vid2, ...}}
     """
      # add the missing property
     for param in outputs.keys():
@@ -145,7 +145,7 @@ def species(g):
     """ Build an mtg of associated plant.
     """
     
-    sortie = dict()
+    outputs = dict()
     
     species = dict()
 
@@ -164,16 +164,16 @@ def species(g):
         else :
             species[k] = 'Faba bean'
             
-    sortie['Species']= species
+    outputs['Species']= species
 
-    return update_MTG(g,sortie)
+    return update_MTG(g,outputs)
     
 
 
 def leaf_species(g):
     "bricolage..."
     
-    sortie = dict()
+    outputs = dict()
     rapeseed = dict()
     faba = dict()
 
@@ -201,15 +201,9 @@ def leaf_species(g):
 
 
     leaf_species = d | rapeseed | faba
-    sortie['Species']= leaf_species
+    outputs['Species']= leaf_species
 
-    return update_MTG(g,sortie)
-
-
-
-        
-        
-
+    return update_MTG(g,outputs)
 
 
 
@@ -247,7 +241,7 @@ def agronomicplot(nplants,
     convunit is the conversion factor from meter to scene unit
     center_scene allows to center the position around origin. If False, the scene is in the x+,y+ sector, the origin being at the lower left corner of the domain
     
-    Rows are parallel to x-axis
+    Rows are Eiallel to x-axis
     Length and Width are adjusted to produce a canopy centered in its domain and compliant with infinitisation
     """
     from operator import itemgetter
