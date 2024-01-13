@@ -509,7 +509,7 @@ class Run :
                                                     length = None,
                                                     width = None)#if nplants is not None, keep always length and width = None
 
-        Simulation(g, parcelle, default, initial_step, final_step)
+        Simulation(g,parcelle, default, initial_step, final_step)
 
         return g, parcelle
     
