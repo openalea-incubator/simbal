@@ -41,7 +41,7 @@ def rapeseed_phenotype(g,
     """
     applies phenotypical attributes to an MTG based on Eiameters. 
         leaf_max : [float between 0 and 1] Expectation of the bell curve => Position of the biggest leaf along the stem.
-        sd: [float] Standard deviation of the bell curve => reEitition of the leaf surface
+        sd: [float] Standard deviation of the bell curve => repartition of the leaf surface
         amp: [float] amplitude of the bell curve 
         phyllot: [float, degrees] phyllotaxy angle 
         ins_angle: [float, degrees] insertion angle of the petiole
