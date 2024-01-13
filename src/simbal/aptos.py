@@ -1183,7 +1183,8 @@ class Fall:
                Ei_fall_threshold_empirical = False, carbon_fall_threshold = None) :
 
         self.g = g
-        self.fall = self.leaf_falling(g) if fall is None else fall
+        self.mechanistic_fall = self.leaf_mechanistic_falling(g) if fall is None else fall
+        self.empirical_fall = self.leaf_empirical_falling(g) if fall is None else fall
         self.nitrogen_fall_threshold_empirical = self.leaf_falling_empirical_nitrogen_threshold(g) if nitrogen_fall_threshold_empirical is None else nitrogen_fall_threshold
         self.nitrogen_fall_threshold = self.leaf_falling_mecanism_nitrogen_threshold(g) if nitrogen_fall_threshold is None else nitrogen_fall_threshold_empirical
         self.Ei_fall_threshold_empirical = self.leaf_falling_empirical_light_threshold(g) if Ei_fall_threshold_empirical is None else carbon_fall_threshold
@@ -1192,8 +1193,7 @@ class Fall:
         return 
 
     # This function considers whether a leaf should fall or not:
-    @classmethod
-    def leaf_falling(self, g):
+    def leaf_mechanistic_falling(self, g):
         """Leaf fall mecanism.
     
         Parameters
@@ -1242,6 +1242,62 @@ class Fall:
 
         return update_MTG(g,outputs)
     
+    def leaf_empirical_falling(self, g):
+        """Leaf fall mecanism.
+    
+        Parameters
+        ---------
+        g: MTG 
+            MTG where properties are recorded
+    
+        carbon_growth : MTG proporties
+            Carbon left for growth after nitrogen exchange accoring to photosynthesis of each organs (g) 
+        
+        Returns
+        ------
+        g: MTG 
+            MTG where properties are recorded
+
+        Authors
+        -------
+        Solen FARRA
+
+        References
+        ----------
+        Field (1983)
+
+        """
+        print("Run organs fall...")
+
+        outputs = dict()
+
+        senescent = [k for k, v in g.properties()['NitrogenSource'].items()  if v ==True]
+        nitrogen_content = [v for k, v in g.properties()['NitrogenContent'].items() if k in senescent]
+        Eabs = [v for k, v in g.properties()['Eabs'].items() if k in senescent]
+        
+        for k, v in g.properties()['Fall'].items() :
+            if v == False :
+
+                    P = dict(zip(senescent,[(0.5724*a)+b for a, b in zip(nitrogen_content, Eabs)]))
+
+                    for k, v in P.items() :
+                        if v < 1.67879 :
+                            
+                            dead = [k]
+                            fall = [v for k, v in g.properties()['Fall'].items() if k in dead]
+                            outputs['Fall']= dict(zip(dead,[a == True for a in fall]))
+                        
+                        else :
+
+                            alive = [k]
+                            fall = [v for k, v in g.properties()['Fall'].items() if k in alive]
+                            outputs['Fall']= dict(zip(senescent,[a == False for a in fall]))
+            else :
+
+                pass
+
+        return update_MTG(g,outputs)
+    
     # This function considers the final carbon and nitrogen mecanistical threshold for leaf fall:
    
     def leaf_falling_mecanism_carbon_threshold(self, g):
@@ -1279,15 +1335,9 @@ class Fall:
         fall = [v for k, v in g.properties()['Fall'].items() if v == True]
         carbon_content = [v for k, v in g.properties()['CarbonContent'].items()]
 
-        for k, v in g.properties()['Fall'].items() :
-            if v == True:
-                
-                outputs['CarbonFallThresholdMecanism']= dict(zip(fall,[a for a in carbon_content]))
+        outputs['CarbonFallThresholdMecanism']= dict(zip(fall,[a for a in carbon_content]))
             
-            else :
-
-                pass
-
+        
         return update_MTG(g,outputs)
     
     def leaf_falling_mecanism_nitrogen_threshold(self, g):
