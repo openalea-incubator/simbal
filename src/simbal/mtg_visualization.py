@@ -14,6 +14,22 @@ import pandas as pd
 import math
 import numpy as np
 
+#######################################
+
+def update_MTG(g, outputs):
+    """
+    Update the MTG 
+    :Param dict outputs: {'Param1': { vid1: , vid2, ...}, 'Param2': { vid1: , vid2, ...}}
+    """
+     # add the missing property
+    for param in outputs.keys():
+        if param not in g.properties():
+            g.add_property(param)
+        # update the MTG
+        g.property(param).update(outputs[param])
+
+###########################################
+
 
 #leaf shape 
 def unileaflet(length=1., width=1.):
@@ -99,7 +115,7 @@ def rapeseed_visitor(
 
 def ColzetteVisitor(
     g, 
-    v, 
+    v,
     turtle,
     ):
     """
@@ -112,6 +128,7 @@ def ColzetteVisitor(
     """
 
     #retrieve the node and its label 
+    v = v 
     nid = g.node(v)
     label = g.label(v)
 
@@ -157,8 +174,76 @@ def ColzetteVisitor(
 
     turtle.setId(v)
 
+#color map
+def my_colormap(g, property_name, cmap='Wistia', vmin=None, vmax=None, lognorm=True):
+    """
+    This function computes a property 'color' on a MTG based on a given MTG's property.
+    :param g: the investigated MTG
+    :param property_name: the name of the property of the MTG that will be displayed
+    :param cmap: the type of color map
+    :param vmin: the min value to be displayed
+    :param vmax: the max value to be displayed
+    :param lognorm: a Boolean describing whether the scale is logarithmic or not
+    :return: the MTG with the corresponding color
+    """
+    outputs = dict()
+
+    prop = g.property(property_name)
+    keys = prop.keys()
+    values = list(prop.values())
+    # m, M = int(values.min()), int(values.max())
+
+    _cmap = color.get_cmap(cmap)
+
+    colors = (_cmap(values)[:, 0:3]) * 255
+    colors = np.array(colors, dtype=np.int).tolist()
+
+    #g.properties()['color'] = dict(zip(keys, colors))
+
+    outputs['color'] = dict(zip(keys, colors))
+    
+    return update_MTG(g, outputs)
+
+
 #Scene creation
-def scene3d(g,select_visitor=ColzetteVisitor):
+def prepareScene(scene, width=1200, height=1200, scale=0., x_center=0., y_center=0., z_center=0.,
+                 x_cam=0., y_cam=0., z_cam=0., grid=False):
+    """
+    This function returns the scene that will be used in PlantGL to display the MTG.
+    :param scene: the scene to start with
+    :param width: the width of the graph (in pixels)
+    :param height: the height of the graph (in pixels)
+    :param scale: a dimensionless factor for zooming in or out
+    :param x_center: the x-coordinate of the center of the graph
+    :param y_center: the y-coordinate of the center of the graph
+    :param z_center: the z-coordinate of the center of the graph
+    :param x_cam: the x-coordinate of the camera looking at the center of the graph
+    :param y_cam: the y-coordinate of the camera looking at the center of the graph
+    :param z_cam: the z-coordinate of the camera looking at the center of the graph
+    :param grid: a Boolean describing whether grids should be displayed on the graph
+    :return: scene
+    """
+
+    # We define the coordinates of the point cam_target that will be the center of the graph:
+    cam_target = pgl.Vector3(x_center * scale,
+                             y_center * scale + 0.7,
+                             z_center * scale)
+    # We define the coordinates of the point cam_pos that represents the position of the camera:
+    cam_pos = pgl.Vector3(x_cam * scale,
+                          y_cam * scale,
+                          z_cam * scale)
+    # We position the camera in the scene relatively to the center of the scene:
+    pgl.Viewer.camera.lookAt(cam_pos, cam_target)
+    # We define the dimensions of the graph:
+    pgl.Viewer.frameGL.setSize(width, height)
+    # We define whether grids are displayed or not:
+    pgl.Viewer.grids.set(grid, grid, grid, grid)
+
+    return scene
+
+
+def scene3d(g, select_visitor=ColzetteVisitor,
+            prop_cmap='Fall', cmap='Wistia', lognorm=True, vmin=True, vmax=False):
     """
     calls a PlantGL turtle to generate a 3D scene
     g is an MTG file
@@ -169,6 +254,8 @@ def scene3d(g,select_visitor=ColzetteVisitor):
     colors['Petiole'] = (100, 100, 80)
     colors['Leaf'] = (9, 82, 40)
 
+    colors['Fall'] = (9, 20, 10)
+   
     t = pgl.PglTurtle()
     # set colors 
     color = Color3(*colors['Internode'])
@@ -178,13 +265,39 @@ def scene3d(g,select_visitor=ColzetteVisitor):
     color = Color3(*colors['Leaf'])
     t.setColorAt(3, color)
 
-    max_scale = g.max_scale()
+    # We compute the colors of the graph:
+    #my_colormap(g, prop_cmap, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
     
-    vid = next(g.component_roots_at_scale_iter(g.root, scale=max_scale))
+    # We initialize the scene with the MTG g:
+    scene = turt.TurtleFrame(g, visitor=select_visitor, turtle=t, gc=False, all_roots=True)
+    # We get a list of all shapes in the scene:
+    scene = prepareScene(scene)
+    
+    #shapes = dict((sh.id, sh) for sh in scene)
+    # We use the property 'color' of the MTG calculated by the function 'my_colormap':
+    #colors = g.property('color')
+    # We cover each node of the MTG:
+    #for vid in colors:
+        #if vid in shapes:
+            #n = g.node(vid)
+            #key = n._vid
+            # If the element is not dead:
+            #fall = [v for k, v in g.properties()['Fall'].items() if k == key]
+            #for v in fall :
+                #if v == True:
+                    # We color it according to the property cmap defined by the user:
+                    #shapes[vid].appearance = pgl.Material([255,255,0])
+                #else:
 
-    scene = turtle.TurtleFrame(
-        g, 
-        visitor=select_visitor, turtle=t, gc=False, all_roots=True)
+                    #shapes[vid].appearance = pgl.Material(colors[vid])
+                    
+                    # Otherwise, we print it in black:
+                    #shapes[vid].appearance = pgl.Material([0, 0, 0])
+                # property=g.property(prop_cmap)
+                # if n.property <=0:
+                #     shapes[vid].appearance = pgl.Material([0, 0, 200])
+        #else :
+            #pass
     
     return scene
 
