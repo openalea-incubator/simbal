@@ -10,7 +10,6 @@ import numpy as np
 from pandas import *
 import pandas as pd
 
-import mtg_rapeseed 
 import mtg_visualization
 
 ###################################
