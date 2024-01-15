@@ -21,11 +21,6 @@ def generate_centered_mesh_points(n):
     return points
 
 
-
-import math
-
-import math
-
 def generate_centered_diagonal_mesh_points(n):
     side_length = int(math.sqrt(n))
     if side_length * side_length < n:

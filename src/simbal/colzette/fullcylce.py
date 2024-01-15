@@ -16,8 +16,8 @@ import pandas
 import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
 
-from colzette_lib import *
-from semis import * 
+from .colzette_lib import *
+from .semis import * 
 
 tps1 = time.process_time()
 
