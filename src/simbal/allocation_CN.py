@@ -1,7 +1,7 @@
 """ License Cecill-C
 
 This module compute the allocation of C and N on a shoot and root model.
-allocation_CN.py is part of caracol model
+allocation_CN.py is part of simbal model
 
 :TODO: Modify the documentation
 A module that 
