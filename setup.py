@@ -12,6 +12,7 @@ history = open('HISTORY.rst').read()
 version = {}
 with open("src/simbal/version.py") as fp:
     exec(fp.read(), version)
+_version = version["__version__"]
 
 # find packages
 pkgs = find_packages('src')
@@ -21,7 +22,7 @@ author_email="laurene.perthame at agroparistech.fr, solen.farra at inrae.fr, ...
 
 setup_kwds = dict(
     name='simbal',
-    version=version,
+    version=_version,
     description=short_descr,
     long_description=readme + '\n\n' + history,
     author=authors,
