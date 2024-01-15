@@ -1,16 +1,16 @@
 ========================
-caracol
+Simbal
 ========================
 
 .. {# pkglts, doc
 
-.. image:: https://travis-ci.org/openalea-incubator/caracol.svg?branch=master
+.. image:: https://travis-ci.org/openalea-incubator/simbal.svg?branch=master
     :alt: Travis build status
-    :target: https://travis-ci.org/openalea-incubator/caracol
+    :target: https://travis-ci.org/openalea-incubator/simbal
 
 .. #}
 
-Caracol is a FSPM model for agroecological simulation
+Simbal is a FSPM model for agroecological simulation
 
 --------------------------
 Model layout

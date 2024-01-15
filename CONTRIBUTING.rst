@@ -37,8 +37,8 @@ features. Anything tagged with "feature" is open to whoever wants to implement i
 Write Documentation
 ~~~~~~~~~~~~~~~~~~~
 
-**caracol** could always use more documentation, whether as
-part of the official **caracol** docs, in docstrings, or even
+**simbal** could always use more documentation, whether as
+part of the official **simbal** docs, in docstrings, or even
 on the web in blog posts, articles, and such.
 
 Submit Feedback
@@ -56,19 +56,19 @@ If you are proposing a feature:
 Get Started!
 ------------
 
-Ready to contribute? Here's how to set up `caracol` for local
+Ready to contribute? Here's how to set up `simbal` for local
 development.
 
-1. Fork the `caracol` repo on GitHub.
+1. Fork the `simbal` repo on GitHub.
 2. Clone your fork locally::
 
-    $ git clone git@github.com:your_name_here/caracol.git
+    $ git clone git@github.com:your_name_here/simbal.git
     
-3. Install your local copy into a virtualenv. Assuming you have virtualenv_
+3. Install your local copy into a virtualenv. Assuming you have conda_
 installed, this is how you set up your fork for local development::
 
-    $ virtualenv dvlpt
-    $ dvlpt/script/activate
+    $ mamba create -n simbal -c openalea3 -c conda-forge openalea.simbal
+    $ mamba activate simbal
     (dvlpt)$ python setup.py develop
 
 4. Create a branch for local development (wip stands for work in progress)::
@@ -80,11 +80,11 @@ installed, this is how you set up your fork for local development::
 5. When you're done making changes, check that your changes pass flake8 and the
 tests, including testing other Python versions with tox::
 
-    (dvlpt)$ cd caracol
-    (dvlpt) caracol$ flake8
-    (dvlpt) caracol$ pytest
+    (dvlpt)$ cd simbal
+    (dvlpt) simbal$ flake8
+    (dvlpt) simbal$ pytest
     
-    (dvlpt) caracol$ tox
+    (dvlpt) simbal$ tox
 
    To get flake8 and tox, just pip install them into your virtualenv.
 
@@ -107,7 +107,7 @@ Before you submit a pull request, check that it meets these guidelines:
      your new functionality into a function with a docstring, and add the
      feature to the list in README.rst.
   3. The pull request should work for Python 36.
-     Check `Travis <https://travis-ci.org/Alice Penanhoat/caracol/pull_requests>`_
+     Check Github Action
      and make sure that the tests pass for all supported Python versions.
      
 
@@ -122,6 +122,6 @@ To run a subset of tests::
 
 
 
-.. _issues: https://github.com/Alice Penanhoat/caracol/issues
+.. _issues: https://github.com/openalea-incubator/simbal/issues
 
-.. _virtualenv: https://pypi.python.org/pypi/virtualenv
+.. _conda: https://docs.conda.io/
