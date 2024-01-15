@@ -1,7 +1,7 @@
 """ License Cecill-C
 
 This module compute the allocation of C and N on a shoot and root model.
-allocation_CN.py is part of caracol model
+allocation_CN.py is part of simbal model
 
 :TODO: Modify the documentation
 A module that 
@@ -29,9 +29,11 @@ RUE = 1 # Radiation use efficiency in gC.MJ-1.cm-2
 C_remob_rate = 1 # C remobilization rate in gC.gC-1
 
 ###Costs
+"""
 _C_respiration
 _C_rhizodeposition
 _N_metabolic
+"""
 
 #import numpy #for loading the entire package
 from math import (pi, exp) #for loading only pi function from package numpy
@@ -111,7 +113,7 @@ def leaf_stem_surface_ratio(_leaf_surface,_stem_surface):
 
 
 ## N uptake by root
-def potential_N_root_uptake(_root_surface, Nsoil=Nsoil, time_step, SNU=SNU):
+def potential_N_root_uptake(_root_surface, Nsoil, time_step, SNU):
     """
     Calculation of N potential uptake by roots
     :param _root_surface: root object
@@ -152,7 +154,7 @@ def producted_biomass(_intercepted_PAR, RUE):
 
 
 ## N remobilized from storage by the plant 
-def potential_N_remobilized(N_remob_rate=N_remob_rate, Nstock):
+def potential_N_remobilized(N_remob_rate, Nstock):
     """
     Calculation of N remobilized from stock (in g)
     :param Nstock: N stock in the plant in gN
@@ -165,7 +167,7 @@ def potential_N_remobilized(N_remob_rate=N_remob_rate, Nstock):
 
 
 ## C remobilized from storage by the plant 
-def potential_C_remobilized(C_remob_rate=C_remob_rate, Cstock):
+def potential_C_remobilized(C_remob_rate, Cstock):
     """
     Calculation of C remobilized from storage (in g)
     :param Cstock: N storage in the plant in gC
@@ -180,7 +182,7 @@ def potential_C_remobilized(C_remob_rate=C_remob_rate, Cstock):
 ## CN allocation
 
 # Calculation of potential C and N demand for the root
-def N_potential_root_demand(_delta_volume, Ndensity=Ndensity):
+def N_potential_root_demand(_delta_volume, Ndensity):
     """
     Calculation of N potential root demand (in gN) in function of the root volume and root N density
     :param delta_volume: potential increase of root volume in cm3
@@ -191,7 +193,7 @@ def N_potential_root_demand(_delta_volume, Ndensity=Ndensity):
     print("N potential root demand is", _N_potential_root_demand, "gN")
     return _N_potential_root_demand
 
-def C_potential_root_demand(_delta_volume, Cdensity=Cdensity):
+def C_potential_root_demand(_delta_volume, Cdensity):
     """
     Calculation of C potential root demand (in gC) in function of the root segment volume and root C density
     :param delta_volume: potential increase of root volume in cm3
@@ -313,7 +315,6 @@ def potential_stem_surface(_N_potential_stem_demand, coef_N_stem_surface):
     :return: potential stem area in cm2
     Potential stem area is printed
     """
-    _potential_stem_surface = 
     _potential_stem_surface = coef_N_stem_surface * _N_potential_stem_demand
     print("potential stem surface is", _potential_stem_surface, "cm2")
     return _potential_stem_surface
@@ -359,22 +360,6 @@ def C_actual_uptake(_C_actual_offer, _C_potential_shoot_demand):
 #
 
 
-############################################################################
-#MAIN CODE:
-
-# initializing
-
-root_element=root()
-leaf_element=leaf()
-stem_element=stem()
-#root_element1.volume=pi*(root_element1.radius)**2*root_element1.length
-root_element.name="Jean_Paul"
-#print(root_element1.radius)
-#print(root_element1.volume)
-
-#root_element2=root_segment()
-#root_element2.volume=pi*(root_element2.radius)**2*root_element2.length
-#root_element2.name="Horace"
 
 # simulation
 #Calculate the C and N potential demand of root (gC and gN)
@@ -386,14 +371,6 @@ root_element.name="Jean_Paul"
 #list_root_segments.append(root_element2)
 #C_potential_root_total_demand(list_elements=list_root_segments)
 
-starting_time=0
-end_time=10
-time_step=2
-
-# Create the plant
-rapeseed = Plant(name='Rapeseed')
-above = rapeseed.above
-below = rapeseed.below
 
 def root_potential_growth(below, dl, dr):
     """ External function
@@ -460,39 +437,53 @@ def shoot_potential_growth(above, dl, dS):
         darea[vid] = dS
 
 
-for t in range(starting_time,end_time,time_step):
-    print("Time is", t)
-    # Elements are growing:
-    
-    root_potential_growth(dl=time_step/10, dr=time_step/50)
-    shoot_potential_growth(dl=time_step/10, dS=alpha * time_step)
+def main():
+    """ Run the above"""
+
+    # initializing
+
+    starting_time=0
+    end_time=10
+    time_step=2
+
+    # Create the plant
+    rapeseed = Plant(name='Rapeseed')
+    above = rapeseed.above
+    below = rapeseed.below
+
+    for t in range(starting_time,end_time,time_step):
+        print("Time is", t)
+        # Elements are growing:
+        
+        root_potential_growth(dl=time_step/10, dr=time_step/50)
+        shoot_potential_growth(dl=time_step/10, dS=alpha * time_step)
 
 
 
-    # Calculate potential C and N demand for total root
-    dV = delta_volume(below)
-    _N_potential_root_demand = N_potential_root_demand(dV, Ndensity=1)
-    _C_potential_root_demand = C_potential_root_demand(dV, Cdensity=1)
-    
-    # Calculate N available to shoot and root
-    _N_available = N_available(below, Nsoil=20, Nstock=5, time_step=time_step, SNU=SNU)
+        # Calculate potential C and N demand for total root
+        dV = delta_volume(below)
+        _N_potential_root_demand = N_potential_root_demand(dV, Ndensity=1)
+        _C_potential_root_demand = C_potential_root_demand(dV, Cdensity=1)
+        
+        # Calculate N available to shoot and root
+        _N_available = N_available(below, Nsoil=20, Nstock=5, time_step=time_step, SNU=SNU)
 
 
-    # Calculate N potential demand of shoot, leaf and stem
-    _N_shoot_potential_demand = N_shoot_potential_demand(_N_available=_N_available, _N_potential_root_demand=_N_potential_root_demand)
-    tau = leaf_stem_surface_ratio(element1=leaf_element, element2=stem_element)
-    _N_leaf_potential_demand = N_leaf_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
-    _N_stem_potential_demand = N_stem_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
-    # Calculate potiential leaf and stem area
-    _potential_leaf_area = potential_leaf_area(_N_leaf_potential_demand=_N_leaf_potential_demand, coef_N_leaf_area=coef_N_leaf_area)
-    _potential_stem_area = potential_stem_area(_N_stem_potential_demand=_N_stem_potential_demand, coef_N_stem_area=coef_N_stem_area)
-    # Calculate potential total photosynthetic area
-    potential_photosynthetic_area = _potential_leaf_area + _potential_stem_area
-    # Calculate C potential shoot demand
-    _C_potential_shoot_demand = C_potential_shoot_demand(potential_photosynthetic_area=potential_photosynthetic_area, Cdensity=1)
-    # Calculate C available to the plant
-    _intercepted_PAR = intercepted_PAR(initial_leaf_area=leaf_area0, k=k, e_amax=e_amax)
-    _C_available = C_available(_intercepted_PAR=_intercepted_PAR, RUE=RUE, Cstock=3, time_step=time_step)
+        # Calculate N potential demand of shoot, leaf and stem
+        _N_shoot_potential_demand = N_shoot_potential_demand(_N_available=_N_available, _N_potential_root_demand=_N_potential_root_demand)
+        tau = leaf_stem_surface_ratio(element1=leaf_element, element2=stem_element)
+        _N_leaf_potential_demand = N_leaf_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
+        _N_stem_potential_demand = N_stem_potential_demand(tau=tau, _N_shoot_potential_demand=_N_shoot_potential_demand)
+        # Calculate potiential leaf and stem area
+        _potential_leaf_area = potential_leaf_area(_N_leaf_potential_demand=_N_leaf_potential_demand, coef_N_leaf_area=coef_N_leaf_area)
+        _potential_stem_area = potential_stem_area(_N_stem_potential_demand=_N_stem_potential_demand, coef_N_stem_area=coef_N_stem_area)
+        # Calculate potential total photosynthetic area
+        potential_photosynthetic_area = _potential_leaf_area + _potential_stem_area
+        # Calculate C potential shoot demand
+        _C_potential_shoot_demand = C_potential_shoot_demand(potential_photosynthetic_area=potential_photosynthetic_area, Cdensity=1)
+        # Calculate C available to the plant
+        _intercepted_PAR = intercepted_PAR(initial_leaf_area=leaf_area0, k=k, e_amax=e_amax)
+        _C_available = C_available(_intercepted_PAR=_intercepted_PAR, RUE=RUE, Cstock=3, time_step=time_step)
 
 
 
@@ -502,3 +493,5 @@ for t in range(starting_time,end_time,time_step):
 #N_seg_available=N_available(segment_length=1,segment_radius=1, Nsoil=10, N_remobilized=2, time_step=1)
 #print(N_seg_available)
 
+if __name__ == '__main__':
+    main()

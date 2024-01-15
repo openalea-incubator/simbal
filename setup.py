@@ -4,21 +4,28 @@
 from setuptools import setup, find_packages
 
 
-short_descr = "Caracol is a FSPM model for agroecological simulation"
+short_descr = "Simbal is a FSPM model for agroecological simulation"
 readme = open('README.rst').read()
 history = open('HISTORY.rst').read()
+
+# version 
+version = {}
+with open("src/simbal/version.py") as fp:
+    exec(fp.read(), version)
+_version = version["__version__"]
 
 # find packages
 pkgs = find_packages('src')
 
-
+authors = "Laurene perthame, Solen Farra, ..."
+author_email="laurene.perthame at agroparistech.fr, solen.farra at inrae.fr, ..."
 
 setup_kwds = dict(
-    name='caracol',
-    version="0.0.2",
+    name='simbal',
+    version=_version,
     description=short_descr,
     long_description=readme + '\n\n' + history,
-    author="Alice Penanhoat",
+    author=authors,
     author_email="alice.penanhoat@live.fr",
     url='https://github.com/openalea-incubator/caracol',
     license='cecill-c',
@@ -27,17 +34,9 @@ setup_kwds = dict(
     packages=pkgs,
     
     package_dir={'': 'src'},
-    setup_requires=[
-        "pytest-runner",
-        ],
-    install_requires=[
-        ],
-    tests_require=[
-        "pytest",
-        "pytest-mock",
-        ],
+    install_requires=[],
     entry_points={},
-    keywords='',
+    keywords='agroecology, FSPM, openalea',
     )
 # #}
 # change setup_kwds below before the next pkglts tag
