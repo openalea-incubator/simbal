@@ -1,5 +1,8 @@
 from alinea.caribu.CaribuScene import CaribuScene
 
+# CPL : Add import for turtle (hemisphere with 46 sectors)
+import alinea.caribu.sky_tools.turtle as turtle
+
 from simbal.colzette.colzette_lib import (
     unileaflet,
     vegetative_rapeseed_field,
@@ -49,8 +52,21 @@ def colzette(leaf_max, sd, amp, ins_angle, coeff_width):
     zenith=[(100,(0,0,-1))]
     #opts = list(map(str, [data_path('par.opt'), data_path('nir.opt')]))
 
-    cs = CaribuScene(scene=can, light=zenith, pattern=parcelle[2])
+    # CPL
+    # Compute the light sources with a totl 1 for energy
+    # You can also (spped) use 16 sectors
+    energy, emission, direction, elevation, azimuth = turtle.turtle(sectors='46', energy=100.)
+    sources = list(zip(energy, direction))
+
+    #cs = CaribuScene(scene=can, light=zenith, pattern=parcelle[2])
+    cs = CaribuScene(scene=can, light=sources, pattern=parcelle[2])
+    
+    # CPL
+    #cs.addSources(sources)
     raw,agg = cs.run(infinite=True,simplify=True,direct=False)
+
+    # CPL : for the visualisation 3D
+    #cs.plot(agg['Ei'])
 
     return g, can, raw, agg
 
