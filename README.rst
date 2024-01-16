@@ -1,12 +1,12 @@
 ========================
-simbal
+Simbal
 ========================
 
 .. {# pkglts, doc
 
-.. image:: https://travis-ci.org/openalea-incubator/caracol.svg?branch=master
+.. image:: https://travis-ci.org/openalea-incubator/simbal.svg?branch=master
     :alt: Travis build status
-    :target: https://travis-ci.org/openalea-incubator/caracol
+    :target: https://travis-ci.org/openalea-incubator/simbal
 
 .. #}
 
