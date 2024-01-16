@@ -1,11 +1,11 @@
 
 import simbal
-from simbal import mtg_rapeseed
+from simbal import mtg_rapeseed, mtg_main
 
 def test1():
-    g = simbal.mtg_main.vegetative(n_nodes = 10).above
+    g = mtg_main.vegetative(n_nodes = 10).above
     mtg_rapeseed.rapeseed_phenotype(g)
-    mtg_rapeseed.metabolism(g)
+    mtg_rapeseed.rapeseed_metabolism(g)
     max_scale = g.max_scale()
 
 #Test de Ono (1996)
