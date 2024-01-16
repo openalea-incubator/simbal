@@ -1,5 +1,5 @@
 
-from caracol import mtg_rapeseed
+from simbal import mtg_rapeseed
 
 g = mtg_rapeseed.above
 max_scale = g.max_scale()
