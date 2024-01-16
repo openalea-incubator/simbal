@@ -5,7 +5,7 @@ from numpy import *
 import numpy as np
 from pandas import *
 
-import mtg_main as mtg
+import .mtg_main as mtg
 
 #######################################
 

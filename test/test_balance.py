@@ -1,4 +1,4 @@
-from caracol import CN_balance as cnb
+from simbal import CN_balance as cnb
 import pytest
 
 #Test function
