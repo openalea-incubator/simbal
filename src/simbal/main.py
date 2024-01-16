@@ -11,12 +11,12 @@ from pandas import *
 
 import time
 
-import mtg_main as mtg
-import mtg_rapeseed 
-import mtg_faba_bean
-import mtg_visualization 
-import aptos 
-import files_management as files
+import simbal.mtg_main as mtg
+import simbal.mtg_rapeseed 
+import simbal.mtg_faba_bean
+import simbal.mtg_visualization 
+import simbal.aptos 
+import simbal.files_management as files
 
 from alinea.caribu.CaribuScene import CaribuScene
 
@@ -104,7 +104,7 @@ class PlotMTG:
         #input_dataframe = pd.read_excel(r'C:\Users\FARRA\AppData\Local\GitHubDesktop\app-3.2.3\src\caracol\src\caracol\APTOS_input_1.xlsx', header=0, sheet_name="scenario")
 
         #We plot the MTG:
-        g = mtg.vegetative(n_nodes, node_length).above
+        g = mtg.vegetative(n_nodes).above
         mtg_rapeseed.rapeseed_phenotype(g)
         mtg_rapeseed.metabolism(g)
 

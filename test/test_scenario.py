@@ -1,8 +1,12 @@
 
+import simbal
 from simbal import mtg_rapeseed
 
-g = mtg_rapeseed.above
-max_scale = g.max_scale()
+def test1():
+    g = simbal.mtg_main.vegetative(n_nodes = 10).above
+    mtg_rapeseed.rapeseed_phenotype(g)
+    mtg_rapeseed.metabolism(g)
+    max_scale = g.max_scale()
 
 #Test de Ono (1996)
 def _init_HLHN(g):
