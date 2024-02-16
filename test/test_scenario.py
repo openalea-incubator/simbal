@@ -1,6 +1,6 @@
-
-import simbal
-from simbal import mtg_rapeseed, mtg_main
+s
+import simbal.aptos as aptos
+from simbal.aptos import mtg_rapeseed, mtg_main
 
 def test1():
     g = mtg_main.vegetative(n_nodes = 10).above
