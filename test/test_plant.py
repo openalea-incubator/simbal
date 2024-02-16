@@ -1,4 +1,4 @@
-from simbal import plant_mtg as plt
+from simbal.aptos import plant_mtg as plt
 
 def test1():
     rapeseed = plt.Plant(name='Rapeseed')
