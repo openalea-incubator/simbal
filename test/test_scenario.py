@@ -1,4 +1,3 @@
-s
 import simbal.aptos as aptos
 from simbal.aptos import mtg_rapeseed, mtg_main
 
