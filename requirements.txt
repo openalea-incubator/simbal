@@ -1,0 +1,9 @@
+# Model utilities
+openalea.mtg
+alinea.caribu
+numpy
+pandas
+openpyxl
+
+# Data utilities
+pyvista
