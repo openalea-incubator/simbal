@@ -15,7 +15,7 @@ import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, acos
 import os
 
-import parameters as param
+import simbal_parameters as param
 
 ########################################################################################################################
 ########################################################################################################################
@@ -200,6 +200,9 @@ def new_phytomers_initiation(g, new_initiation = True, initial_internode_length 
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to generate an initial MTG with a certain number of leaves and corresponding internodes:
 def create_shoot_MTG(number_of_phytomers=3,
+                     initial_leaf_length=0.003,
+                     initial_internode_radius=0.001,
+                     initial_internode_height = 0.001,
                      structural_mass_density=1e5, minimal_leaf_thickness=1e-3):
 
     # We initialize an empty MTG:
@@ -209,7 +212,7 @@ def create_shoot_MTG(number_of_phytomers=3,
     id_base = g.add_component(g.root,
                               label='Base_of_the_shoot_system',
                               # Geometry:
-                              radius=0.02,
+                              radius=initial_internode_radius,
                               length=0.,
                               angle_down=0.,
                               angle_roll=0.,
@@ -255,9 +258,9 @@ def create_shoot_MTG(number_of_phytomers=3,
                                                                structural_mass_density=structural_mass_density,
                                                                minimal_leaf_thickness=minimal_leaf_thickness,
                                                                internode_radius=new_internode.radius * 0.9,
-                                                               internode_length=0.005,
-                                                               leaf_radius=0.05/2.,
-                                                               leaf_length=0.05,
+                                                               internode_length=initial_internode_height,
+                                                               leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio,
+                                                               leaf_length=initial_leaf_length,
                                                                bud_radius=0.,
                                                                bud_length=0.)
 
@@ -695,9 +698,9 @@ def plotting_shoot_MTG_population(g,
 
     my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
     complete_scene = create_a_scene_with_plants_popuplation(g,
-                                                            number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                                            number_of_plants_per_square_meter=number_of_plants_per_square_meter,
                                                             inter_row_distance=inter_row_distance,
-                                                            scene_length=row_length,
+                                                            scene_length=scene_length,
                                                             scene_width=scene_width,
                                                             leaf_shape=leaf_shape)
     setting_PGLViewer(width=width, height=height,
@@ -943,7 +946,7 @@ def computing_light_interception(g,
     # cs = CaribuScene(scene=can, light=zenith, pattern=(0,0,1,1))
     # raw, agg = cs.run(infinite=True, simplify=True, direct=False)
 
-    print("Computing light interception...")
+    # print("Computing light interception...")
 
     # We initialize a turtle in PlantGL:
     turtle = turt.PglTurtle()
@@ -1017,7 +1020,7 @@ def computing_light_interception(g,
     g.properties()["PAR_intercepted"].update(agg['Eabs'].items())
     # Note that the PAR_intercepted is expressed here in umol of photons per m2 of organ (?) per second.
 
-    print("Ending light interception!")
+    # print("Ending light interception!")
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1071,25 +1074,32 @@ def computing_maintenance_rate(g, Vmax_maintenance=1., Km_maintenance=1.):
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for redistributing the C among shoot organs:
 # either C allocation (1) proportionnal to PARi for each organ or (2) per phytomer then distributed between organs depending on area
-def computing_shoot_C_redistribution(g, time_step_in_seconds=1.):
+def computing_shoot_C_redistribution(g, shoot_available_C = None, intercepted_light = None, time_step_in_seconds=1.):
 
     # 1) We calculate the amount of shoot C available and the total intercepted light:
     #---------------------------------------------------------------------------------
+    if shoot_available_C is None:
+        # We initialize the available C in the shoot system to 0:
+        available_C = 0.
+    else:
+        # Otherwise, the available C is directly the provided shoot available C:
+        available_C = shoot_available_C
+    if intercepted_light is None:
+        # We initialize the intercepted light by the shoot system to 0:
+        intercepted_light_by_the_plant = 0.
+    else:
+        # Otherwise, the intercepted light is directly the light that has been provided:
+        intercepted_light_by_the_plant = intercepted_light
 
-    # # OPTION 1: if it has not been calculated yet
-    # available_C = 0.
-    # intercepted_light = 0.
-    # # We cover each organ n of the shoot:
-    # for vid in g.vertices_iter(scale=1):
-    #     n = g.node(vid)
-    #     # We add the initial amount of C_labile and the net gain in C of the current organ:
-    #     available_C += n.C_labile + (n.photosynthesized_C_rate - n.maintenance_respiration_rate) * time_step_in_seconds
-    #     # We add the light intercepted by the organ:
-    #     intercepted_light += n.PAR_intercepted
-
-    # OPTION 2: if it has already been calculated and stored in the base of the shoot system:
-    available_C = g.node(1).shoot_available_C
-    intercepted_light_by_the_plant = g.node(1).total_PAR_intercepted_by_the_plant
+    # If either shoot_available_C or intercepted_light have not been provided:
+    if shoot_available_C is None or intercepted_light is None:
+        # Then we cover each organ n of the shoot:
+        for vid in g.vertices_iter(scale=1):
+            n = g.node(vid)
+            # We add the initial amount of C_labile and the net gain in C of the current organ:
+            available_C += n.C_labile + (n.photosynthesized_C_rate - n.maintenance_respiration_rate) * time_step_in_seconds
+            # We add the light intercepted by the organ:
+            intercepted_light_by_the_plant += n.PAR_intercepted
 
     # 2) We redistribute the C according to specific rules:
     #------------------------------------------------------
@@ -1105,7 +1115,7 @@ def computing_shoot_C_redistribution(g, time_step_in_seconds=1.):
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for distributing the N coming from the roots into each shoot organ:
-def computing_shoot_N_distribution(g, time_step_in_seconds=60.*60.*24.):
+def computing_shoot_N_distribution(g, shoot_available_N=None, time_step_in_seconds=60.*60.*24.):
     """
     This function distributes the whole amount of labile N available to the whole plant to each organ which has a
     positive surface, proportionnaly to the mean surfacic PAR intercepted by the organ compared to the sum of all
@@ -1117,30 +1127,36 @@ def computing_shoot_N_distribution(g, time_step_in_seconds=60.*60.*24.):
 
     """
 
-    # 1) Computing the total intercepted light
-    #-----------------------------------------
-    # OPTION 1: if it has not been calculated yet
+    # 1) Computing the intercepted light (and possibly the available N to distribute):
+    #---------------------------------------------------------------------------------
+
     # We initialize the total amount of light intercepted by the whole plant:
     intercepted_light_by_the_plant = 0.
     sum_of_mean_surfacic_PAR = 0.
 
-    # We cover each organ n of the shoot:
+    # If the amount of N available in the shoot system has not been provided yet:
+    if shoot_available_N is None:
+        # We initialize the available N in the shoot system to 0:
+        available_N = 0.
+    else:
+        # Otherwise, the available N is directly the provided shoot available N:
+        available_N = shoot_available_N
+
+    # Then we cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
         n = g.node(vid)
         if n.surface <= 0.:
             continue
+        # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
         intercepted_light_by_the_plant += n.PAR_intercepted
         n.mean_surfacic_PAR = n.PAR_intercepted / n.surface
         sum_of_mean_surfacic_PAR +=  n.mean_surfacic_PAR
-
-    # # OPTION 2: if it has already been calculated and stored in the base of the shoot system:
-    # intercepted_light_by_the_plant = g.node(1).total_PAR_intercepted_by_the_plant
+        # If the amount of shoot available N has not been provided, we add the amount of available N of the current element:
+        if shoot_available_N is None:
+            available_N += n.N_labile
 
     # 2) Computing the rate of N distribution in each shoot organ
     # -----------------------------------------------------------
-
-    # We access the value of the total amount of available N, stored in the base of the shoot system:
-    plant_available_N = g.node(1).shoot_available_N
 
     # We cover each organ of the shoot:
     for vid in g.vertices_iter(scale=1):
@@ -1150,11 +1166,8 @@ def computing_shoot_N_distribution(g, time_step_in_seconds=60.*60.*24.):
             continue
         # The new target for C_labile in this organ is calculated according to the relative intercepted light:
         # N_labile_target = plant_available_N * n.PAR_intercepted / intercepted_light_by_the_plant
-        N_labile_target = plant_available_N * n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
+        N_labile_target = available_N * n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
         n.N_input_rate = N_labile_target / time_step_in_seconds
-
-    # We reset the value of the plant available N:
-    g.node(1).shoot_available_N = 0.
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1520,7 +1533,9 @@ def shoot_CN_balance(g, time_step_in_seconds = 60.*60.*24., structural_C_content
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def calling_the_different_shoot_modules(g, phytomers_initiation = True,
+def calling_the_different_shoot_modules(g,
+                                        time_step_in_days=1,
+                                        phytomers_initiation = True,
                                         number_of_plants_per_square_meter=33,
                                         inter_row_distance=0.45,
                                         scene_length=1.,
@@ -1541,9 +1556,9 @@ def calling_the_different_shoot_modules(g, phytomers_initiation = True,
     #---------------------------------------------------
     # We calculate light interception based on the architecture:
     computing_light_interception(g,
-                                 number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                 number_of_plants_per_square_meter=number_of_plants_per_square_meter,
                                  inter_row_distance=inter_row_distance,
-                                 scene_length=row_length,
+                                 scene_length=scene_length,
                                  scene_width=scene_width
                                  )
 
@@ -1687,166 +1702,163 @@ def ramification(g):
 # MAIN SIMULATION:
 ##################
 
-# my_path = os.getcwd()
-my_path = "C:/Users/frees/SIMBAL/"
+if __name__ == '__main__':
 
-# 1) INITIAL CONDITIONS
-#----------------------
-# OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
-# # We read the input file:
-# input_dataframe = pd.read_excel('APTOS_input_1.xlsx', header=0, sheet_name="scenario")
-# g = create_MTG_from_csv_file()
+    # my_path = os.getcwd()
+    my_path = "C:/Users/frees/SIMBAL/"
 
-# OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
-g = create_shoot_MTG(number_of_phytomers=5)
+    # 1) INITIAL CONDITIONS
+    #----------------------
+    # OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
+    # # We read the input file:
+    # input_dataframe = pd.read_excel('APTOS_input_1.xlsx', header=0, sheet_name="scenario")
+    # g = create_MTG_from_csv_file()
 
-# We delete the previous files containing plots or MTG properties:
-plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
-# If this directory doesn't exist:
-if not os.path.exists(plot_directory):
-    # Then we create it:
-    os.mkdir(plot_directory)
-else:
-    # Otherwise, we delete all the images that are already present inside:
-    for root, dirs, files in os.walk(plot_directory):
-        for file in files:
-            os.remove(os.path.join(root, file))
-MTG_directory = os.path.join(my_path, "simulation", "outputs", "MTG_properties")
-# If this directory doesn't exist:
-if not os.path.exists(MTG_directory):
-    # Then we create it:
-    os.mkdir(MTG_directory)
-else:
-    # Otherwise, we delete all the images that are already present inside:
-    for root, dirs, files in os.walk(MTG_directory):
-        for file in files:
-            os.remove(os.path.join(root, file))
+    # OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
+    g = create_shoot_MTG(number_of_phytomers=5)
 
-# UPDATING PARAMETERS FROM FILE:
-loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "parameters_AllocF.xlsx"),
-                                 outputs_path = os.path.join(my_path, "simulation", "outputs"))
+    # We delete the previous files containing plots or MTG properties:
+    plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
+    # If this directory doesn't exist:
+    if not os.path.exists(plot_directory):
+        # Then we create it:
+        os.mkdir(plot_directory)
+    else:
+        # Otherwise, we delete all the images that are already present inside:
+        for root, dirs, files in os.walk(plot_directory):
+            for file in files:
+                os.remove(os.path.join(root, file))
+    MTG_directory = os.path.join(my_path, "simulation", "outputs", "MTG_properties")
+    # If this directory doesn't exist:
+    if not os.path.exists(MTG_directory):
+        # Then we create it:
+        os.mkdir(MTG_directory)
+    else:
+        # Otherwise, we delete all the images that are already present inside:
+        for root, dirs, files in os.walk(MTG_directory):
+            for file in files:
+                os.remove(os.path.join(root, file))
 
-# # We display the MTG in its initial state with PlantGL:
-# empty_scene = pgl.Scene()
-# pgl.Viewer.display(empty_scene)
-# plotting_shoot_MTG(g, width=1200, height=900,
-#                x_center=0, y_center=0, z_center=2.,
-#                x_cam=5., y_cam=5., z_cam=5.,
-#                grid=False,
-#                background_color=[0, 0, 0],
-#                single_color=None,
-#                property_name='PAR_intercepted', cmap='jet', vmin=0.1, vmax=100, lognorm=False,
-#                recording_plot=True,
-#                plot_name=os.path.join(plot_directory,'plot_0000.png'))
+    # UPDATING PARAMETERS FROM FILE:
+    loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "parameters_AllocF.xlsx"),
+                                     outputs_path = os.path.join(my_path, "simulation", "outputs"))
 
-# # Plotting the MTG with Pyvista:
-# plotting_shoots_with_pyvista(g)
+    # # We display the MTG in its initial state with PlantGL:
+    # empty_scene = pgl.Scene()
+    # pgl.Viewer.display(empty_scene)
+    # plotting_shoot_MTG(g, width=1200, height=900,
+    #                x_center=0, y_center=0, z_center=2.,
+    #                x_cam=5., y_cam=5., z_cam=5.,
+    #                grid=False,
+    #                background_color=[0, 0, 0],
+    #                single_color=None,
+    #                property_name='PAR_intercepted', cmap='jet', vmin=0.1, vmax=100, lognorm=False,
+    #                recording_plot=True,
+    #                plot_name=os.path.join(plot_directory,'plot_0000.png'))
 
-# We record the properties in its initial state:
-recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
-
-# We define an initial and final step for covering a certain period:
-initial_time = 0.
-simulation_period_in_days = 50.
-time_step_in_days = 1.
-n_steps = trunc(simulation_period_in_days / time_step_in_days)
-elapsed_time_in_days_since_last_leaf_emergence = 0.
-
-plant_density_in_square_meter = 1
-inter_row_distance = 0.45
-row_length = 1.
-scene_width = 1.
-
-# 2) OVER TIME:
-#--------------
-# For each time step covering the scenarios period:
-for step in range(1, n_steps+1):
-
-    # We calculate the current time in hours:
-    initial_time_in_days = initial_time + (step-1) * time_step_in_days
-    final_time_in_days = initial_time + step * time_step_in_days
-    print("")
-    print("From", initial_time_in_days,"to", final_time_in_days,"days:")
-    print("-----------------------")
-
-    # CALLING THE EXCHANGE WITH ROOTS:
-    # TODO: change this forced inputs with the actual connection with RootSimple
-    g.node(1).shoot_available_N = 10.
-
-    # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
-
-    # We first examine whether new phytomers will be produced at this time step.
-    # We reset the authorization to add a new phytomer:
-    phytomer_formation = False
-    # We increment the time elapsed since the last phytomer formation with the current time step:
-    elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
-    # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
-    if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochrone_in_days:
-        # We authorize the formation of a new phytomer:
-        phytomer_formation = True
-        # And we reset the elapsed time:
-        elapsed_time_in_days_since_last_leaf_emergence = elapsed_time_in_days_since_last_leaf_emergence - param.phyllochrone_in_days
-
-    # We call the different modules:
-    calling_the_different_shoot_modules(g,
-                                        phytomers_initiation=phytomer_formation,
-                                        number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                        inter_row_distance=inter_row_distance,
-                                        scene_length=row_length,
-                                        scene_width=scene_width)
-
-    # # PLOTTING ONE SINGLE PLANT OVER TIME:
-    # # We display the MTG in its new state:
-    # # Option 1A - With PlantGL:
-    # #--------------------------
-    # graph = plotting_shoot_MTG(g, width=1200, height=900,
-    #                        x_center=0, y_center=0, z_center=0.,
-    #                        x_cam=3, y_cam=3, z_cam=1.,
-    #                        grid=False,
-    #                        background_color=[0, 0, 0],
-    #                        # single_color=[100,150,50],
-    #                        # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
-    #                        property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
-    #                        # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
-    #                        # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-    #                        recording_plot=True,
-    #                        plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
-    #
-    # # Option 1B - With Pyvista:
-    # #--------------------------
+    # # Plotting the MTG with Pyvista:
     # plotting_shoots_with_pyvista(g)
 
-    # PLOTTING A POPULATION OF PLANTS:
-    # Option 2A - With PlantGL:
-    #--------------------------
-    plotting_shoot_MTG_population(g,
-                                  number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                  inter_row_distance=inter_row_distance,
-                                  scene_length=row_length,
-                                  scene_width=scene_width,
-                                  leaf_shape="oval",
-                                  # leaf_shape="typical_leaf_shape",
-                                  width=800, height=800,
-                                  x_center=0., y_center=-0., z_center=0.,
-                                  x_cam=3., y_cam=3., z_cam=1.,
-                                  grid=False,
-                                  background_color=[0, 0, 0],
-                                  single_color=None,
-                                  property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-                                  recording_plot=True,
-                                  plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
+    # We record the properties in its initial state:
+    recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
 
-    # RECORDING THE PROPERTIES:
-    # We can record the main properties of the plant:
-    dataframe = recording_MTG_properties(g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
+    # We define an initial and final step for covering a certain period:
+    initial_time = 0.
+    simulation_period_in_days = 50.
+    time_step_in_days = 1.
+    n_steps = trunc(simulation_period_in_days / time_step_in_days)
+    elapsed_time_in_days_since_last_leaf_emergence = 0.
 
-    print("   > The shoot system now contains", g.nb_vertices(),"elements!")
+    plant_density_in_square_meter = 1
+    inter_row_distance = 0.45
+    row_length = 1.
+    scene_width = 1.
 
-print("")
-print("Simulation is done!")
+    # 2) OVER TIME:
+    #--------------
+    # For each time step covering the scenarios period:
+    for step in range(1, n_steps+1):
 
-# DIFFERENT POSSIBILITES OF C ALLOCATION (to be tested):
-# 1) Labile C is used by all leaves before C allocation to roots
-# 2) We get a pool of labile C available after photosynthesis and before growth, and we allocate a fraction to roots, then to all leaves according to PAR intercepted
-# 3) We first achieve the actual growth of source leaves and of the sink leaves before C reallocation, then we allocate
-# C to roots, and the remaining is used for reallocating C to sink leaves.
+        # We calculate the current time in hours:
+        initial_time_in_days = initial_time + (step-1) * time_step_in_days
+        final_time_in_days = initial_time + step * time_step_in_days
+        print("")
+        print("From", initial_time_in_days,"to", final_time_in_days,"days:")
+        print("-----------------------")
+
+        # CALLING THE EXCHANGE WITH ROOTS:
+        # TODO: change this forced inputs with the actual connection with RootSimple
+        g.node(1).shoot_available_N = 10.
+
+        # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
+
+        # We first examine whether new phytomers will be produced at this time step.
+        # We reset the authorization to add a new phytomer:
+        phytomer_formation = False
+        # We increment the time elapsed since the last phytomer formation with the current time step:
+        elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
+        # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
+        if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochrone_in_days:
+            # We authorize the formation of a new phytomer:
+            phytomer_formation = True
+            # And we reset the elapsed time:
+            elapsed_time_in_days_since_last_leaf_emergence = elapsed_time_in_days_since_last_leaf_emergence - param.phyllochrone_in_days
+
+        # We call the different modules:
+        calling_the_different_shoot_modules(g,
+                                            phytomers_initiation=phytomer_formation,
+                                            number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                            inter_row_distance=inter_row_distance,
+                                            scene_length=row_length,
+                                            scene_width=scene_width)
+
+        # # PLOTTING ONE SINGLE PLANT OVER TIME:
+        # # We display the MTG in its new state:
+        # # Option 1A - With PlantGL:
+        # #--------------------------
+        # graph = plotting_shoot_MTG(g, width=1200, height=900,
+        #                        x_center=0, y_center=0, z_center=0.,
+        #                        x_cam=3, y_cam=3, z_cam=1.,
+        #                        grid=False,
+        #                        background_color=[0, 0, 0],
+        #                        # single_color=[100,150,50],
+        #                        # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
+        #                        property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
+        #                        # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
+        #                        # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
+        #                        recording_plot=True,
+        #                        plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
+        #
+        # # Option 1B - With Pyvista:
+        # #--------------------------
+        # plotting_shoots_with_pyvista(g)
+
+        # PLOTTING A POPULATION OF PLANTS:
+        # Option 2A - With PlantGL:
+        #--------------------------
+        plotting_shoot_MTG_population(g,
+                                      number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                      inter_row_distance=inter_row_distance,
+                                      scene_length=row_length,
+                                      scene_width=scene_width,
+                                      leaf_shape="oval",
+                                      # leaf_shape="typical_leaf_shape",
+                                      width=800, height=800,
+                                      x_center=0., y_center=-0., z_center=0.,
+                                      x_cam=3., y_cam=3., z_cam=1.,
+                                      grid=False,
+                                      background_color=[0, 0, 0],
+                                      single_color=None,
+                                      property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
+                                      recording_plot=True,
+                                      plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
+
+        # RECORDING THE PROPERTIES:
+        # We can record the main properties of the plant:
+        dataframe = recording_MTG_properties(g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
+
+        print("   > The shoot system now contains", g.nb_vertices(),"elements!")
+
+    print("")
+    print("Simulation is done!")
+

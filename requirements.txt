@@ -5,5 +5,8 @@ numpy
 pandas
 openpyxl
 
+# For rhizodep:
+scipy
+
 # Data utilities
 pyvista

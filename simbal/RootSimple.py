@@ -7,7 +7,8 @@ from openalea.mtg.traversal import pre_order, post_order
 from rhizodep.model import initiate_mtg, summing_and_possibly_homogenizing, reinitializing_growth_variables, \
     update_distance_from_tip, update_surfaces_and_volumes, potential_growth, \
     volume_and_external_surface_from_radius_and_length, segmentation_and_primordia_formation, root_hairs_dynamics
-import rhizodep.parameters as param
+
+import simbal_parameters as param
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -70,11 +71,11 @@ def calculating_exchange_surface(r):
 def process_N_uptake(r):
 
     g = r.MTG
-    # We initialize the total N uptake of the whole root system:
-    N_uptake = 0.
+    # We initialize the total N uptake rate of the whole root system:
+    N_uptake_rate = 0.
 
     # TODO: Change the following initialization with proper external parameters and element-specific soil N concentration
-    Vmax_N_uptake = 2e-4 # mol of N per m2 of exchange surface
+    Vmax_N_uptake = 2e-4 # mol of N per m2 of exchange surface per second
     Km_N_uptake = 1e-6 # mol of N per gDW of root structural mass
     N_soil = 1e-6 # mol of N per gDW of root structural mass
 
@@ -85,28 +86,30 @@ def process_N_uptake(r):
         # If the root element can take up N:
         if n.length > 0. and N_soil > 0.:
             # Then we increase the total N uptake of the root system with the N uptake by the current element:
-            N_uptake += n.exchange_surface * Vmax_N_uptake * N_soil / (Km_N_uptake + N_soil)
+            N_uptake_rate += n.exchange_surface * Vmax_N_uptake * N_soil / (Km_N_uptake + N_soil)
 
-    if N_uptake < 0.:
-        print("ERROR !!! The computed N uptake is negative!")
+    if N_uptake_rate < 0.:
+        print("ERROR !!! The computed N uptake rate is negative!")
     else:
-        r.N_uptake = N_uptake
+        r.N_uptake_rate = N_uptake_rate
+        # print("N uptake rate is", N_uptake, "mol of N per plant per second.")
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def update_root_labile_N_with_input(r):
+def update_root_labile_N_with_input(r, time_step_in_seconds = 1 * (60*60*24)):
 
     # We update the labile pool:
-    r.labile_N_pool += r.N_uptake # mol of N per root system
+    r.labile_N_pool += r.N_uptake_rate * time_step_in_seconds # mol of N per root system
     if r.labile_N_pool < 0.:
         print("WATCH OUT: after N uptake from soil, the labile N pool is negative - we reset it to 0!")
         r.labile_N_pool = 0.
+    print("The root system has now", r.labile_N_pool, "mol of labile N available.")
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def process_rhizodeposition(r,
+def process_rhizodeposition(r,g,
                             input_fraction=True,
                             C_rhizodeposition_fraction=0.20,
                             N_rhizodeposition_fraction=0.10):
@@ -241,7 +244,8 @@ def satisfaction_coefficients(g,labile_C_pool, labile_N_pool):
 # Function performing the growth of each element based on potential growth and limitation by labile C & N:
 # --------------------------------------------------------------------------------------------------------
 def ArchiSimple_growth_with_C_and_N(r,
-                                    satisf_for_C, satisf_for_N):
+                                    satisf_for_C, satisf_for_N,
+                                    time_step_in_seconds= 1 * (60*60*24)):
     """
     This function computes the growth of the root system according to ArchiSimple's rules, but limits the growth
     by the amount of available labile C and N.
@@ -307,15 +311,16 @@ def ArchiSimple_growth_with_C_and_N(r,
 
         # ACTUAL RADIAL GROWTH IS THEN CONSIDERED:
         # If the radius of the element can increase:
-        if n.potential_radius > n.initial_radius:
+        if n.potential_radius > n.initial_radius and final_volume > volume_after_elongation:
 
             # We then calculate the corresponding new possible radius corresponding to this maximum volume:
             if n.type == "Root_nodule":
                 # If the element corresponds to a nodule, then it we calculate the radius of a theoretical sphere:
                 possible_radius = ((final_volume - volume_after_elongation) * 3. / (4. * pi)) ** (1. / 3.)
             else:
-                # Otherwise, we calculate the radius of a cylinder:
-                possible_radius = sqrt((final_volume - volume_after_elongation) / (n.length * pi))
+                # Otherwise, we calculate the radius of a cylinder. The final volume is calculated as:
+                # final volume = final_radius^2 * pi * new_length, i.e.:
+                possible_radius = sqrt( final_volume / (n.length * pi) )
             if possible_radius < 0.9999 * n.initial_radius:  # We authorize a difference of 0.01% due to calculation
                 # errors!
                 print("!!! ERROR: the calculated new radius of element", n.index(), "is lower than the initial one!")
@@ -383,85 +388,86 @@ def ArchiSimple_growth_with_C_and_N(r,
 # MAIN SIMULATION:
 ##################
 
-# We define the MTG g:
-g = initiate_mtg()
-reinitializing_growth_variables(g)
-# We update the distance from tip for each root element in each root axis:
-update_distance_from_tip(g)
-# We update the surfaces and volumes of each root element:
-update_surfaces_and_volumes(g)
+if __name__ == '__main__':
 
-# And we create a root system r from it:
-r = root_system(g)
-# We adjust the properties of the whole root system according to g:
-g_properties = summing_and_possibly_homogenizing(g)
-r.struct_mass = g_properties["total_living_root_struct_mass"]
-calculating_exchange_surface(r)
-
-time_step_in_seconds = 3600.
-n_steps = 24*10
-soil_temperature=20
-
-# We perform the simulation:
-for time_step in range(1, n_steps+1):
-
-    print("For step", time_step,":")
-
-    # Setting the new input of C to the root system:
-    r.labile_C_input = 0.002
-    # Increment of labile C due to C input from shoots:
-    update_root_labile_C_with_input(r)
-
-    # Setting N uptake by the root system:
-    process_N_uptake(r)
-    # Increment of labile N due to N inputs:
-    update_root_labile_N_with_input(r)
-
-    # Rhizodeposition and update of labile C:
-    process_rhizodeposition(r)
-
-    # Maintenance respiration and update of labile C:
-    process_maintenance(r, Vmax=1, Km=1)
-
-    # Exchange with reserve and update of labile C:
-    process_exchange_with_reserve(r)
-
-    # Growth:
-    #--------
-    # We reset all growth-associated variabes before performing the new growth:
+    # We define the MTG g:
+    g = initiate_mtg()
     reinitializing_growth_variables(g)
-    # We calculate the potential growth of each root element according to ArchiSimple:
-    potential_growth(g, time_step_in_seconds=time_step_in_seconds,
-                     ArchiSimple=True,
-                     soil_temperature_in_Celsius=soil_temperature)
-    # We calculate the "satisfaction coefficients" for growth, depending on the amount of labile C and N left:
-    satisf_for_C, satisf_for_N = satisfaction_coefficients(g,
-                                                           labile_C_pool = r.labile_C_pool,
-                                                           labile_N_pool = r.labile_N_pool)
-    print("    The satisfaction coefficient for C is", "{:.2f}".format(Decimal(satisf_for_C)),
-          "and the one for N is", "{:.2f}".format(Decimal(satisf_for_N)))
-    # We use the function ArchiSimple_growth to adapt the potential growth to the available labile C and N,
-    # and we update the labile pools of C and N:
-    ArchiSimple_growth_with_C_and_N(r, satisf_for_C, satisf_for_N)
-    # We proceed to the segmentation of the whole root system
-    segmentation_and_primordia_formation(g, time_step_in_seconds,
-                                         soil_temperature_in_Celsius=soil_temperature, random=True,
-                                         ArchiSimple=True,
-                                         root_order_limitation=False)
-
-    #TODO: Include root hairs dynamics once the cost of C & N is properly registered!
-
-    # # We modifiy root hairs characteristics according to their specific dynamics:
-    # root_hairs_dynamics(g, time_step_in_seconds=time_step_in_seconds,
-    #                     soil_temperature_in_Celsius=soil_temperature)
-
     # We update the distance from tip for each root element in each root axis:
     update_distance_from_tip(g)
     # We update the surfaces and volumes of each root element:
     update_surfaces_and_volumes(g)
+
+    # And we create a root system r from it:
+    r = root_system(g)
+    # We adjust the properties of the whole root system according to g:
+    g_properties = summing_and_possibly_homogenizing(g)
+    r.struct_mass = g_properties["total_living_root_struct_mass"]
     calculating_exchange_surface(r)
 
-    print("    Labile C pool in the root system is now", "{:.2E}".format(Decimal(r.labile_C_pool)),
-          "mol of C and labile N pool is ", "{:.2E}".format(Decimal(r.labile_N_pool)), "mol of N.")
-    print("    The root system contains", g.nb_vertices(), "different root elements.")
-    print("")
+    time_step_in_seconds = 3600.
+    n_steps = 24*10
+    soil_temperature=20
+
+    # We perform the simulation:
+    for time_step in range(1, n_steps+1):
+
+        print("For step", time_step,":")
+
+        # Setting the new input of C to the root system:
+        r.labile_C_input = 0.002
+        # Increment of labile C due to C input from shoots:
+        update_root_labile_C_with_input(r)
+
+        # Setting N uptake by the root system:
+        process_N_uptake(r)
+        # Increment of labile N due to N inputs:
+        update_root_labile_N_with_input(r)
+
+        # Rhizodeposition and update of labile C:
+        process_rhizodeposition(r)
+
+        # Maintenance respiration and update of labile C:
+        process_maintenance(r, Vmax=1, Km=1)
+
+        # Exchange with reserve and update of labile C:
+        process_exchange_with_reserve(r)
+
+        # Growth:
+        #--------
+        # We reset all growth-associated variabes before performing the new growth:
+        reinitializing_growth_variables(g)
+        # We calculate the potential growth of each root element according to ArchiSimple:
+        potential_growth(g, time_step_in_seconds=time_step_in_seconds,
+                         ArchiSimple=True,
+                         soil_temperature_in_Celsius=soil_temperature)
+        # We calculate the "satisfaction coefficients" for growth, depending on the amount of labile C and N left:
+        satisf_for_C, satisf_for_N = satisfaction_coefficients(g,
+                                                               labile_C_pool = r.labile_C_pool,
+                                                               labile_N_pool = r.labile_N_pool)
+        print("    The satisfaction coefficient for C is", "{:.2f}".format(Decimal(satisf_for_C)),
+              "and the one for N is", "{:.2f}".format(Decimal(satisf_for_N)))
+        # We use the function ArchiSimple_growth to adapt the potential growth to the available labile C and N,
+        # and we update the labile pools of C and N:
+        ArchiSimple_growth_with_C_and_N(r, satisf_for_C, satisf_for_N)
+        # We proceed to the segmentation of the whole root system
+        segmentation_and_primordia_formation(g, time_step_in_seconds,
+                                             soil_temperature_in_Celsius=soil_temperature, random=True,
+                                             root_order_limitation=False)
+
+        #TODO: Include root hairs dynamics once the cost of C & N is properly registered!
+
+        # # We modifiy root hairs characteristics according to their specific dynamics:
+        # root_hairs_dynamics(g, time_step_in_seconds=time_step_in_seconds,
+        #                     soil_temperature_in_Celsius=soil_temperature)
+
+        # We update the distance from tip for each root element in each root axis:
+        update_distance_from_tip(g)
+        # We update the surfaces and volumes of each root element:
+        update_surfaces_and_volumes(g)
+        calculating_exchange_surface(r)
+
+        print("    Labile C pool in the root system is now", "{:.2E}".format(Decimal(r.labile_C_pool)),
+              "mol of C and labile N pool is ", "{:.2E}".format(Decimal(r.labile_N_pool)), "mol of N.")
+        print("    The root system contains", g.nb_vertices(), "different root elements.")
+        print("")
