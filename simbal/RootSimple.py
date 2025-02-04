@@ -17,30 +17,34 @@ class root_system(object):
     # We initiate the object "root_system":
     def __init__(self, g):
         # The object 'root_system' will in particular contain an attribute corresponding to a full MTG:
-        self.MTG = g
-        self.labile_C_pool = 0. # mol of C per root system
-        self.labile_N_pool = 0. # mol of N per plant
-        self.struct_mass = 0. # gDW
-        self.surface = 0. # m2
-        self.labile_C_input = 0. # mol of C per root system
-        self.N_uptake = 0. # mol of N per root system
+        self.root_MTG = g
+        self.root_labile_C_pool = 0. # mol of C per root system
+        self.root_labile_C_deficit = 0. # mol of C per root system
+        self.root_labile_N_pool = 0. # mol of N per plant
+        self.root_labile_N_deficit = 0.  # mol of N per plant
+        self.root_struct_mass = 0. # gDW
+        self.root_external_surface = 0. # m2
+        self.root_exchange_surface = 0. # m2
+        self.root_labile_C_input = 0. # mol of C per root system
+        self.root_N_uptake = 0. # mol of N per root system
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def update_root_labile_C_with_input(r):
+def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60):
 
     # We update the labile pool:
-    r.labile_C_pool += r.labile_C_input # mol of C per root system
-    if r.labile_C_pool < 0.:
+    root_system.root_labile_C_pool += root_system.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds # mol of C per root system
+    if root_system.root_labile_C_pool < 0.:
         print("WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
-        r.labile_C_pool = 0.
+        root_system.root_labile_C_deficit = - root_system.root_labile_C_pool
+        root_system.root_labile_C_pool = 0.
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def calculating_exchange_surface(r):
+def updating_exchange_surface(root_system, root_MTG):
 
-    g = r.MTG
+    g = root_MTG
 
     # We initialize the total exchange surface of the root system with the soil:
     total_exchange_surface = 0.
@@ -63,21 +67,20 @@ def calculating_exchange_surface(r):
             n.exchange_surface = exchange_surface
             total_exchange_surface += exchange_surface
 
-    r.total_exchange_surface = total_exchange_surface
+    root_system.root_exchange_surface = total_exchange_surface
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
 
-def process_N_uptake(r):
+def computing_N_uptake_rate(root_system, root_MTG, Vmax_N_uptake = 2e-4, Km_N_uptake = 1e-6, N_soil = 1e-6):
 
-    g = r.MTG
+    # Vmax_N_uptake: mol of N per m2 of exchange surface per second
+    # Km_N_uptake: mol of N per gDW of root structural mass
+    # N_soil: mol of N per gDW of root structural mass
+
+    g = root_MTG
     # We initialize the total N uptake rate of the whole root system:
     N_uptake_rate = 0.
-
-    # TODO: Change the following initialization with proper external parameters and element-specific soil N concentration
-    Vmax_N_uptake = 2e-4 # mol of N per m2 of exchange surface per second
-    Km_N_uptake = 1e-6 # mol of N per gDW of root structural mass
-    N_soil = 1e-6 # mol of N per gDW of root structural mass
 
     # We cover all the vertices in the MTG:
     for vid in g.vertices_iter(scale=1):
@@ -91,92 +94,89 @@ def process_N_uptake(r):
     if N_uptake_rate < 0.:
         print("ERROR !!! The computed N uptake rate is negative!")
     else:
-        r.N_uptake_rate = N_uptake_rate
+        root_system.N_uptake_rate = N_uptake_rate
         # print("N uptake rate is", N_uptake, "mol of N per plant per second.")
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def update_root_labile_N_with_input(r, time_step_in_seconds = 1 * (60*60*24)):
+def updating_root_labile_N_with_input(root_system, time_step_in_seconds = 1 * (60*60*24)):
 
     # We update the labile pool:
-    r.labile_N_pool += r.N_uptake_rate * time_step_in_seconds # mol of N per root system
-    if r.labile_N_pool < 0.:
+    root_system.root_labile_N_pool += root_system.N_uptake_rate * time_step_in_seconds # mol of N per root system
+    if root_system.root_labile_N_pool < 0.:
         print("WATCH OUT: after N uptake from soil, the labile N pool is negative - we reset it to 0!")
-        r.labile_N_pool = 0.
-    print("The root system has now", r.labile_N_pool, "mol of labile N available.")
+        root_system.root_labile_N_pool = 0.
+    # print("After N uptake, the root system has now", root_system.root_labile_N_pool, "mol of labile N available.")
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def process_rhizodeposition(r,g,
-                            input_fraction=True,
-                            C_rhizodeposition_fraction=0.20,
-                            N_rhizodeposition_fraction=0.10):
+def computing_rhizodeposition_rate(root_system, root_MTG,
+                                   option="loss_as_input_rate_fraction",
+                                   C_rhizodeposition_fraction=0.20,
+                                   N_rhizodeposition_fraction=0.10,
+                                   time_step_in_seconds=60*60):
 
-    if input_fraction:
+    r = root_system
+
+    if option == "loss_as_input_rate_fraction":
         # Option 1: rhizodeposition as a fraction of the input.
-        r.rhizodeposited_C = C_rhizodeposition_fraction * r.labile_C_input # mol of C per root system
-        r.rhizodeposited_N = N_rhizodeposition_fraction * r.N_uptake # mol of N per root system
+        r.C_rhizodeposition_rate = C_rhizodeposition_fraction * r.net_C_transfer_from_shoot_to_root_rate # mol of C per root system per second
+        r.N_rhizodeposition_rate = N_rhizodeposition_fraction * r.N_uptake_rate # mol of N per root system per second
     else:
         # Option 2: rhizodeposition as a fraction of the labile pool.
-        r.rhizodeposited_C = C_rhizodeposition_fraction * r.labile_C_pool # mol of C per root system
-        r.rhizodeposited_N = N_rhizodeposition_fraction * r.labile_N_pool # mol of N per root system
+        r.C_rhizodeposition_rate = C_rhizodeposition_fraction * r.root_labile_C_pool / time_step_in_seconds # mol of C per root system per second
+        r.N_rhizodeposition_rate = N_rhizodeposition_fraction * r.root_labile_N_pool / time_step_in_seconds # mol of N per root system per seconc
 
-    # We update the labile pools:
-    r.labile_C_pool -= r.rhizodeposited_C
-    if r.labile_C_pool < 0.:
-        print("WATCH OUT: rhizodeposition has taken too much C, the labile C pool has been set to 0!")
-        r.labile_C_pool = 0.
-
-    r.labile_N_pool -= r.rhizodeposited_N
-    if r.labile_N_pool < 0.:
-        print("WATCH OUT: rhizodeposition has taken too much N, the labile N pool has been set to 0!")
-        r.labile_N_pool = 0.
+    # # We update the labile pools:
+    # r.root_labile_C_pool -= r.rhizodeposited_C
+    # if r.root_labile_C_pool < 0.:
+    #     print("WATCH OUT: rhizodeposition has taken too much C, the labile C pool has been set to 0!")
+    #     r.root_labile_C_pool = 0.
+    #
+    # r.root_labile_N_pool -= r.rhizodeposited_N
+    # if r.root_labile_N_pool < 0.:
+    #     print("WATCH OUT: rhizodeposition has taken too much N, the labile N pool has been set to 0!")
+    #     r.root_labile_N_pool = 0.
 
     # We now distribute the rhizodeposition along the roots.
     # We cover all the vertices in the MTG:
-    for vid in g.vertices_iter(scale=1):
+    for vid in root_MTG.vertices_iter(scale=1):
         # n represents the vertex:
-        n = g.node(vid)
+        n = root_MTG.node(vid)
         # If the root element can take up N:
         if n.length > 0.:
-            relative_fraction = n.exchange_surface / r.total_exchange_surface
-            n.rhizodeposited_C = relative_fraction * r.rhizodeposited_C
-            n.rhizodeposited_N = relative_fraction * r.rhizodeposited_N
+            relative_fraction = n.exchange_surface / r.root_exchange_surface
+            # n.rhizodeposited_C = relative_fraction * r.rhizodeposited_C
+            # n.rhizodeposited_N = relative_fraction * r.rhizodeposited_N
+            n.C_rhizodeposition_rate = relative_fraction * r.C_rhizodeposition_rate
+            n.N_rhizodeposition_rate = relative_fraction * r.N_rhizodeposition_rate
     
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def process_maintenance(r, Vmax, Km):
-    r.maintenance_respiration = Vmax * r.labile_C_pool / (Km + r.labile_C_pool) # mol of C per root system
-    # We update the labile pool:
-    r.labile_C_pool -= r.maintenance_respiration # mol of C per root system
-    if r.labile_C_pool < 0.:
-        print("WATCH OUT: maintenance has taken too much C, the labile C pool has been set to 0!")
-        r.labile_C_pool = 0.
+def computing_maintenance_rate(root_system, Vmax, Km):
+
+    r = root_system
+
+    r.root_maintenance_respiration_rate = Vmax * r.root_labile_C_pool / (Km + r.root_labile_C_pool) # mol of C per root system per second
+
+    # # We update the labile pool:
+    # r.root_labile_C_pool -= r.root_maintenance_respiration # mol of C per root system
+    # if r.root_labile_C_pool < 0.:
+    #     print("WATCH OUT: maintenance has taken too much C, the labile C pool has been set to 0!")
+    #     r.root_labile_C_pool = 0.
+
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-def process_exchange_with_reserve(r):
+def computing_exchange_rates_with_reserve(root_system):
 
-    r.C_input_to_reserve = 1 # mol of C per root system
-    r.N_input_to_reserve = 1 # mol of N per root system
-    r.C_output_from_reserve = 1 # mol of C per root system
-    r.N_output_from_reserve = 1 # mol of N per root system
-
-    # We update the labile pool:
-    r.labile_C_pool += r.C_output_from_reserve - r.C_input_to_reserve
-    if r.labile_C_pool < 0.:
-        print("WATCH OUT: reserve has taken too much C, the labile C pool has been set to 0!")
-        r.labile_C_pool = 0.
-
-    r.labile_N_pool += r.N_output_from_reserve - r.N_input_to_reserve
-    if r.labile_N_pool < 0.:
-        print("WATCH OUT: reserve has taken too much N, the labile N pool has been set to 0!")
-        r.labile_N_pool = 0.
+    root_system.net_C_immobilization_rate = 0. # mol of C per root system per second
+    root_system.net_N_immobilization_rate = 0. # mol of N per root system per second
 
     return
 
@@ -184,7 +184,9 @@ def process_exchange_with_reserve(r):
 
 # Function calculating a satisfaction coefficient for the growth of the whole root system:
 # -----------------------------------------------------------------------------------------
-def satisfaction_coefficients(g,labile_C_pool, labile_N_pool):
+def computing_growth_demand_and_satisfaction_coefficients(root_MTG, labile_C_pool, labile_N_pool):
+
+    g = root_MTG
 
     # We initialize the sum of individual demands for struct_mass:
     sum_struct_mass_demand = 0.
@@ -226,7 +228,7 @@ def satisfaction_coefficients(g,labile_C_pool, labile_N_pool):
         # print("    > The C cost for potential growth should be", C_demand)
         # print("    > The final C cost will be", min(labile_C_pool, C_demand))
     if satisf_for_C > 1.:
-        satisf_for_C =1.
+        satisf_for_C = 1.
 
     # If there is no labile N to produce growth:
     if labile_N_pool <= 0.:
@@ -243,7 +245,7 @@ def satisfaction_coefficients(g,labile_C_pool, labile_N_pool):
 #-----------------------------------------------------------------------------------------------------------------------
 # Function performing the growth of each element based on potential growth and limitation by labile C & N:
 # --------------------------------------------------------------------------------------------------------
-def ArchiSimple_growth_with_C_and_N(r,
+def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
                                     satisf_for_C, satisf_for_N,
                                     time_step_in_seconds= 1 * (60*60*24)):
     """
@@ -254,7 +256,8 @@ def ArchiSimple_growth_with_C_and_N(r,
     # We initialize the root biomass that will be produced from the labile pool of C & N:
     total_mass_produced = 0.
     # We select the MTG included within the root system r:
-    g = r.MTG
+    r = root_system
+    g = root_MTG
     # We have to cover each vertex from the apices up to the base one time:
     root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
     root = next(root_gen)
@@ -373,13 +376,59 @@ def ArchiSimple_growth_with_C_and_N(r,
                 n.actual_elongation = n.length - n.initial_length
                 n.actual_elongation_rate = n.actual_elongation / time_step_in_seconds
 
-    # EVENTUALLY, WE UPDATE THE TOTAL MASS OF THE ROOT SYSTEM AND THE LABILE C AND N POOLS:
-    r.struct_mass += total_mass_produced
-    r.labile_C_pool -= total_mass_produced * param.struct_mass_C_content / param.yield_growth
-    r.labile_N_pool -= total_mass_produced * param.struct_mass_N_content
+    # EVENTUALLY, WE UPDATE THE TOTAL MASS OF THE ROOT SYSTEM:
+    r.root_struct_mass += total_mass_produced
+    # And we compute the consumption rate of C & N to sustain this growth:
+    r.C_consumption_by_growth_rate = total_mass_produced * param.struct_mass_C_content / param.yield_growth / time_step_in_seconds
+    r.N_consumption_by_growth_rate = total_mass_produced * param.struct_mass_N_content / time_step_in_seconds
 
-    # if r.labile_C_pool < 1e-16 or r.labile_N_pool < 1e-16:
-    #     print("ERROR !!! After growth, labile C pool is ", r.labile_C_pool, "and labile N pool is", r.labile_N_pool)
+    # # AND THE LABILE POOLS OF C AND N:
+    # r.root_labile_C_pool -= total_mass_produced * param.struct_mass_C_content / param.yield_growth
+    # r.root_labile_N_pool -= total_mass_produced * param.struct_mass_N_content
+
+    return
+
+def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
+
+    # We rename the root system as "r":
+    r = root_system
+
+    # We update the pool of labile C, taking into account the possible deficit in C previously recorded,
+    # and all processes affecting the C pool:
+    r.root_labile_C_pool += (-r.root_labile_C_deficit
+                             + (r.net_C_transfer_from_shoot_to_root_rate
+                                - r.C_rhizodeposition_rate
+                                - r.root_maintenance_respiration_rate
+                                - r.net_C_immobilization_rate
+                                - r.C_consumption_by_growth_rate) * time_step_in_seconds)
+    # We reset the root labile C deficit to 0:
+    r.root_labile_C_deficit = 0.
+
+    # We update the pool of labile N, taking into account the possible deficit in N previously recorded,
+    # and all processes affecting the N pool:
+    print("Before N balance, the labile N in roots is", r.root_labile_N_pool)
+    print("The deficit in N was", r.root_labile_N_deficit, "and here are the fluxes involved:", r.N_uptake_rate, r.N_rhizodeposition_rate, r.net_N_immobilization_rate, r.net_N_transfer_from_root_to_shoot_rate, r.N_consumption_by_growth_rate)
+    net_variation = (- r.root_labile_N_deficit +
+                             (r.N_uptake_rate
+                              - r.N_rhizodeposition_rate
+                              - r.net_N_immobilization_rate
+                              - r.net_N_transfer_from_root_to_shoot_rate
+                              - r.N_consumption_by_growth_rate) * time_step_in_seconds)
+    print("The net variation of N was", net_variation, "mol of N")
+    r.root_labile_N_pool += net_variation
+    print("After N balance, the labile N in roots is", r.root_labile_N_pool)
+    # We reset the root labile N deficit to 0:
+    r.root_labile_N_deficit = 0.
+
+    # If the pools of C & N are negative, we reset them to 0 and adjust the deficits that will be taken into account
+    # at the next step:
+    if r.root_labile_C_pool < 0.:
+        r.root_labile_C_deficit = - r.root_labile_C_pool
+        r.root_labile_C_pool = 0.
+    if r.root_labile_N_pool < 0.:
+        r.root_labile_N_deficit = - r.root_labile_N_pool
+        r.root_labile_N_pool = 0.
+
     return
 
 ########################################################################################################################
@@ -402,8 +451,11 @@ if __name__ == '__main__':
     r = root_system(g)
     # We adjust the properties of the whole root system according to g:
     g_properties = summing_and_possibly_homogenizing(g)
-    r.struct_mass = g_properties["total_living_root_struct_mass"]
-    calculating_exchange_surface(r)
+    r.root_struct_mass = g_properties["total_living_root_struct_mass"]
+    updating_exchange_surface(r, g)
+
+    r.root_labile_C_pool = 1e-3 * r.root_struct_mass
+    r.root_labile_N_pool = 1e-4 * r.root_struct_mass
 
     time_step_in_seconds = 3600.
     n_steps = 24*10
@@ -412,26 +464,24 @@ if __name__ == '__main__':
     # We perform the simulation:
     for time_step in range(1, n_steps+1):
 
+        # TODO: Change this artifical exchange with the shoot!
+        r.net_C_transfer_from_shoot_to_root_rate = 1e-9
+        r.net_N_transfer_from_root_to_shoot_rate = 1e-10
+
         print("For step", time_step,":")
 
-        # Setting the new input of C to the root system:
-        r.labile_C_input = 0.002
-        # Increment of labile C due to C input from shoots:
-        update_root_labile_C_with_input(r)
-
         # Setting N uptake by the root system:
-        process_N_uptake(r)
-        # Increment of labile N due to N inputs:
-        update_root_labile_N_with_input(r)
+        computing_N_uptake_rate(r, g, Vmax_N_uptake = param.Vmax_N_uptake, Km_N_uptake = param.Km_N_uptake,
+                                N_soil = 1e-3)
 
         # Rhizodeposition and update of labile C:
-        process_rhizodeposition(r)
+        computing_rhizodeposition_rate(r, g, time_step_in_seconds=time_step_in_seconds)
 
         # Maintenance respiration and update of labile C:
-        process_maintenance(r, Vmax=1, Km=1)
+        computing_maintenance_rate(r, Vmax=param.Vmax_maintenance, Km=param.Km_maintenance)
 
         # Exchange with reserve and update of labile C:
-        process_exchange_with_reserve(r)
+        computing_exchange_rates_with_reserve(r)
 
         # Growth:
         #--------
@@ -442,14 +492,14 @@ if __name__ == '__main__':
                          ArchiSimple=True,
                          soil_temperature_in_Celsius=soil_temperature)
         # We calculate the "satisfaction coefficients" for growth, depending on the amount of labile C and N left:
-        satisf_for_C, satisf_for_N = satisfaction_coefficients(g,
-                                                               labile_C_pool = r.labile_C_pool,
-                                                               labile_N_pool = r.labile_N_pool)
+        satisf_for_C, satisf_for_N = computing_growth_demand_and_satisfaction_coefficients(g,
+                                                                                           labile_C_pool = r.root_labile_C_pool,
+                                                                                           labile_N_pool = r.root_labile_N_pool)
         print("    The satisfaction coefficient for C is", "{:.2f}".format(Decimal(satisf_for_C)),
               "and the one for N is", "{:.2f}".format(Decimal(satisf_for_N)))
         # We use the function ArchiSimple_growth to adapt the potential growth to the available labile C and N,
         # and we update the labile pools of C and N:
-        ArchiSimple_growth_with_C_and_N(r, satisf_for_C, satisf_for_N)
+        ArchiSimple_growth_with_C_and_N(r, g, satisf_for_C, satisf_for_N, time_step_in_seconds=time_step_in_seconds)
         # We proceed to the segmentation of the whole root system
         segmentation_and_primordia_formation(g, time_step_in_seconds,
                                              soil_temperature_in_Celsius=soil_temperature, random=True,
@@ -465,9 +515,12 @@ if __name__ == '__main__':
         update_distance_from_tip(g)
         # We update the surfaces and volumes of each root element:
         update_surfaces_and_volumes(g)
-        calculating_exchange_surface(r)
+        updating_exchange_surface(r, g)
 
-        print("    Labile C pool in the root system is now", "{:.2E}".format(Decimal(r.labile_C_pool)),
-              "mol of C and labile N pool is ", "{:.2E}".format(Decimal(r.labile_N_pool)), "mol of N.")
+        # We update the pools of labile C and N:
+        root_CN_balance(r, time_step_in_seconds=time_step_in_seconds)
+
+        print("    Labile C pool in the root system is now", "{:.2E}".format(Decimal(r.root_labile_C_pool)),
+              "mol of C and labile N pool is", "{:.2E}".format(Decimal(r.root_labile_N_pool)), "mol of N.")
         print("    The root system contains", g.nb_vertices(), "different root elements.")
         print("")

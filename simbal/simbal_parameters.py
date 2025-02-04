@@ -59,7 +59,7 @@ elong_internode = 2.89351851851852E-07
 yield_growth = 0.8
 
 # Density of the structural mass of shoot tissue (gram of root dry structural mass per cubic meter)
-structural_mass_density = 0.1 * 1e6
+struct_mass_density = 0.1 * 1e6
 
 # Carbon content of the dry structural mass (gC per gram of root dry structural mass):
 structural_C_content = 0.44
@@ -68,7 +68,20 @@ structural_C_content = 0.44
 structural_N_content = 0.01
 
 # We define the phyllochrone, i.e. the period separating two leaf emergences (days):
-phyllochrone_in_days = 5.
+phyllochron_in_days = 5.
+
+# Maximal rate of root nitrogen uptake per root surface (mol of N per m2 of exchange surface per second):
+Vmax_N_uptake = 2e-4
+
+# Root nitrogen concentration, for which nitrogen uptake is half of the maximal rate
+# (mol of N per gDW of root structural mass):
+Km_N_uptake	= 1e-6
+
+# Coefficient of C diffusion from shoots to roots (in gram of dry structural mass per square meter per second):
+C_diffusion_coefficient = 1e-6
+
+# Coefficient of N diffusion from roots to shoots (in gram of dry structural mass per square meter per second):
+N_diffusion_coefficient = 1e-6
 
 ########################################################################################################################
 ########################################################################################################################
