@@ -1889,7 +1889,7 @@ if __name__ == '__main__':
                 os.remove(os.path.join(root, file))
 
     # UPDATING PARAMETERS FROM FILE:
-    loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "parameters_AllocF.xlsx"),
+    loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
                                      outputs_path = os.path.join(my_path, "simulation", "outputs"))
 
     # # We display the MTG in its initial state with PlantGL:
@@ -1962,46 +1962,46 @@ if __name__ == '__main__':
                                             scene_width=scene_width)
 
 
-        # # PLOTTING ONE SINGLE PLANT OVER TIME:
-        # # We display the MTG in its new state:
-        # # Option 1A - With PlantGL:
-        # #--------------------------
-        # graph = plotting_shoot_MTG(g, width=1200, height=900,
-        #                        x_center=0, y_center=0, z_center=0.,
-        #                        x_cam=3, y_cam=3, z_cam=1.,
-        #                        grid=False,
-        #                        background_color=[0, 0, 0],
-        #                        # single_color=[100,150,50],
-        #                        # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
-        #                        property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
-        #                        # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
-        #                        # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-        #                        recording_plot=True,
-        #                        plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
-        #
+        # PLOTTING ONE SINGLE PLANT OVER TIME:
+        # We display the MTG in its new state:
+        # Option 1A - With PlantGL:
+        #--------------------------
+        graph = plotting_shoot_MTG(g, width=1200, height=900,
+                               x_center=0, y_center=0, z_center=0.,
+                               x_cam=3, y_cam=3, z_cam=1.,
+                               grid=False,
+                               background_color=[0, 0, 0],
+                               # single_color=[100,150,50],
+                               # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
+                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
+                               # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
+                               # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
+                               recording_plot=True,
+                               plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
+
         # # Option 1B - With Pyvista:
         # #--------------------------
         # plotting_shoots_with_pyvista(g)
 
-        # PLOTTING A POPULATION OF PLANTS:
-        # Option 2A - With PlantGL:
-        #--------------------------
-        plotting_shoot_MTG_population(g,
-                                      number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                      inter_row_distance=inter_row_distance,
-                                      scene_length=row_length,
-                                      scene_width=scene_width,
-                                      leaf_shape="oval",
-                                      # leaf_shape="typical_leaf_shape",
-                                      width=800, height=800,
-                                      x_center=0., y_center=-0., z_center=0.,
-                                      x_cam=3., y_cam=3., z_cam=1.,
-                                      grid=False,
-                                      background_color=[0, 0, 0],
-                                      single_color=None,
-                                      property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-                                      recording_plot=True,
-                                      plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
+        # # PLOTTING A POPULATION OF PLANTS:
+        # # Option 2A - With PlantGL:
+        # #--------------------------
+        # plotting_shoot_MTG_population(g,
+        #                               number_of_plants_per_square_meter=plant_density_in_square_meter,
+        #                               inter_row_distance=inter_row_distance,
+        #                               scene_length=row_length,
+        #                               scene_width=scene_width,
+        #                               leaf_shape="oval",
+        #                               # leaf_shape="typical_leaf_shape",
+        #                               width=800, height=800,
+        #                               x_center=0., y_center=-0., z_center=0.,
+        #                               x_cam=3., y_cam=3., z_cam=1.,
+        #                               grid=False,
+        #                               background_color=[0, 0, 0],
+        #                               single_color=None,
+        #                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
+        #                               recording_plot=True,
+        #                               plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
 
         # RECORDING THE PROPERTIES:
         # We can record the main properties of the plant:
