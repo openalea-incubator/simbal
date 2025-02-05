@@ -163,110 +163,6 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
 # print("The new flux of N from root to shoot is", i.N_flux_to_shoot, "mol of N per second.")
 
 #-----------------------------------------------------------------------------------------------------------------------
-
-# Function for moving the turtle and create specific shapes for stems and leaves:
-def get_shoot_visitor(leaf_shape="oval"):
-    """
-    This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
-    :leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
-    are displayed with a typical leaf curved shape, based on their length only.
-    :return: shoot_visitor
-    """
-
-    def oval_shape(length=1., width=1.):
-        """
-        This simple function generates a PlantGL shape of an ellipse, defined by a length and a width.
-        """
-        # We create first a round disc:
-        disc = pgl.Disc()
-        # We specify the number of triangles to build this shape (8 by default):
-        disc.slices = 12
-        # And we now 'deform' the disc so that it becomes an ellipse characterized by a length and a width:
-        shape = pgl.Scaled((length, width, 1), disc)
-        return shape
-
-    def shoot_visitor(g, v, turtle):
-
-        # We access the node corresponding to the vertex ID "v" of the MTG "g":
-        n = g.node(v)
-
-        # We look at the geometrical properties already defined within the root element:
-        radius = n.radius
-        length = n.length
-        angle_down = n.angle_down
-        angle_roll = n.angle_roll
-
-        # We get the x,y,z coordinates from the beginning of the root segment, before the turtle moves:
-        position1 = turtle.getPosition()
-        n.x1 = position1[0]
-        n.y1 = position1[1]
-        n.z1 = position1[2]
-        # The turtle is moved:
-        turtle.setId(v)
-        # The direction of the turtle is changed:
-        turtle.down(angle_down)
-        turtle.rollL(angle_roll)
-
-        # 1) CASE OF A LEAF:
-        #-------------------
-        # In the current element corresponds to a leaf:
-        if n.label == 'Leaf':
-            # A. OPTION WITH OVAL SHAPE:
-            if leaf_shape == "oval":
-                # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
-                # to be displayed:
-                turtle.f(length/2.)
-                # We also need to rotate the turtle so that the oval is correctly oriented:
-                turtle.down(90)
-                # Finally, we print the oval shape according to the length and radius of the leaf:
-                turtle.customGeometry(oval_shape(length = length, width = 2 * radius))
-            # B. OPTION WITH 'TYPICAL' LEAF SHAPE:
-            elif leaf_shape == "typical_leaf_shape":
-                scale_factor = 1. * length
-                leafshape = pgl.NurbsPatch([[(-0.0241355*scale_factor, -0.0549754*scale_factor, -0.00804807*scale_factor, 1),
-                                         (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
-                                         (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
-                                         (-0.00223729*scale_factor, -0.00247516*scale_factor, 0.000385988*scale_factor, 1)],
-                                        [(0.314084*scale_factor, -0.472921*scale_factor, 0.392759*scale_factor, 1),
-                                         (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
-                                         (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
-                                         (0.408856*scale_factor, 0.483731*scale_factor, 0.413612*scale_factor, 1)],
-                                        [(0.329337*scale_factor, -0.501345*scale_factor, 0.730665*scale_factor, 1),
-                                         (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
-                                         (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
-                                         (0.414001*scale_factor, 0.558038*scale_factor, 0.74373*scale_factor, 1)],
-                                        [(0.00223079*scale_factor, 0.0223592*scale_factor, 0.999352*scale_factor, 1),
-                                         (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
-                                         (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
-                                         (-0.0011293*scale_factor, 0.0361733*scale_factor, 1.00279*scale_factor, 1)]])
-                turtle.customGeometry(leafshape)
-                # We move the turtle by the length of the leaf, without modifying its shape:
-                turtle.f(length)
-            # C. OPTION WITH CLASSICAL CYLINDERS:
-            else:
-                # We define the radius of the cylinder to be displayed:
-                turtle.setWidth(radius)
-                # We move the turtle by the length of the root segment:
-                turtle.F(length)
-
-        # 2) CASE OF ANOTHER SHOOT ORGAN:
-        # -------------------------------
-        # Otherwise, if the current element is not a leaf, it is defined as a cylinder:
-        else:
-            # We define the radius of the cylinder to be displayed:
-            turtle.setWidth(radius)
-            # We move the turtle by the length of the root segment:
-            turtle.F(length)
-
-        # We get the x,y,z coordinates from the end of the root segment, after the turtle has moved:
-        position2 = turtle.getPosition()
-        n.x2 = position2[0]
-        n.y2 = position2[1]
-        n.z2 = position2[2]
-
-    return shoot_visitor
-
-#-----------------------------------------------------------------------------------------------------------------------
 def get_root_visitor():
     """
     This function describes the movement of the 'turtle' along the MTG for creating a graph on PlantGL.
@@ -434,7 +330,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     # We initialize a turtle in PlantGL:
     shoot_turtle = turt.PglTurtle()
     # We create the scene by moving the turtle along the current MTG:
-    shoot_scene = turt.TurtleFrame(shoot_g, visitor=get_shoot_visitor(leaf_shape=leaf_shape), turtle=shoot_turtle, gc=False)
+    shoot_scene = turt.TurtleFrame(shoot_g, visitor=AllocF.get_shoot_visitor(leaf_shape=leaf_shape), turtle=shoot_turtle, gc=False)
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in shoot_scene)
     # We cover each node of the MTG:
@@ -530,12 +426,15 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
 # SETTING FILE PATHS:
 #--------------------
 
-# my_path = os.getcwd()
-my_path = "C:/Users/frees/SIMBAL/"
+# We define the working directory:
+if param.specific_path is None:
+    my_path = os.getcwd()
+else:
+    my_path = param.specific_path
 
-# We delete the previous files containing plots:
+# We consider the plot directory:
 plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
-# If this directory doesn't exist:
+# If the plot directory doesn't exist:
 if not os.path.exists(plot_directory):
     # Then we create it:
     os.mkdir(plot_directory)
@@ -545,7 +444,7 @@ else:
         for file in files:
             os.remove(os.path.join(root, file))
 
-# We delete the previous files containing shoot MTG properties:
+# We consider the directory containing the attributes of shoot properties over time:
 shoot_MTG_directory = os.path.join(my_path, "simulation", "outputs", "shoot_MTG_properties")
 # If this directory doesn't exist:
 if not os.path.exists(shoot_MTG_directory):
@@ -769,7 +668,8 @@ for step in range(1, n_steps+1):
                                         number_of_plants_per_square_meter=plant_density_in_square_meter,
                                         inter_row_distance=inter_row_distance,
                                         scene_length=row_length,
-                                        scene_width=scene_width
+                                        scene_width=scene_width,
+                                        leaf_shape=param.leaf_shape
                                         )
 
     # We calculate the C production based on PAR:
@@ -955,7 +855,7 @@ for step in range(1, n_steps+1):
                          x_center=param.x_center, y_center=param.y_center, z_center=param.z_center,
                          x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
                          grid=False,
-                         leaf_shape="oval",
+                         leaf_shape=param.leaf_shape,
                          background_color=[94, 76, 64],
                          single_color_shoot=[100,200,100],
                          single_color_root=[200,200,100],

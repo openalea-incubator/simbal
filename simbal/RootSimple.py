@@ -16,7 +16,8 @@ import simbal_parameters as param
 class root_system(object):
     # We initiate the object "root_system":
     def __init__(self, g):
-        # The object 'root_system' will in particular contain an attribute corresponding to a full MTG:
+        # The object 'root_system' will in particular contain an attribute corresponding to the full root MTG,
+        # as well as general variables for the whole root system:
         self.root_MTG = g
         self.root_labile_C_pool = 0. # mol of C per root system
         self.root_labile_C_deficit = 0. # mol of C per root system

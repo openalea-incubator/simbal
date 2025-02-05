@@ -70,6 +70,9 @@ structural_N_content = 0.01
 # We define the phyllochrone, i.e. the period separating two leaf emergences (days):
 phyllochron_in_days = 5.
 
+# We define the shape of the leaves to be displayed and used for light interception:
+leaf_shape = "oval"
+
 # Maximal rate of root nitrogen uptake per root surface (mol of N per m2 of exchange surface per second):
 Vmax_N_uptake = 2e-4
 

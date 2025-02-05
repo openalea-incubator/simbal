@@ -302,12 +302,13 @@ def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
     return g
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for moving the turtle and create specific shapes for stems and leaves:
+
+# Function for moving the turtle and create specific shapes for stems and leaves:
 def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
     """
     This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
     :leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
     are displayed with a typical leaf curved shape, based on their length only.
-    :upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
     :return: shoot_visitor
     """
 
@@ -323,6 +324,25 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         shape = pgl.Scaled((length, width, 1), disc)
         return shape
 
+    def unileaflet(length=1., width=1.):
+        """Generates a unileaflet shape [taken from Colzette].
+
+        :param length: length of the shape, defaults to 1.
+        :type length: float, optional
+        :param width: width of the shape, defaults to 1.
+        :type width: float, optional
+        :return: the shape
+        :rtype: pgl.Group
+        """
+        disc = pgl.Translated((-0.5, 0, 0), pgl.Disc())
+        disc = pgl.Scaled((length, width, 1), disc)
+        disc = pgl.AxisRotated(axis=(0, 1, 0), angle=pi/2., geometry=disc)
+
+        d3 = pgl.AxisRotated(axis=(1, 0, 0), angle=0., geometry=disc)
+
+        shape = pgl.Group([d3])
+        return shape
+
     def shoot_visitor(g, v, turtle):
 
         # We access the node corresponding to the vertex ID "v" of the MTG "g":
@@ -336,9 +356,9 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
 
         # We get the x,y,z coordinates from the beginning of the root segment, before the turtle moves:
         position1 = turtle.getPosition()
-        n.x1 = position1[0]
-        n.y1 = position1[1]
-        n.z1 = position1[2]
+        n.x1 = position1[0] * upscaling_factor
+        n.y1 = position1[1] * upscaling_factor
+        n.z1 = position1[2] * upscaling_factor
         # The turtle is moved:
         turtle.setId(v)
         # The direction of the turtle is changed:
@@ -380,6 +400,8 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
                 turtle.customGeometry(leafshape)
                 # We move the turtle by the length of the leaf, without modifying its shape:
                 turtle.f(length)
+            elif leaf_shape == "unileaflet":
+                turtle.customGeometry(unileaflet(length=length, width=2 * radius))
             # C. OPTION WITH CLASSICAL CYLINDERS:
             else:
                 # We define the radius of the cylinder to be displayed:
@@ -398,9 +420,9 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
 
         # We get the x,y,z coordinates from the end of the root segment, after the turtle has moved:
         position2 = turtle.getPosition()
-        n.x2 = position2[0]
-        n.y2 = position2[1]
-        n.z2 = position2[2]
+        n.x2 = position2[0] * upscaling_factor
+        n.y2 = position2[1] * upscaling_factor
+        n.z2 = position2[2] * upscaling_factor
 
     return shoot_visitor
 
