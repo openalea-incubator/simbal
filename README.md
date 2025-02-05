@@ -6,6 +6,7 @@ Python 3
 numpy 
 pandas 
 scipy
+openpyxl
 pyvista
 openalea.mtg
 openalea.plantgl
