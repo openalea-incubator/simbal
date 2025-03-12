@@ -8,7 +8,10 @@ import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.data_samples import data_path
 
-import pyvista as pv
+try: 
+    import pyvista as pv
+except ImportError:
+    pv = None
 
 import numpy as np
 import pandas as pd
@@ -773,7 +776,9 @@ def plotting_shoots_with_pyvista(g,
     :param focal_z: z-coordinate of the focal point (from which plot is centered and allowed to rotate from)
     :return:
     """
-
+    if pv is  None:
+        raise Exception('Install pyvista')
+    
     # We initialize a plot:
     p = pv.Plotter()
     # p = pvqt.BackgroundPlotter() # If we want to update the graph when opened

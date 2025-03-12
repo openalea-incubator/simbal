@@ -749,3 +749,5 @@ exodermis_c = 1.11 / (60.*60.*24.) # This parameter reflects the slope of the in
 #-------------------------------------------------------------------------------------------------------------
 max_thermal_time_since_endodermis_disruption = 6 * 60. * 60. # We assume that after 6h, no disruption is observed anymore!
 max_thermal_time_since_exodermis_disruption = 48 * 60. * 60. # We assume that after 48h, no disruption is observed anymore!
+
+specific_path=None
