@@ -302,8 +302,6 @@ def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
     return g
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for moving the turtle and create specific shapes for stems and leaves:
-
-# Function for moving the turtle and create specific shapes for stems and leaves:
 def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
     """
     This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
@@ -1086,6 +1084,7 @@ def computing_photosynthesis_rate(g, SCA=1e-6):
         n.photosynthetic_area = n.surface
         # We calculate the photosynthesis rate for this organ:
         n.photosynthesized_C_rate = SCA * n.PAR_intercepted * n.photosynthetic_area
+        # TODO: have the SCA vary with the level of "green" within the leaf? with the level of N? with the senescence status?
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1268,6 +1267,7 @@ def computing_shoot_C_storage(g, time_step_in_seconds=60.*60.*24.):
     :param g: the MTG corresponding to the shoot system
     :param time_step_in_seconds: the time step of the simulation (seconds)
     :return: [no return - the MTG g has been updated with the property 'C_storage_rate' (gC per second)]
+    #TODO: Add the increase in thickness corresponding to the additional C storage.
     """
 
     # 1) Computing the total intercepted light (if not calculated elsewhere)
@@ -1315,6 +1315,7 @@ def potential_shoot_growth(g,
     :param g: the shoot system
     :param SFQN: the slope of the relationship of Leaf area = f(N_labile) (m2 per gN)
     :param LA_max: the maximal area for a leaf (m2)
+    #TODO: should the leaf stop growing after a predetermined duration, instead of after reaching the LA_max?
     :param leaf_minimal_thickness: the minimal thickness of a leaf (m)
     :param elong_internode: a potential rate of elongation (m per second)
     :param time_step_in_seconds: the time step of the simulation (seconds)

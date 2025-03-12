@@ -15,7 +15,7 @@ import math
 import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
 
-from .colzette_lib import *
+from colzette_lib import *
 
 def generate_centered_mesh_points(n):
     side_length = int(math.sqrt(n))
@@ -166,10 +166,10 @@ for index, row in data.iterrows():
     Temporary_Res = pandas.DataFrame.from_dict(Temporary_Res, orient='columns')
 
     Results = pandas.concat([Results, Temporary_Res])
-    filtered_results = Results[Results['label'] == 'Leaf']
+    # filtered_results = Results[Results['label'] == 'Leaf']
 
 tps2 = time.process_time()
 print('Execution time: ', tps2 - tps1)
 
-# Results.to_csv('Colzetteresults2.csv')
-filtered_results.to_csv(outputfilename + '.csv')
+Results.to_csv('Colzetteresults2.csv')
+# filtered_results.to_csv(outputfilename + '.csv')

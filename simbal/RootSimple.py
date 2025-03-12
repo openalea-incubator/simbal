@@ -408,7 +408,7 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
     # We update the pool of labile N, taking into account the possible deficit in N previously recorded,
     # and all processes affecting the N pool:
     print("Before N balance, the labile N in roots is", r.root_labile_N_pool)
-    print("The deficit in N was", r.root_labile_N_deficit, "and here are the fluxes involved:", r.N_uptake_rate, r.N_rhizodeposition_rate, r.net_N_immobilization_rate, r.net_N_transfer_from_root_to_shoot_rate, r.N_consumption_by_growth_rate)
+    # print("The deficit in N was", r.root_labile_N_deficit, "and here are the fluxes involved:", r.N_uptake_rate, r.N_rhizodeposition_rate, r.net_N_immobilization_rate, r.net_N_transfer_from_root_to_shoot_rate, r.N_consumption_by_growth_rate)
     net_variation = (- r.root_labile_N_deficit +
                              (r.N_uptake_rate
                               - r.N_rhizodeposition_rate
