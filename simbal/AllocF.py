@@ -79,7 +79,6 @@ def ADDING_A_PHYTOMER(parent_element,
                       internode_length=0.,
                       leaf_radius=0.,
                       leaf_length=0.,
-                      bud_radius=0.,
                       bud_length=0.,
                       properties_identical_to_parent = True,
                       nil_properties = False
@@ -102,6 +101,11 @@ def ADDING_A_PHYTOMER(parent_element,
     internode.volume = internode.radius ** 2. * pi * internode.length
     internode.struct_mass = internode.volume * struct_mass_density
     internode.photosynthetic_area = internode.surface
+    # We specify the ramification order :
+    internode.ramification_order = parent_element.ramification_order
+    # And we reset the time since formation:
+    internode.actual_time_since_formation = 0.
+    internode.thermal_time_since_formation = 0.
 
     # 2) We then create a new leaf that is actually a "branch" on the previous internode:
     # ------------------------------------------------------------------------------------
@@ -121,16 +125,21 @@ def ADDING_A_PHYTOMER(parent_element,
     leaf.volume = leaf.surface * minimal_leaf_thickness
     leaf.struct_mass = leaf.volume * struct_mass_density
     leaf.photosynthetic_area = leaf.surface
+    # We specify the ramification order :
+    leaf.ramification_order = parent_element.ramification_order
+    # And we reset the time since formation:
+    leaf.actual_time_since_formation = 0.
+    leaf.thermal_time_since_formation = 0.
 
     # 3) We finally create an axilliary bud that is actually a "branch" on the previous internode:
     # ---------------------------------------------------------------------------------------------
-    bud = ADDING_A_CHILD_ORGAN(parent_element=internode,
+    bud = ADDING_A_CHILD_ORGAN(parent_element=leaf, # TODO: Watch out - should the parent be leaf or internode?
                                edge_type='+',
                                label='Bud',
                                properties_identical_to_parent=False,
                                nil_properties=True)
     # We specified some properties that may be distinct from the parent element:
-    bud.radius = bud_radius
+    bud.radius = param.bud_radius_ratio * parent_element.radius
     bud.length = bud_length
     bud.angle_down = param.bud_insertion_angle
     bud.angle_roll = 0.
@@ -139,6 +148,13 @@ def ADDING_A_PHYTOMER(parent_element,
     bud.volume = 0.
     bud.struct_mass = 0.
     bud.photosynthetic_area = 0.
+    # We specify the ramification order :
+    bud.ramification_order = parent_element.ramification_order + 1
+    # We set the emergence possibility to False by default:
+    bud.emergence_possibility = False
+    # And we reset the time since formation:
+    bud.actual_time_since_formation = 0.
+    bud.thermal_time_since_formation = 0.
 
     # Eventually, we redefine the starting coordinates of the internode, leaf and bud as the last point of the parent:
     for element in [internode, leaf, bud]:
@@ -151,7 +167,9 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
-def new_phytomers_initiation(g, new_initiation = True, initial_internode_length = 0.0005, initial_leaf_length = 0.003):
+def new_phytomers_initiation(g, new_initiation = True,
+                             initial_internode_length = 0.001,
+                             initial_leaf_length = 0.001):
     """
     This function defines how new phytomers are formed over time.
     :param g: the MTG corresponding to the shoot system
@@ -160,6 +178,7 @@ def new_phytomers_initiation(g, new_initiation = True, initial_internode_length 
 
     # We initialize the current list of apices in the shoot system that may produce new phytomers:
     list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Apex"]
+
     # We initialize a condition defining whether new phytomers should develop from a given apex:
     apparition_condition=new_initiation # TODO: Define how and when new phytomers are formed!
 
@@ -177,12 +196,11 @@ def new_phytomers_initiation(g, new_initiation = True, initial_internode_length 
                                                            internode_length=initial_internode_length,
                                                            leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
                                                            leaf_length=initial_leaf_length,
-                                                           bud_radius=0.,
                                                            bud_length=0.,
                                                            properties_identical_to_parent=False,
                                                            nil_properties=True
                                                            )
-                # print("We have added a new phytomer on the apex", apex.index(), "!")
+
                 # We remove the previous apex:
                 g.remove_vertex(apex.index(), reparent_child=True)
                 # And we add a new apex at the top of the new internode, of length 0:
@@ -255,6 +273,13 @@ def create_shoot_MTG(number_of_phytomers=3,
     new_internode.struct_mass = new_internode.volume * struct_mass_density
     new_internode.photosynthetic_area = new_internode.surface
 
+    # We define the ramification order of this first internode as 0:
+    new_internode.ramification_order = 0
+
+    # We set the time since formation:
+    new_internode.actual_time_since_formation = 0.
+    new_internode.thermal_time_since_formation = 0.
+
     # For each new phytomer:
     for i in range(0, number_of_phytomers):
         # We first create an internode, and then a connected leaf and a bud:
@@ -265,7 +290,6 @@ def create_shoot_MTG(number_of_phytomers=3,
                                                                internode_length=initial_internode_height,
                                                                leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio,
                                                                leaf_length=initial_leaf_length,
-                                                               bud_radius=0.,
                                                                bud_length=0.)
 
     # Finally, on the last internode, we add a new apex that may continue to form new phytomers over the simulation:
@@ -379,6 +403,14 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
                 turtle.down(90)
                 # Finally, we print the oval shape according to the length and radius of the leaf:
                 turtle.customGeometry(oval_shape(length = length, width = 2 * radius))
+                # We reposition the turtle at the base of the leaf:
+                # We first revert the angle:
+                turtle.down(-90)
+                # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
+                turtle.down(180)
+                turtle.f(length/2.)
+                # And finally, we reorientate the turtle:
+                turtle.down(180)
             # B. OPTION WITH 'TYPICAL' LEAF SHAPE:
             elif leaf_shape == "typical_leaf_shape":
                 scale_factor = 1. * length
@@ -399,8 +431,6 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
                                          (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
                                          (-0.0011293*scale_factor, 0.0361733*scale_factor, 1.00279*scale_factor, 1)]])
                 turtle.customGeometry(leafshape)
-                # We move the turtle by the length of the leaf, without modifying its shape:
-                turtle.f(length)
             elif leaf_shape == "unileaflet":
                 turtle.customGeometry(unileaflet(length=length, width=2 * radius))
             # C. OPTION WITH CLASSICAL CYLINDERS:
@@ -409,6 +439,10 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
                 turtle.setWidth(radius)
                 # We move the turtle by the length of the root segment:
                 turtle.F(length)
+                # And then we come back discretely to the initial position:
+                turtle.down(180)
+                turtle.f(length)
+                turtle.down(180)
 
         # 2) CASE OF ANOTHER SHOOT ORGAN:
         # -------------------------------
@@ -650,6 +684,8 @@ def setting_PGLViewer(width=1200, height=1200,
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to plot a shoot MTG with PlantGL:
 def plotting_shoot_MTG(g,
+                       # leaf_shape="oval",
+                       leaf_shape="typical_leaf_shape",
                        width=1200, height=900,
                        x_center=0, y_center=-0, z_center=0.,
                        x_cam=5., y_cam=5., z_cam=-1,
@@ -676,7 +712,7 @@ def plotting_shoot_MTG(g,
 
     # SETTING THE NEW SCENE WITH THE TURTLE:
     # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape="oval"), turtle=turtle, gc=False)
+    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape), turtle=turtle, gc=False)
 
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in scene)
@@ -1535,14 +1571,17 @@ def updating_coordinates(g):
         # The distance between point 1 and the original point 2 can be calculated by:
         d = ((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)**0.5
 
-        try:
-            x = 1/d
-        except:
-            print("ERROR: the direction of the element", n.index(), "could not be calculated!")
-        # The new coordinates of the second point of the current element are then:
-        n.x2 = x1 + n.length / d * direction_x
-        n.y2 = y1 + n.length / d * direction_y
-        n.z2 = z1 + n.length / d * direction_z
+        if d > 0.:
+            # The new coordinates of the second point of the current element are then:
+            n.x2 = x1 + n.length / d * direction_x
+            n.y2 = y1 + n.length / d * direction_y
+            n.z2 = z1 + n.length / d * direction_z
+        else:
+            # This situation where point 2 coincides with point 1 may happen in the case of leaves, where the turtle
+            # has returned to its initial position after creating the shape of the leaf:
+            n.x2 = x1
+            n.y2 = y1
+            n.z2 = z1
 
         # We try then to update the x1,y1,z1 coordinates of the next element, if any:
         son_id = g.Successor(vid)
@@ -1702,6 +1741,101 @@ def shoot_CN_balance(shoot_system, time_step_in_seconds = 60.*60):
 
     return
 
+def ageing(g, time_step_in_seconds=24*60.*60., leaf_temperature=20):
+
+    for vid in g.vertices_iter(scale=1):
+        element=g.node(vid)
+        element.actual_time_since_formation += time_step_in_seconds
+        element.thermal_time_since_formation += time_step_in_seconds/(24*60.*60.) * leaf_temperature
+
+    return
+
+def ramification(g, initial_internode_length=0.0005, initial_leaf_length=0.001):
+    # On part sur une structure potentielle maximale paramétrée.
+    # Le virage floral est atteint au bout d'un certain temps thermique (entre mi-décembre et mi-janvier).
+
+    # Au virage floral, le méristème principal ne fera plus de feuilles et que une fleur (ou plusieurs).
+    # Le nombre total de phytomères sur la tige principal sera:
+    # n_phytomers_formés (y compris non émergés) = k * (n_feuilles_rosette_émergées au virage floral)
+    # Modèle "sapin" pour définir le nombre d'entre-noeuds sur les ramifs primaires (+1 en descendant du haut de la tige vers le bas)
+    # Pour les secondaires : plutôt en haut...
+
+    # Le profil de longueur d'entre-noeuds sur la tige principale est plutôt ventru (max au milieu de la tige, pas en bas).
+    # Elongation forcée + limitation trophique + dominance apicale (depuis le haut)
+
+    # La date d'élongation est différente du virage floral (vers février-mars). Temps thermique constant ?
+
+    # ***
+
+    # La floraison est indéterminée. A partir du virage floral, on a élongation tige principale, puis apparition
+    # inflorescence à la fin des axes + élongation des ramifications.
+    # Idée de l’archi potentielle : x feuilles au virage floral conditionnent un nombre total de feuilles n
+    # (sachant que les entrenoeuds courts ne donnent pas de ramifications).. A partir du premier entrenoeud qui ramifie,
+    # tous les entrenoeuds au-dessus vont former des ramifications. Chaque axe latéral va avoir un nombre max d’entrenoeud :
+    # 1 au sommet, puis 2 sur l’axe latéral en dessous, puis 3, etc. Pour les secondaires, en théorie on aurait la même chose.
+    # Comment est régulé le numéro de la ramification la plus basse ? Les axes ramifiés démarrent à peu près tous en même temps,
+    # donc on les fait partir en même temps, à partir du moment où une part. Le RC/RS diminue en partant du haut dans le couvert.
+    # Il y aurait donc un seuil critique qui déclenche la ramif à partir de cet entrenoeud  ça détermine donc
+    # la position de l’entrenoeud de départ.
+    # Quand déclencher ? Avec un temps thermique donné de départ pour la plante, ou pour l’entrenoeud de départ.
+    # Ou photopériode ? Ou température critique ? Faut-il tenir compte aussi de l’ensoleillement global ?
+    # Pourquoi les ramif du haut s’allongeraient plus lentement ? Dominance apicale à coder en dur par rapport à la distance
+    # à l’inflorescence de l’axe principal ?
+
+    # DEFINING THE CONDITIONS OF TURNING DORMANT BUDS INTO ACTIVE BUDS:
+    for vid in g.vertices_iter(scale=1):
+        if g.node(vid).label != "Bud":
+            continue
+        else:
+            bud = g.node(vid)
+            # We get the leaf beneath the bud:
+            leaf_index = g.Father(vid, EdgeType='+')
+            leaf = g.node(leaf_index)
+            light_interception = leaf.PAR_intercepted / leaf.surface
+            # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
+            if  light_interception >= 1.5e7 and bud.thermal_time_since_formation >= 60 and bud.ramification_order <= 1:
+                bud.emergence_possibility = True
+
+    # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
+    # We select the vertices corresponding to the buds that are allowed to emerge:
+    list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Bud"
+                      and g.node(vid).emergence_possibility == True]
+
+    # As long as the list of apices to treat is not empty:
+    while list_of_apices != []:
+        # We cover each apex present in the list:
+        for apex in list_of_apices:
+            # We remove the current apex from the list, so that it is not considered next time:
+            list_of_apices.remove(apex)
+            # Then we add a new phytomer at the top of the current apex:
+            [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
+                                                       internode_radius=apex.radius,
+                                                       internode_length=initial_internode_length,
+                                                       leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
+                                                       leaf_length=initial_leaf_length,
+                                                       bud_length=0.,
+                                                       properties_identical_to_parent=False,
+                                                       nil_properties=True
+                                                       )
+            # By default, we set the bud as dormant:
+            bud.emergence_possibility = False
+            # We remove the previous apex:
+            g.remove_vertex(apex.index(), reparent_child=True)
+            # And we add a new apex at the top of the new internode, of length 0:
+            new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
+                                            edge_type="<",
+                                            label="Apex",
+                                            properties_identical_to_parent=True,
+                                            nil_properties=False)
+            # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
+            new_apex.length = 0.
+            # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
+            # # Finally, we update the list of apices by adding the new apex that has been formed,
+            # # in case it could itself form a new phytomer:
+            # list_of_apices.append(new_apex)
+
+    return
+
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def calling_the_different_shoot_modules(shoot_g,
@@ -1804,7 +1938,15 @@ def calling_the_different_shoot_modules(shoot_g,
     # This function performs the actual C & N balance and updates the labile pools of C & N in each organ:
     shoot_organ_CN_balance(g)
 
-    # 5) Senescence and leaf fall:
+    # 5) Ageing of the plant:
+    # -----------------------
+    ageing(g, time_step_in_seconds=time_step_in_days*24*60.*60., leaf_temperature=20)
+
+    # 6) Ramification:
+    #-----------------
+    ramification(g)
+
+    # 7) Senescence and leaf fall:
     #-----------------------------
     computing_senescence(g)
 
@@ -1830,24 +1972,6 @@ def loading_parameters_from_file(parameters_filepath = "parameters_AllocF.xlsx",
     scenario = new_scenarios_df.to_dict(orient='records')[0]
     # And we finally update the parameters from the original python file with the parameters taken from this dictionnary:
     param.__dict__.update(scenario)
-
-    return
-
-def ramification(g):
-
-    # On part sur une structure potentielle maximale paramétrée.
-    # Le virage floral est atteint au bout d'un certain temps thermique (entre mi-décembre et mi-janvier).
-
-    # Au virage floral, le méristème principal ne fera plus de feuilles et que une fleur (ou plusieurs).
-    # Le nombre total de phytomères sur la tige principal sera:
-    # n_phytomers_formés (y compris non émergés) = k * (n_feuilles_rosette_émergées au virage floral)
-    # Modèle "sapin" pour définir le nombre d'entre-noeuds sur les ramifs primaires (+1 en descendant du haut de la tige vers le bas)
-    # Pour les secondaires : plutôt en haut...
-
-    # Le profil de longueur d'entre-noeuds sur la tige principale est plutôt ventru (max au milieu de la tige, pas en bas).
-    # Elongation forcée + limitation trophique + dominance apicale (depuis le haut)
-
-    # La date d'élongation est différente du virage floral (vers février-mars). Temps thermique constant ?
 
     return
 
@@ -1967,17 +2091,19 @@ if __name__ == '__main__':
                                             scene_length=row_length,
                                             scene_width=scene_width)
 
+        # We test the ramification:
+        ramification(g)
 
         # PLOTTING ONE SINGLE PLANT OVER TIME:
         # We display the MTG in its new state:
         # Option 1A - With PlantGL:
         #--------------------------
         graph = plotting_shoot_MTG(g, width=1200, height=900,
-                               x_center=0, y_center=0, z_center=0.,
-                               x_cam=3, y_cam=3, z_cam=1.,
+                               x_center=0, y_center=0, z_center=0.03,
+                               x_cam=0.18, y_cam=0.18, z_cam=0.03,
                                grid=False,
-                               background_color=[0, 0, 0],
-                               # single_color=[100,150,50],
+                               # background_color=[0, 0, 0],
+                               single_color=[100,150,50],
                                # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
                                property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
                                # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,

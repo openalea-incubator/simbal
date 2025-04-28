@@ -40,7 +40,10 @@ phyllotactic_angle	= 137.5
 leaf_insertion_angle = 75
 
 # Angle formed by the direction of a bud (possibly a future branch) and the direction of its supporting stem (degrees):
-bud_insertion_angle	= 60
+bud_insertion_angle	= 10
+
+# Ratio of radius between the parent stem and the lateral bud:
+bud_radius_ratio = 0.6
 
 # Maximal area of a leaf (square meter):
 LA_max = 0.1
