@@ -8,8 +8,6 @@ import openalea.plantgl.all as pgl
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
-# import rhizodep.parameters as rhizodep_param
-# from rhizodep.tools import circle_coordinates
 import openalea.rhizodep.parameters as rhizodep_param
 from openalea.rhizodep.tool.tools import circle_coordinates
 
@@ -430,11 +428,8 @@ if __name__ == '__main__':
     # SETTING FILE PATHS:
     #--------------------
 
-    # We define the working directory:
-    if param.specific_path is None:
-        my_path = os.getcwd()
-    else:
-        my_path = param.specific_path
+    # We define the reference directory (here, we move to the parent directory of the current directory):
+    my_path = os.path.dirname(os.getcwd())
 
     # We consider the plot directory:
     plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
