@@ -4,7 +4,7 @@ from decimal import Decimal
 from openalea.mtg import *
 from openalea.mtg.traversal import pre_order, post_order
 
-from rhizodep.model import initiate_mtg, summing_and_possibly_homogenizing, reinitializing_growth_variables, \
+from openalea.rhizodep.model import initiate_mtg, summing_and_possibly_homogenizing, reinitializing_growth_variables, \
     update_distance_from_tip, update_surfaces_and_volumes, potential_growth, \
     volume_and_external_surface_from_radius_and_length, segmentation_and_primordia_formation, root_hairs_dynamics
 

@@ -8,8 +8,10 @@ import openalea.plantgl.all as pgl
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
-import rhizodep.parameters as rhizodep_param
-from rhizodep.tools import circle_coordinates
+# import rhizodep.parameters as rhizodep_param
+# from rhizodep.tools import circle_coordinates
+import openalea.rhizodep.parameters as rhizodep_param
+from openalea.rhizodep.tool.tools import circle_coordinates
 
 import os
 import numpy as np
