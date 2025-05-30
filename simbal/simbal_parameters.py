@@ -45,6 +45,13 @@ bud_insertion_angle	= 10
 # Ratio of radius between the parent stem and the lateral bud:
 bud_radius_ratio = 0.6
 
+# Minimal thermal time before which an axilliary bud cannot emerge and form a new ramification (degree-days):
+bud_minimal_dormancy_period = 60
+
+# Minimal PAR intercepted by the leaf of the phytomer, below which an axilliary bud cannot emerge and form a new
+# ramification (in micromoles of photons per second per square meter of leaf):
+bud_light_threshold = 1.5e7
+
 # Maximal area of a leaf (square meter):
 LA_max = 0.1
 
@@ -73,14 +80,29 @@ structural_N_content = 0.01
 # We define the phyllochrone, i.e. the period separating two leaf emergences (days):
 phyllochron_in_days = 5.
 
+# We define a maximal duration of "youth", above which the organ will start senescing
+# (seconds at the reference growth temperature):
+thermal_youth_duration = 60. * (60.*60.*24.)
+
 # We define the shape of the leaves to be displayed and used for light interception:
 leaf_shape = "oval"
 
-# Maximal rate of root nitrogen uptake per root surface (mol of N per m2 of exchange surface per second):
-Vmax_N_uptake = 2e-4
+########################################################################################################################
+########################################################################################################################
 
-# Root nitrogen concentration, for which nitrogen uptake is half of the maximal rate
-# (mol of N per gDW of root structural mass):
+# ROOTSIMPLE:
+#############
+
+# Maximal rate of root nitrogen uptake per root surface (gN per m2 of exchange surface per second):
+Vmax_N_uptake = 2e-4
+# Temperature dependence for N uptake:
+N_uptake_T_ref = 20.
+N_uptake_A = 0
+N_uptake_B = 1
+N_uptake_C = 0
+
+# Soil available nitrogen concentration, for which root nitrogen uptake is half of the maximal rate
+# (gN per gram of soil):
 Km_N_uptake	= 1e-6
 
 # Coefficient of C diffusion from shoots to roots (in gram of dry structural mass per square meter per second):
@@ -89,11 +111,33 @@ C_diffusion_coefficient = 1e-6
 # Coefficient of N diffusion from roots to shoots (in gram of dry structural mass per square meter per second):
 N_diffusion_coefficient = 1e-6
 
+# Maximal mass rate of N2 fixation by roots (in moles of N per second per gram of root structural mass):
+N2_fixation_rate_max = 1e-9
+# Temperature dependence for N uptake:
+N2_fixation_T_ref = 20.
+N2_fixation_A = 0
+N2_fixation_B = 1
+N2_fixation_C = 0
+
+# Minimal concentration of labile C in the root system to allow N2 fixation
+# (in moles of C per gram of root structural mass):
+minimal_labile_C_concentration_for_N2_fixation = 0.
+
+# Maximal concentration of labile N in the root system above which no N2 fixation is possible
+# (in moles of N per gram of root structural mass):
+maximal_labile_N_concentration_for_N2_fixation = 1.
+
+# Minimal thermal age of a root segment for starting nodulation (second equivalent to the reference temperature):
+minimal_age_for_nodulation = 3 * (24. * 60. * 60.) * 20
+
+# Period over which nodules form and mature on the root segment until maximal fixation capacity (second equivalent to the reference temperature):
+maturation_period_for_nodulation = 25 * (24. * 60. * 60.) * 20
+
 ########################################################################################################################
 ########################################################################################################################
 
-# ROOT SYSTEM:
-##############
+# ARCHISIMPLE AND RHIZODEP:
+###########################
 
 
 from math import pi
@@ -232,6 +276,14 @@ segment_length = 3. / 1000.
 # than 20 degrees.
 T_ref_growth = 20
 relative_process_value_at_T_ref_growth = 1
+
+# Temperature dependence for shoot growth:
+#""""""""""""""""""""""""""""""""""""""""
+shoot_growth_T_ref = 0
+shoot_growth_A = relative_process_value_at_T_ref_growth / T_ref_growth
+shoot_growth_B = 0
+shoot_growth_C = 0
+# => We assume that relative growth is 0 at T_ref=0 degree Celsius, and linearily increases to reach 1 at 20 degree.
 
 # Temperature dependence for root growth:
 #""""""""""""""""""""""""""""""""""""""""

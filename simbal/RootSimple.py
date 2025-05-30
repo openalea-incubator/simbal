@@ -9,6 +9,7 @@ from openalea.rhizodep.model import initiate_mtg, summing_and_possibly_homogeniz
     volume_and_external_surface_from_radius_and_length, segmentation_and_primordia_formation, root_hairs_dynamics
 
 import simbal_parameters as param
+from tools import temperature_modification
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -19,24 +20,37 @@ class root_system(object):
         # The object 'root_system' will in particular contain an attribute corresponding to the full root MTG,
         # as well as general variables for the whole root system:
         self.root_MTG = g
-        self.root_labile_C_pool = 0. # mol of C per root system
-        self.root_labile_C_deficit = 0. # mol of C per root system
-        self.root_labile_N_pool = 0. # mol of N per plant
-        self.root_labile_N_deficit = 0.  # mol of N per plant
+        self.root_labile_C_pool = 0. # gC per root system
+        self.root_labile_C_deficit = 0. # gC per root system
+        self.root_labile_N_pool = 0. # gN per plant
+        self.root_labile_N_deficit = 0.  # gN per plant
         self.root_struct_mass = 0. # gDW
         self.root_external_surface = 0. # m2
         self.root_exchange_surface = 0. # m2
-        self.root_labile_C_input = 0. # mol of C per root system
-        self.root_N_uptake = 0. # mol of N per root system
+        self.root_labile_C_input = 0. # gC per root system
+        self.root_N_uptake = 0. # gN per root system
 
 #-----------------------------------------------------------------------------------------------------------------------
 
 def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60):
+    """
+    This simple function updates the pool of labile C in the root system (gC) with the rate of net C exchange
+    from shoots to roots.
+    Parameters
+    ----------
+    root_system: the object containing the general properties of the root system
+    time_step_in_seconds: the time step to be used, in seconds
+
+    Returns
+    -------
+    [Nothing is returned, the root system has been updated with the new labile C pool]
+
+    """
 
     # We update the labile pool:
     root_system.root_labile_C_pool += root_system.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds # mol of C per root system
     if root_system.root_labile_C_pool < 0.:
-        print("WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
+        print("    WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
         root_system.root_labile_C_deficit = - root_system.root_labile_C_pool
         root_system.root_labile_C_pool = 0.
     return
@@ -44,6 +58,17 @@ def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60)
 #-----------------------------------------------------------------------------------------------------------------------
 
 def updating_exchange_surface(root_system, root_MTG):
+    """
+    This function covers each element of the root MTG and computes a total surface of exchange for the whole root system.
+    Parameters
+    ----------
+    root_system: the object containing the general properties of the root system
+    root_MTG: the root MTG detailing each root element
+
+    Returns
+    -------
+    [Nothing is returned, the root system has been updated with the new 'root_exchange_surface']
+    """
 
     g = root_MTG
 
@@ -73,25 +98,48 @@ def updating_exchange_surface(root_system, root_MTG):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 
-def computing_N_uptake_rate(root_system, root_MTG, Vmax_N_uptake = 2e-4, Km_N_uptake = 1e-6, N_soil = 1e-6):
+def computing_N_uptake_rate(root_system, root_MTG, Vmax_N_uptake = 2e-4, Km_N_uptake = 1e-6, N_soil = 1e-6,
+                            soil_temperature_in_degree_Celsius=10.):
 
-    # Vmax_N_uptake: mol of N per m2 of exchange surface per second
-    # Km_N_uptake: mol of N per gDW of root structural mass
-    # N_soil: mol of N per gDW of root structural mass
+    """
+    This function computes the rate of N uptake by roots, according to the concentration of soil available N and to soil
+    temperature. The pool of labile N in roots is not updated by the function.
+    Parameters
+    ----------
+    root_system: the object containing the general properties of the root system
+    root_MTG: the root MTG detailing each root element
+    Vmax_N_uptake: the maximal surfacic rate of N uptake from soil (gN per square meter of root exchange surface per second)
+    Km_N_uptake: the Michaelis-Menten constant corresponding to the soil available N concentration for which the rate of
+                 uptake is half of the maximal one (gN per gDW of soil)
+    N_soil: the concentration of available N in the soil (gN per gDW of soil)
+    soil_temperature_in_degree_Celsius: the mean temperature perceived by the root system (degree Celsius)
 
-    g = root_MTG
-    # We initialize the total N uptake rate of the whole root system:
+    Returns
+    -------
+    [Nothing is returned, the root system has been updated with the new 'N_uptake_rate']
+    """
+
+    # We initialize the total N uptake rate of the whole root system (gN per plant per second):
     N_uptake_rate = 0.
 
+    # We correct the maximal rate of N uptake according to soil temperature:
+    corrected_Vmax = Vmax_N_uptake * temperature_modification(temperature_in_Celsius=soil_temperature_in_degree_Celsius,
+                                                              process_at_T_ref=1,
+                                                              T_ref=param.N_uptake_T_ref,
+                                                              A=param.N_uptake_A,
+                                                              B=param.N_uptake_B,
+                                                              C=param.N_uptake_C)
+
     # We cover all the vertices in the MTG:
-    for vid in g.vertices_iter(scale=1):
+    for vid in root_MTG.vertices_iter(scale=1):
         # n represents the vertex:
-        n = g.node(vid)
+        n = root_MTG.node(vid)
         # If the root element can take up N:
         if n.length > 0. and N_soil > 0.:
-            # Then we increase the total N uptake of the root system with the N uptake by the current element:
-            N_uptake_rate += n.exchange_surface * Vmax_N_uptake * N_soil / (Km_N_uptake + N_soil)
+            # Then we increase the total rate of N uptake of the root system with the N uptake by the current element:
+            N_uptake_rate += n.exchange_surface * corrected_Vmax * N_soil / (Km_N_uptake + N_soil)
 
+    # We assign the final result to the whole root system:
     if N_uptake_rate < 0.:
         print("ERROR !!! The computed N uptake rate is negative!")
     else:
@@ -100,11 +148,58 @@ def computing_N_uptake_rate(root_system, root_MTG, Vmax_N_uptake = 2e-4, Km_N_up
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
+def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree_Celsius=10.):
+    """
+    This function computes the rate of nitrogen fixation by nodules that have developed on the root system. The nodules
+     are not explicitly represented. Instead, a rate for the whole root system is calculated, taking into account:
+      1) the mass and the age of each root segment (only mature root element will develop their full potential),
+      2) the concentration of labile N in the root system (fixation rate decreases with increasing labile root N),
+      3) the concentration of labile C in the root system (fixation rate only starts above a certain treshold).
+
+    Parameters
+    ----------
+    root_system: the root system containing general variables
+    root_MTG: the MTG corresponding to the root system
+    soil_temperature_in_degree_Celsius: the mean temperature perceived by the root system (degree Celsius)
+
+    Returns
+    -------
+    An updated version of the root system with the property "N2_fixation_rate".
+    """
+
+    g = root_MTG
+    # We initialize the total N2 fixation rate of the whole root system:
+    N2_fixation_rate = 0.
+
+    # We make sure that there is enough C to sustain the fixation, and not too much labile N already in the root:
+    if (root_system.root_labile_C_pool > param.minimal_labile_C_concentration_for_N2_fixation
+            and root_system.root_labile_N_pool <= param.maximal_labile_N_concentration_for_N2_fixation):
+
+        # We calculate a factor of modification based on the level of root labile N
+        # (i.e., the more the labile N, the less fixation there will be):
+        N_modulator = 1 - root_system.root_labile_N_pool / param.maximal_labile_N_concentration_for_N2_fixation
+
+        # We cover all the vertices in the MTG:
+        for vid in g.vertices_iter(scale=1):
+            # n represents the vertex:
+            n = g.node(vid)
+            # If the root element has emerged and is old enough to sustain N2 fixation:
+            if n.thermal_time_since_emergence > param.minimal_age_for_nodulation:
+                # Then we increase the total N2 fixation of the root system with the contribution of the current element,
+                # knowing that a young root element will contribute less than a more mature one:
+                N2_fixation_rate += (n.struct_mass * param.N2_fixation_rate_max
+                                     * max(1, (n.thermal_time_since_emergence/param.maturation_period_for_nodulation))
+                                     * N_factor)
+    # We finally assign the computed rate as the corresponding property of the whole root system:
+    root_system.N2_fixation_rate = N2_fixation_rate
+    # print("N2 fixation rate is", N2_fixation_rate, "mol of N per plant per second.")
+
+    return
 
 def updating_root_labile_N_with_input(root_system, time_step_in_seconds = 1 * (60*60*24)):
 
     # We update the labile pool:
-    root_system.root_labile_N_pool += root_system.N_uptake_rate * time_step_in_seconds # mol of N per root system
+    root_system.root_labile_N_pool += (root_system.N_uptake_rate + root_system.N2_fixation_rate) * time_step_in_seconds # mol of N per root system
     if root_system.root_labile_N_pool < 0.:
         print("WATCH OUT: after N uptake from soil, the labile N pool is negative - we reset it to 0!")
         root_system.root_labile_N_pool = 0.
@@ -407,7 +502,7 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
 
     # We update the pool of labile N, taking into account the possible deficit in N previously recorded,
     # and all processes affecting the N pool:
-    print("Before N balance, the labile N in roots is", r.root_labile_N_pool)
+    # print("Before N balance, the labile N in roots is", r.root_labile_N_pool)
     # print("The deficit in N was", r.root_labile_N_deficit, "and here are the fluxes involved:", r.N_uptake_rate, r.N_rhizodeposition_rate, r.net_N_immobilization_rate, r.net_N_transfer_from_root_to_shoot_rate, r.N_consumption_by_growth_rate)
     net_variation = (- r.root_labile_N_deficit +
                              (r.N_uptake_rate
@@ -415,9 +510,9 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
                               - r.net_N_immobilization_rate
                               - r.net_N_transfer_from_root_to_shoot_rate
                               - r.N_consumption_by_growth_rate) * time_step_in_seconds)
-    print("The net variation of N was", net_variation, "mol of N")
+    # print("The net variation of N was", net_variation, "mol of N")
     r.root_labile_N_pool += net_variation
-    print("After N balance, the labile N in roots is", r.root_labile_N_pool)
+    # print("After N balance, the labile N in roots is", r.root_labile_N_pool)
     # We reset the root labile N deficit to 0:
     r.root_labile_N_deficit = 0.
 
@@ -474,6 +569,7 @@ if __name__ == '__main__':
         # Setting N uptake by the root system:
         computing_N_uptake_rate(r, g, Vmax_N_uptake = param.Vmax_N_uptake, Km_N_uptake = param.Km_N_uptake,
                                 N_soil = 1e-3)
+        computing_N2_fixation_rate(r, g)
 
         # Rhizodeposition and update of labile C:
         computing_rhizodeposition_rate(r, g, time_step_in_seconds=time_step_in_seconds)

@@ -19,6 +19,7 @@ from math import sqrt, pi, floor, trunc, exp, isnan, cos, acos
 import os
 
 import simbal_parameters as param
+from tools import temperature_modification
 
 ########################################################################################################################
 ########################################################################################################################
@@ -141,7 +142,7 @@ def ADDING_A_PHYTOMER(parent_element,
     # We specified some properties that may be distinct from the parent element:
     bud.radius = param.bud_radius_ratio * parent_element.radius
     bud.length = bud_length
-    bud.angle_down = param.bud_insertion_angle
+    bud.angle_down = (param.bud_insertion_angle - param.leaf_insertion_angle)
     bud.angle_roll = 0.
     # We assign the surfaces and volumes:
     bud.surface = 0.
@@ -168,8 +169,8 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
 def new_phytomers_initiation(g, new_initiation = True,
-                             initial_internode_length = 0.001,
-                             initial_leaf_length = 0.001):
+                             initial_internode_length = 0.002,
+                             initial_leaf_length = 0.002):
     """
     This function defines how new phytomers are formed over time.
     :param g: the MTG corresponding to the shoot system
@@ -367,6 +368,29 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
 
         shape = pgl.Group([d3])
         return shape
+    def drop_shape(length=1., width=1.):
+        """
+        ...
+        :param length: length of the shape, defaults to 1.
+        :type length: float, optional
+        :param width: width of the shape, defaults to 1.
+        :type width: float, optional
+        :return: the shape
+        :rtype: pgl.Group
+        """
+        # We define a function giving points in 3D:
+        pts = lambda x, y, z: pgl.Vector4(x, y, z)
+        # We set two symetric curves, each of them will build the contours of one half of the leaf:
+        r1 = [pts(0, 0, 0), pts(3, -0.5, 1), pts(3, -3, 2), pts(-1, -5, 3), pts(-1, 0, 3)]
+        r2 = [pts(0, 0, 0), pts(3, 0.5, 1), pts(3, 3, 2), pts(-1, 5, 3), pts(-1, 0, 3)]
+        # We concatenate the two curves within a matrix of points:
+        m = pgl.Point4Matrix([r1, r2])
+        # We create a smoothened shape from this:
+        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
+        # We scale the shape according to the specified width and length:
+        leaf_scale = pgl.Vector3(1, width, length)
+        leaf_shape = pgl.Scaled(leaf_scale, shape)
+        return leaf_shape
 
     def shoot_visitor(g, v, turtle):
 
@@ -415,25 +439,29 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
             elif leaf_shape == "typical_leaf_shape":
                 scale_factor = 1. * length
                 leafshape = pgl.NurbsPatch([[(-0.0241355*scale_factor, -0.0549754*scale_factor, -0.00804807*scale_factor, 1),
-                                         (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
-                                         (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
+                                         # (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
+                                         # (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
                                          (-0.00223729*scale_factor, -0.00247516*scale_factor, 0.000385988*scale_factor, 1)],
                                         [(0.314084*scale_factor, -0.472921*scale_factor, 0.392759*scale_factor, 1),
-                                         (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
-                                         (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
+                                         # (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
+                                         # (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
                                          (0.408856*scale_factor, 0.483731*scale_factor, 0.413612*scale_factor, 1)],
                                         [(0.329337*scale_factor, -0.501345*scale_factor, 0.730665*scale_factor, 1),
-                                         (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
-                                         (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
+                                         # (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
+                                         # (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
                                          (0.414001*scale_factor, 0.558038*scale_factor, 0.74373*scale_factor, 1)],
                                         [(0.00223079*scale_factor, 0.0223592*scale_factor, 0.999352*scale_factor, 1),
-                                         (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
-                                         (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
+                                         # (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
+                                         # (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
                                          (-0.0011293*scale_factor, 0.0361733*scale_factor, 1.00279*scale_factor, 1)]])
                 turtle.customGeometry(leafshape)
+            # C. OPTION WITH UNILEAFLET:
             elif leaf_shape == "unileaflet":
                 turtle.customGeometry(unileaflet(length=length, width=2 * radius))
-            # C. OPTION WITH CLASSICAL CYLINDERS:
+            # D. OPTION WITH DROP SHAPE:
+            elif leaf_shape == "drop_shape":
+                turtle.customGeometry(drop_shape(length=length, width=2 * radius))
+            # E. OPTION WITH CLASSICAL CYLINDERS:
             else:
                 # We define the radius of the cylinder to be displayed:
                 turtle.setWidth(radius)
@@ -1350,7 +1378,8 @@ def potential_shoot_growth(g,
                            LA_max_relative_increase_per_day = 0.5,
                            leaf_minimal_thickness = 1e-3,
                            elong_internode=5e-7,
-                           time_step_in_seconds = 60.*60.*24.):
+                           time_step_in_seconds = 60.*60.*24.,
+                           air_temperature_in_degree_Celsius = 10.):
     """
     This function computes the potential increase in volume of each organ in the shoot system.
     :param g: the shoot system
@@ -1360,8 +1389,20 @@ def potential_shoot_growth(g,
     :param leaf_minimal_thickness: the minimal thickness of a leaf (m)
     :param elong_internode: a potential rate of elongation (m per second)
     :param time_step_in_seconds: the time step of the simulation (seconds)
+    :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
     :return:
     """
+
+    # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
+    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+                                                                 process_at_T_ref=1,
+                                                                 T_ref=param.shoot_growth_T_ref,
+                                                                 A=param.shoot_growth_A,
+                                                                 B=param.shoot_growth_B,
+                                                                 C=param.shoot_growth_C)
+    # We calculate the equivalent time step in thermal time:
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
+    thermal_time_step_in_days = thermal_time_step_in_seconds/(60.*60.*24.)
 
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
@@ -1373,8 +1414,9 @@ def potential_shoot_growth(g,
             potential_leaf_surface = SFQN * n.N_labile
             # We calculate the potential surface increase (m2), knowing that the surface can't become higher than LA_max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, LA_max - n.surface)
-            # We calculate the maximal surface increase (m2), knowing that the surface increase can't become higher than the maximal increase:
-            maximal_surface_increase = n.surface * LA_max_relative_increase_per_day * (time_step_in_seconds / (60*60.*24.))
+            # We calculate the maximal surface increase (m2), knowing that the surface increase cannot become higher
+            # than the maximal increase rate allowed:
+            maximal_surface_increase = n.surface * LA_max_relative_increase_per_day * thermal_time_step_in_days
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
             # TODO: what happens if the leaf has already a thickness higher than the minimal one?
@@ -1386,7 +1428,7 @@ def potential_shoot_growth(g,
             # TODO: the elongation rate of the internode should react to a signal or plant stage!
             # TODO: an internode should also increase in diameter over time!
             # And we compute the potential volume increment:
-            n.potential_volume_increment = potential_elongation_rate * (n.radius ** 2 * pi) * time_step_in_seconds
+            n.potential_volume_increment = potential_elongation_rate * (n.radius ** 2 * pi) * thermal_time_step_in_seconds
         else:
             n.potential_volume_increment = 0.
         # TODO: define a case for the transformation of axillary buds into active apices!
@@ -1470,9 +1512,11 @@ def actual_shoot_growth(g,
                         structural_C_content = 0.44,
                         structural_N_content = 0.02,
                         leaf_minimal_thickness = 1e-3,
-                        time_step_in_seconds = 60.*60.*24.):
+                        time_step_in_seconds = 60.*60.*24.,
+                        air_temperature_in_degree_Celsius = 10.):
     """
-    This function computes the actual growth of the shoot system, depending on the C and N available in each organ.
+    This function computes the actual growth of the shoot system, depending on the C and N available in each organ,
+    as well as the ageing of each shoot element.
     :param g: the shoot system
     :param yield_growth: the fraction of the total C used for growth that will be incorporated to the new mass (the rest is respired) (gC per gC)
     :param struct_mass_density: the density of the structural mass (gram of structural maqss per m3)
@@ -1480,8 +1524,19 @@ def actual_shoot_growth(g,
     :param structural_N_content: the N content of the structural mass (gN per gram of structural mass)
     :param leaf_minimal_thickness: the minimal thickness of a leaf (m)
     :param time_step_in_seconds: the time step (seconds)
+    :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
     :return:
     """
+
+    # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
+    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+                                                                 process_at_T_ref=1,
+                                                                 T_ref=param.shoot_growth_T_ref,
+                                                                 A=param.shoot_growth_A,
+                                                                 B=param.shoot_growth_B,
+                                                                 C=param.shoot_growth_C)
+    # We calculate the equivalent time step in thermal time:
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
 
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
@@ -1492,6 +1547,10 @@ def actual_shoot_growth(g,
 
         # We define the current organ as "n":
         n = g.node(vid)
+
+        # First, we increment the time since the shoot element has been formed:
+        n.actual_time_since_formation +=  time_step_in_seconds
+        n.thermal_time_since_formation += thermal_time_step_in_seconds
 
         # If the element does not have any potential growth, the we move to the next element:
         if n.potential_volume_increment <=0.:
@@ -1594,19 +1653,36 @@ def updating_coordinates(g):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_senescence(g):
+def computing_senescence(shoot_MTG,
+                         time_step_in_seconds=1/(60.*60.*24.),
+                         air_temperature_in_degree_Celsius=10.):
+
+    # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
+    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+                                                                 process_at_T_ref=1,
+                                                                 T_ref=param.shoot_growth_T_ref,
+                                                                 A=param.shoot_growth_A,
+                                                                 B=param.shoot_growth_B,
+                                                                 C=param.shoot_growth_C)
+    # We calculate the equivalent time step in thermal time:
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
+    thermal_time_step_in_days = thermal_time_step_in_seconds/(60.*60.*24.)
 
     # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
+    for vid in shoot_MTG.vertices_iter(scale=1):
 
         # We define the current element as n:
-        n = g.node(vid)
-        # We make sure that the current element has a positive length:
-        if n.length<=0.:
+        n = shoot_MTG.node(vid)
+        # We make sure that the current element has a positive length and is not an axilliary bud:
+        if n.length<=0. or n.label=="Bud":
             continue
-
-        if n.C_labile_deficit >= 0.:
-            n.senescence_status = True
+        # We verify whether the current element shoud start senescing:
+        if n.senescence_status == False:
+            # If there is no labile C to sustain the element or if it has reached a maximal "youth" age:
+            if (n.C_labile_deficit >= 0.
+                    or (n.thermal_time_since_formation + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
+                # We declare that the element should senesce:
+                n.senescence_status = True
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1793,7 +1869,9 @@ def ramification(g, initial_internode_length=0.0005, initial_leaf_length=0.001):
             leaf = g.node(leaf_index)
             light_interception = leaf.PAR_intercepted / leaf.surface
             # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
-            if  light_interception >= 1.5e7 and bud.thermal_time_since_formation >= 60 and bud.ramification_order <= 1:
+            if  (light_interception >= param.bud_light_threshold
+                    and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
+                    and bud.ramification_order <= 1):
                 bud.emergence_possibility = True
 
     # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
@@ -2098,18 +2176,21 @@ if __name__ == '__main__':
         # We display the MTG in its new state:
         # Option 1A - With PlantGL:
         #--------------------------
-        graph = plotting_shoot_MTG(g, width=1200, height=900,
-                               x_center=0, y_center=0, z_center=0.03,
-                               x_cam=0.18, y_cam=0.18, z_cam=0.03,
-                               grid=False,
-                               # background_color=[0, 0, 0],
-                               single_color=[100,150,50],
-                               # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
-                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
-                               # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
-                               # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-                               recording_plot=True,
-                               plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
+        graph = plotting_shoot_MTG(g,
+                                   leaf_shape="typical_leaf_shape",
+                                   # leaf_shape="drop_shape",
+                                   width=1200, height=900,
+                                   x_center=0, y_center=0, z_center=0.03,
+                                   x_cam=0.18, y_cam=0.18, z_cam=0.03,
+                                   grid=False,
+                                   # background_color=[0, 0, 0],
+                                   single_color=[100,150,50],
+                                   # property_name='C_labile', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
+                                   property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
+                                   # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
+                                   # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
+                                   recording_plot=True,
+                                   plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
 
         # # Option 1B - With Pyvista:
         # #--------------------------
