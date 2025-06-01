@@ -1,3 +1,12 @@
+#  -*- coding: utf-8 -*-
+
+"""
+    The script 'AllocF' contains all functions for running the development anf functionning of the aerial parts of the plant.
+
+    :copyright: see AUTHORS.
+    :license: see LICENSE for details.
+"""
+
 import openalea.mtg
 from openalea.mtg import *
 from openalea.mtg import turtle as turt
@@ -8,18 +17,14 @@ import openalea.plantgl.all as pgl
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.data_samples import data_path
 
-try: 
-    import pyvista as pv
-except ImportError:
-    pv = None
+import simbal_parameters as param
+from tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
+                   create_a_scene_with_plants_popuplation, plotting_shoot_MTG)
 
+import os
 import numpy as np
 import pandas as pd
-from math import sqrt, pi, floor, trunc, exp, isnan, cos, acos
-import os
-
-import simbal_parameters as param
-from tools import temperature_modification
+from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 
 ########################################################################################################################
 ########################################################################################################################
@@ -78,12 +83,34 @@ def ADDING_A_PHYTOMER(parent_element,
                       struct_mass_density=1e5, minimal_leaf_thickness=1e-3,
                       internode_radius=0.,
                       internode_length=0.,
-                      leaf_radius=0.,
+                      leaf_width=0.,
                       leaf_length=0.,
                       bud_length=0.,
                       properties_identical_to_parent = True,
                       nil_properties = False
                       ):
+    """
+    This function adds one phytomer (internode + leaf + bud) on the same axis as the parent element. Note that the leaf
+     is defined as the direct child of the internod, and the bud is the direct child of the leaf (not the internode).
+
+    Parameters
+    ----------
+    parent_element: the parent element above which the phytomer is added
+    struct_mass_density: the density of the structural mass (gDW per cubic meter)
+    minimal_leaf_thickness: the tickness of the leaf to be created (meters)
+    internode_radius: the radius of the internode to be created (meters)
+    internode_length: the length of the internode to be created (meters)
+    leaf_width: the width of the leaf to be created (meters)
+    leaf_length: the length of the leaf to be created (meters)
+    bud_length: the length of the bud to be created (meters)
+    properties_identical_to_parent: if True, the non-geometrical properties of the phytomers will be derived from those of the parent element
+    nil_properties: if True, the non-geometrical properties of the phytomers will be set to 0
+
+    Returns
+    -------
+    A list containing the three objects of the new phytomer, i.e. the internode, the leaf and the bud
+    """
+
 
     # 1) We first create a new internode:
     # ------------------------------------
@@ -116,7 +143,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                 properties_identical_to_parent=properties_identical_to_parent,
                                 nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
-    leaf.radius = leaf_radius
+    leaf.radius = leaf_width
     leaf.length = leaf_length
     leaf.angle_down = param.leaf_insertion_angle
     leaf.angle_roll = 0.
@@ -168,20 +195,29 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
-def new_phytomers_initiation(g, new_initiation = True,
+def new_phytomers_initiation(shoot_MTG, new_initiation = True,
                              initial_internode_length = 0.002,
                              initial_leaf_length = 0.002):
     """
-    This function defines how new phytomers are formed over time.
-    :param g: the MTG corresponding to the shoot system
-    :return:
+    This function creates new phytomers (internode + leaf + bud) wherever neceassry in the shoot MTG.
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG containing all shoot elements
+    new_initiation: a condition for allowing the creation of new phytomers (True by default)
+    initial_internode_length: the initial length of the internode of the phytomers to be created (meters)
+    initial_leaf_length: the initial length of the leaf of the phytomers to be created (meters)
+
+    Returns
+    -------
+    [Nothing is returned, the shoot system has been updated with new elements corresponding to the new phytomers]
     """
 
     # We initialize the current list of apices in the shoot system that may produce new phytomers:
-    list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Apex"]
+    list_of_apices = [shoot_MTG.node(vid) for vid in shoot_MTG.vertices_iter(scale=1)
+                      if shoot_MTG.node(vid).label == "Apex"]
 
     # We initialize a condition defining whether new phytomers should develop from a given apex:
-    apparition_condition=new_initiation # TODO: Define how and when new phytomers are formed!
+    apparition_condition = new_initiation
 
     # As long as the list of apices to treat is not empty:
     while list_of_apices != []:
@@ -195,7 +231,7 @@ def new_phytomers_initiation(g, new_initiation = True,
                 [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                            internode_radius=apex.radius,
                                                            internode_length=initial_internode_length,
-                                                           leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
+                                                           leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
                                                            leaf_length=initial_leaf_length,
                                                            bud_length=0.,
                                                            properties_identical_to_parent=False,
@@ -203,7 +239,7 @@ def new_phytomers_initiation(g, new_initiation = True,
                                                            )
 
                 # We remove the previous apex:
-                g.remove_vertex(apex.index(), reparent_child=True)
+                shoot_MTG.remove_vertex(apex.index(), reparent_child=True)
                 # And we add a new apex at the top of the new internode, of length 0:
                 new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                                 edge_type="<",
@@ -212,7 +248,7 @@ def new_phytomers_initiation(g, new_initiation = True,
                                                 nil_properties=False)
                 # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
                 new_apex.length = 0.
-                # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
+                # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS ON THE TOP OF EACH OTHERS
                 # # Finally, we update the list of apices by adding the new apex that has been formed,
                 # # in case it could itself form a new phytomer:
                 # list_of_apices.append(new_apex)
@@ -226,6 +262,22 @@ def create_shoot_MTG(number_of_phytomers=3,
                      initial_internode_radius=0.001,
                      initial_internode_height = 0.0005,
                      struct_mass_density=1e5, minimal_leaf_thickness=1e-3):
+    """
+    This function is used to create the shoot part of a plant with a succession of different phytomers on the same branch.
+
+    Parameters
+    ----------
+    number_of_phytomers: the number of successive phytomers to be created
+    initial_leaf_length: the length of the leaves to be created (meters)
+    initial_internode_radius: the radius of the internodes to be created (meters)
+    initial_internode_height: the height of the internodes to be created (meters)
+    struct_mass_density: the density of the structural mass (gDW per cubic meter)
+    minimal_leaf_thickness: the thickness of the leaves to be created (meters)
+
+    Returns
+    -------
+    The new shoot MTG with the appropriate number of phytomers.
+    """
 
     # We initialize an empty MTG:
     g = MTG()
@@ -289,7 +341,7 @@ def create_shoot_MTG(number_of_phytomers=3,
                                                                minimal_leaf_thickness=minimal_leaf_thickness,
                                                                internode_radius=new_internode.radius * 0.9,
                                                                internode_length=initial_internode_height,
-                                                               leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio,
+                                                               leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio,
                                                                leaf_length=initial_leaf_length,
                                                                bud_length=0.)
 
@@ -329,695 +381,8 @@ def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
             # NB: we need to add 'iloc[0]' as the previous expression otherwise returns a series, not a single value.
     return g
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for moving the turtle and create specific shapes for stems and leaves:
-def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
-    """
-    This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
-    :leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
-    are displayed with a typical leaf curved shape, based on their length only.
-    :return: shoot_visitor
-    """
-
-    def oval_shape(length=1., width=1.):
-        """
-        This simple function generates a PlantGL shape of an ellipse, defined by a length and a width.
-        """
-        # We create first a round disc:
-        disc = pgl.Disc()
-        # We specify the number of triangles to build this shape (8 by default):
-        disc.slices = 12
-        # And we now 'deform' the disc so that it becomes an ellipse characterized by a length and a width:
-        shape = pgl.Scaled((length, width, 1), disc)
-        return shape
-
-    def unileaflet(length=1., width=1.):
-        """Generates a unileaflet shape [taken from Colzette].
-
-        :param length: length of the shape, defaults to 1.
-        :type length: float, optional
-        :param width: width of the shape, defaults to 1.
-        :type width: float, optional
-        :return: the shape
-        :rtype: pgl.Group
-        """
-        disc = pgl.Translated((-0.5, 0, 0), pgl.Disc())
-        disc = pgl.Scaled((length, width, 1), disc)
-        disc = pgl.AxisRotated(axis=(0, 1, 0), angle=pi/2., geometry=disc)
-
-        d3 = pgl.AxisRotated(axis=(1, 0, 0), angle=0., geometry=disc)
-
-        shape = pgl.Group([d3])
-        return shape
-    def drop_shape(length=1., width=1.):
-        """
-        ...
-        :param length: length of the shape, defaults to 1.
-        :type length: float, optional
-        :param width: width of the shape, defaults to 1.
-        :type width: float, optional
-        :return: the shape
-        :rtype: pgl.Group
-        """
-        # We define a function giving points in 3D:
-        pts = lambda x, y, z: pgl.Vector4(x, y, z)
-        # We set two symetric curves, each of them will build the contours of one half of the leaf:
-        r1 = [pts(0, 0, 0), pts(3, -0.5, 1), pts(3, -3, 2), pts(-1, -5, 3), pts(-1, 0, 3)]
-        r2 = [pts(0, 0, 0), pts(3, 0.5, 1), pts(3, 3, 2), pts(-1, 5, 3), pts(-1, 0, 3)]
-        # We concatenate the two curves within a matrix of points:
-        m = pgl.Point4Matrix([r1, r2])
-        # We create a smoothened shape from this:
-        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
-        # We scale the shape according to the specified width and length:
-        leaf_scale = pgl.Vector3(1, width, length)
-        leaf_shape = pgl.Scaled(leaf_scale, shape)
-        return leaf_shape
-
-    def shoot_visitor(g, v, turtle):
-
-        # We access the node corresponding to the vertex ID "v" of the MTG "g":
-        n = g.node(v)
-
-        # We look at the geometrical properties already defined within the root element:
-        radius = n.radius * upscaling_factor
-        length = n.length * upscaling_factor
-        angle_down = n.angle_down
-        angle_roll = n.angle_roll
-
-        # We get the x,y,z coordinates from the beginning of the root segment, before the turtle moves:
-        position1 = turtle.getPosition()
-        n.x1 = position1[0] * upscaling_factor
-        n.y1 = position1[1] * upscaling_factor
-        n.z1 = position1[2] * upscaling_factor
-        # The turtle is moved:
-        turtle.setId(v)
-        # The direction of the turtle is changed:
-        turtle.down(angle_down)
-        turtle.rollL(angle_roll)
-
-        # 1) CASE OF A LEAF:
-        #-------------------
-        # In the current element corresponds to a leaf:
-        if n.label == 'Leaf':
-            # A. OPTION WITH OVAL SHAPE:
-            if leaf_shape == "oval":
-                # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
-                # to be displayed:
-                turtle.f(length/2.)
-                # We also need to rotate the turtle so that the oval is correctly oriented:
-                turtle.down(90)
-                # Finally, we print the oval shape according to the length and radius of the leaf:
-                turtle.customGeometry(oval_shape(length = length, width = 2 * radius))
-                # We reposition the turtle at the base of the leaf:
-                # We first revert the angle:
-                turtle.down(-90)
-                # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
-                turtle.down(180)
-                turtle.f(length/2.)
-                # And finally, we reorientate the turtle:
-                turtle.down(180)
-            # B. OPTION WITH 'TYPICAL' LEAF SHAPE:
-            elif leaf_shape == "typical_leaf_shape":
-                scale_factor = 1. * length
-                leafshape = pgl.NurbsPatch([[(-0.0241355*scale_factor, -0.0549754*scale_factor, -0.00804807*scale_factor, 1),
-                                         # (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
-                                         # (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
-                                         (-0.00223729*scale_factor, -0.00247516*scale_factor, 0.000385988*scale_factor, 1)],
-                                        [(0.314084*scale_factor, -0.472921*scale_factor, 0.392759*scale_factor, 1),
-                                         # (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
-                                         # (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
-                                         (0.408856*scale_factor, 0.483731*scale_factor, 0.413612*scale_factor, 1)],
-                                        [(0.329337*scale_factor, -0.501345*scale_factor, 0.730665*scale_factor, 1),
-                                         # (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
-                                         # (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
-                                         (0.414001*scale_factor, 0.558038*scale_factor, 0.74373*scale_factor, 1)],
-                                        [(0.00223079*scale_factor, 0.0223592*scale_factor, 0.999352*scale_factor, 1),
-                                         # (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
-                                         # (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
-                                         (-0.0011293*scale_factor, 0.0361733*scale_factor, 1.00279*scale_factor, 1)]])
-                turtle.customGeometry(leafshape)
-            # C. OPTION WITH UNILEAFLET:
-            elif leaf_shape == "unileaflet":
-                turtle.customGeometry(unileaflet(length=length, width=2 * radius))
-            # D. OPTION WITH DROP SHAPE:
-            elif leaf_shape == "drop_shape":
-                turtle.customGeometry(drop_shape(length=length, width=2 * radius))
-            # E. OPTION WITH CLASSICAL CYLINDERS:
-            else:
-                # We define the radius of the cylinder to be displayed:
-                turtle.setWidth(radius)
-                # We move the turtle by the length of the root segment:
-                turtle.F(length)
-                # And then we come back discretely to the initial position:
-                turtle.down(180)
-                turtle.f(length)
-                turtle.down(180)
-
-        # 2) CASE OF ANOTHER SHOOT ORGAN:
-        # -------------------------------
-        # Otherwise, if the current element is not a leaf, it is defined as a cylinder:
-        else:
-            # We define the radius of the cylinder to be displayed:
-            turtle.setWidth(radius)
-            # We move the turtle by the length of the root segment:
-            turtle.F(length)
-
-        # We get the x,y,z coordinates from the end of the root segment, after the turtle has moved:
-        position2 = turtle.getPosition()
-        n.x2 = position2[0] * upscaling_factor
-        n.y2 = position2[1] * upscaling_factor
-        n.z2 = position2[2] * upscaling_factor
-
-    return shoot_visitor
-
-def create_a_scene_with_plants_popuplation(g,
-                                           number_of_plants_per_square_meter = 9,
-                                           inter_row_distance = 0.45,
-                                           scene_length=1.,
-                                           scene_width=1.,
-                                           true_color=True,
-                                           surrounding_plants_transparency=0.,
-                                           leaf_shape="oval",
-                                           upscaling_factor=1):
-    """
-    This function generates a scene containing a population of plants, all cloned from the same plant MTG "g",
-    and distributed within rows with a random orientation. The plant in the middle of the scene is the last set of shapes
-    given by the scene. The surrounding plants can be displayed as (semi-) transparent or not.
-
-    Parameters
-    ----------
-    g: the MTG corresponding to the shoot system
-    number_of_plants_per_square_meter: plant density (plants per m2)
-    inter_row_distance: distance between two rows (m)
-    scene_length: length of the rows (m)
-    scene_width: width of the scene (m)
-    true_color: if so, ...
-    surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full trnasparency)
-    leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
-    are displayed with a typical leaf curved shape, based on their length only.
-    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
-
-    Returns
-    -------
-    final_scene: the final scene with the population of plants
-
-    """
-
-    # 1.COMPUTING PLANT POSITIONS:
-    ##############################
-
-    # We calculate the number of rows and plants to be show in the scene:
-    number_of_rows = floor(scene_width/float(inter_row_distance)) + 1
-    number_of_plants = int(number_of_plants_per_square_meter * (scene_length*scene_width))
-    # We make sure that there is a least one row containing plants:
-    if number_of_plants < number_of_rows:
-        number_of_rows = number_of_plants
-
-    # We calculate the number of plants per row:
-    number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
-    # We calculate the distance between two plants within a row (in meters):
-    inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
-    # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
-    # within the square scene:
-    lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
-    lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
-
-    # We initialize the list that will contain the x,y,z coordinates of each plant in the scene:
-    list_of_positions = []
-    # We move to the position of the first plant:
-    x = lateral_border_length * upscaling_factor
-    y = lateral_border_width * upscaling_factor
-    z = 0. * upscaling_factor
-    # We cover each plant of the scene:
-    for plant_index in range(0, number_of_plants):
-        # We add the new position (x,y,z) to the list:
-        list_of_positions.append((x,y,z))
-        # And we move from one plant to another on the same row:
-        x += inter_plant_distance * upscaling_factor
-        # If we have reached the maximal length of a given row:
-        if x > scene_length * upscaling_factor:
-            # Then we switch to the next row:
-            y +=  inter_row_distance * upscaling_factor
-            # And we start at the beginning of the new row:
-            x = lateral_border_length * upscaling_factor
-    # We define the index of the position of the plant that stays in the middle of the scene :
-    index_middle_plant = floor(number_of_plants/ 2.)
-    # And we move the position of the middle plant to the last position of the list, so that it is easily recognizable:
-    list_of_positions.append(list_of_positions[index_middle_plant])
-    list_of_positions.remove(list_of_positions[index_middle_plant])
-
-    # CREATING THE FINAL SCENE:
-    ###########################
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-    # We initialize the final scene:
-    final_scene = pgl.Scene()
-
-    # We create a "soil surface" corresponding to the limits of the scene:
-    points = [(0, 0, 0),
-              (scene_length * upscaling_factor, 0, 0),
-              (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-              (0, scene_width * upscaling_factor, 0)]
-    normals = [(0, 0, 1) for i in range(4)]
-    indices = [(0, 1, 2, 3)]
-    square = pgl.QuadSet(points, indices, normals, indices)
-    # We define the same color for each of the 4 points:
-    square.colorList = [pgl.Color4(100,100,0,200) for i in range(4)]
-    final_scene += square
-
-    # If the option "true_color" has been required:
-    if true_color:
-        # We try to access the dictionnary containing the colors of each vertex:
-        colors = g.property('color')
-        # However, if the dictionnary is empty, we reset the option to False:
-        if colors == {}:
-            true_color = False
-
-    # We cover each plant in the population:
-    for plant_index in range(0,len(list_of_positions)):
-
-        # We first define the seed of random, depending on the index of the plant:
-        np.random.seed(int(param.random_choice * plant_index))
-        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-        angle_roll = abs(np.random.normal(180, 180))
-
-        # We reset the turtle:
-        turtle.reset()
-        # And we reposition the turtle from there:
-        turtle.move(list_of_positions[plant_index])
-        turtle.rollL(angle_roll)
-        # We create a scene for one plant by moving the turtle along the MTG:
-        scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor), turtle=turtle, gc=False)
-
-        # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene)
-
-        # We cover each shape of the current MTG:
-        for shape in scene:
-            # If the true color has to be activated:
-            if true_color:
-                # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-                if plant_index == len(list_of_positions) - 1:
-                    # Then we add the color of the corresponding vertex, with no transparency:
-                    shape.appearance = pgl.Material(colors[shape.id], transparency=0.0)
-                else:
-                    # Then we add the color of the corresponding vertex, with semi-transparency:
-                    shape.appearance = pgl.Material(colors[shape.id], transparency=surrounding_plants_transparency)
-            else:
-                # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-                if plant_index == len(list_of_positions) - 1:
-                    # Then we add the color of the corresponding vertex, with no transparency:
-                    shape.appearance = pgl.Material([0, 250, 0], transparency=0.0)
-                else:
-                    # For all other plants, we set nearly transparent plants with greenish colors:
-                    shape.appearance = pgl.Material([50, 200, 50], transparency=surrounding_plants_transparency)
-            # Finally, we add the shape to the final scene:
-            final_scene += shape
-
-    return final_scene
-
-# Function for creating a color map for a MTG:
-def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
-    """
-    This function computes a property 'color' on a MTG based on a given MTG's property.
-    :param g: the investigated MTG
-    :param property_name: the name of the property of the MTG that will be displayed
-    :param cmap: the type of color map
-    :param vmin: the min value to be displayed
-    :param vmax: the max value to be displayed
-    :param lognorm: a Boolean describing whether the scale is logarithmic or not
-    :return: the MTG with the corresponding color
-    """
-
-    # We make sure that the user did not accidently switch between vmin and vmax:
-    if vmin >= vmax:
-        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
-    if lognorm and (vmin <= 0 or vmax <= 0):
-        raise Exception(
-            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
-
-    prop = g.property(property_name)
-    keys = prop.keys()
-    values = list(prop.values())
-    # m, M = int(values.min()), int(values.max())
-
-    _cmap = color.get_cmap(cmap)
-    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
-    values = norm(values)
-
-    colors = (_cmap(values)[:, 0:3]) * 255
-    colors = np.array(colors, dtype=int).tolist()
-
-    g.properties()['color'] = dict(zip(keys, colors))
-
-    return g
-
-# Function for setting the center anc camera position in a scene:
-def setting_PGLViewer(width=1200, height=1200,
-                      x_center=0., y_center=0., z_center=0.,
-                      x_cam=0., y_cam=0., z_cam=-0.2,
-                      grid=True,
-                      background_color=[255, 255, 255]):
-    """
-    This function sets the center of the graph and the relative position of the camera for displaying a scene in
-    PGL.
-    :param width: width of the window (pixels)
-    :param height: height of the window (pixels)
-    :param x_center: x-coordinate of the center at which the camera looks
-    :param y_center: y-coordinate of the center at which the camera looks
-    :param z_center: z-coordinate of the center at which the camera looks
-    :param x_cam: x-coordinate of the camera position
-    :param y_cam: y-coordinate of the camera position
-    :param z_cam: z-coordinate of the camera position
-    :param grid: if True, all grids will be displayed
-    :param background_color: a RGB vector corresponding to the background color of the graph
-    :return:
-    """
-
-    # We define the coordinates of the point cam_target that will be the center of the graph:
-    cam_target = pgl.Vector3(x_center, y_center, z_center)
-    # We define the coordinates of the point cam_pos that represents the position of the camera:
-    cam_pos = pgl.Vector3(x_cam, y_cam, z_cam)
-    # We position the camera in the scene relatively to the center of the scene:
-    pgl.Viewer.camera.lookAt(cam_pos, cam_target)
-    # We define the dimensions of the graph:
-    pgl.Viewer.frameGL.setSize(width, height)
-    # We define the background of the scene:
-    pgl.Viewer.frameGL.setBgColor(background_color[0], background_color[1], background_color[2])
-    # We define whether grids are displayed or not:
-    pgl.Viewer.grids.set(grid, grid, grid, grid)
-
-    return
-
 #-----------------------------------------------------------------------------------------------------------------------
-# This function enables to plot a shoot MTG with PlantGL:
-def plotting_shoot_MTG(g,
-                       # leaf_shape="oval",
-                       leaf_shape="typical_leaf_shape",
-                       width=1200, height=900,
-                       x_center=0, y_center=-0, z_center=0.,
-                       x_cam=5., y_cam=5., z_cam=-1,
-                       grid=True,
-                       background_color=[94, 76, 64],
-                       single_color=None,
-                       property_name='radius', cmap='jet', vmin=1e-4, vmax=1e-2, lognorm=True,
-                       recording_plot=True,
-                       plot_name='plot.png'):
-
-    # CREATING THE PLOT:
-    #-------------------
-
-    # We first compute the colors of the graph:
-    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    # We use the property 'color' of the MTG calculated by the function 'my_colormap':
-    colors = g.property('color')
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-
-    # We initialize a scene:
-    new_scene = pgl.Scene()
-
-    # SETTING THE NEW SCENE WITH THE TURTLE:
-    # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape), turtle=turtle, gc=False)
-
-    # We get a dictionnary of all shapes in the scene:
-    shapes = dict((sh.id, sh) for sh in scene)
-    # We cover each node of the MTG:
-    for vid in colors:
-        if vid in shapes:
-            n = g.node(vid)
-            if single_color is None:
-                shapes[vid].appearance = pgl.Material(colors[vid], transparency=0.0)
-            else:
-                # Otherwise, we can print it with a unique color:
-                shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
-
-    # We add each shape of the current MTG to the final scene:
-    for shape in scene:
-        new_scene += shape
-
-    # SETTING THE VIEWER OPTIONS:
-    setting_PGLViewer(width=width, height=height,
-                      x_center=x_center, y_center=y_center, z_center=z_center,
-                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                      grid=grid,
-                      background_color=background_color)
-
-    # DISPLAYING THE MTG:
-    pgl.Viewer.display(new_scene)
-
-    # RECORDING THE MTG:
-    if recording_plot:
-        print("Saving the PlantGL plot...")
-        pgl.Viewer.saveSnapshot(plot_name)
-        print("Plot saved!")
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-def plotting_shoot_MTG_population(g,
-                                  number_of_plants_per_square_meter=33,
-                                  inter_row_distance=0.45,
-                                  scene_length=1.,
-                                  scene_width=1.,
-                                  leaf_shape="oval",
-                                  width=1200, height=900,
-                                  x_center=0, y_center=-0, z_center=0.,
-                                  x_cam=5., y_cam=5., z_cam=-1,
-                                  grid=True,
-                                  background_color=[94, 76, 64],
-                                  single_color=None,
-                                  property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-                                  recording_plot=True,
-                                  plot_filepath='plot.png'
-                                  ):
-
-    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    complete_scene = create_a_scene_with_plants_popuplation(g,
-                                                            number_of_plants_per_square_meter=number_of_plants_per_square_meter,
-                                                            inter_row_distance=inter_row_distance,
-                                                            scene_length=scene_length,
-                                                            scene_width=scene_width,
-                                                            leaf_shape=leaf_shape)
-    setting_PGLViewer(width=width, height=height,
-                      x_center=x_center, y_center=y_center, z_center=z_center,
-                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                      grid=grid,
-                      background_color=background_color)
-    # background_color=[150, 200, 250])
-    pgl.Viewer.display(complete_scene)
-    pgl.Viewer.saveSnapshot(plot_filepath)
-
-    return
-
-
-# Function that methodically creates each shape (takes a long time for large root systems):
-def plotting_shoots_with_pyvista(g,
-                                showing=True, recording_image=True, image_file='plot_.png',
-                                factor_of_higher_resolution = 1,
-                                background_color = [94, 76, 64],
-                                plot_width=1000, plot_height=750,
-                                camera_x=2., camera_y=0., camera_z=0.5,
-                                focal_x=0., focal_y=0., focal_z=0.,
-                                closing_window=False):
-    """
-    This functions aims to plot a shoot system with Pyvista, creating step by step every shape.
-    :param g: the root MTG to be displayed
-    :param showing: if True, a Pyvista window will be opened
-    :param recording_image: if True, an image file of the plot will be recorded
-    :param image_file: name of the image file
-    :param closing_window: if True, the Pyvista window will be closed after having shown the plot
-    :param background_color: a list containing three integers corresponding to Red, Green and Blue values (0-255)
-    :param plot_width: width of the plot (in pixels)
-    :param plot_height: height of the plot (in pixels)
-    :param camera_x: x-coordinate of the camera position
-    :param camera_y: y-coordinate of the camera position
-    :param camera_z: z-coordinate of the camera position
-    :param focal_x: x-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_y: y-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_z: z-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :return:
-    """
-    if pv is  None:
-        raise Exception('Install pyvista')
-    
-    # We initialize a plot:
-    p = pv.Plotter()
-    # p = pvqt.BackgroundPlotter() # If we want to update the graph when opened
-    if recording_image and not showing:
-        p.off_screen=True
-
-    # We initialize a list of blocks and empty lists:
-    blocks = pv.MultiBlock()
-    colors=[]
-    opacity=[]
-
-    # CREATING THE SHAPES:
-    ######################
-
-    # The creation of the cylinders with no directions raises a Warning in numpy, but we can ignore it.
-    np.seterr(invalid='ignore')
-
-    print("    > Creating the shapes of the plot...")
-    # We cover all the vertices in the MTG g:
-    for vid in g.vertices_iter(scale=1):
-
-        # We define the current root element as n:
-        n = g.node(vid)
-        # We skip this element if it does not have a positive length:
-        if n.length <= 0.:
-            continue
-
-        # We calculate the geometric features required by pyvista to display a cylinder at the right spot:
-        x1 = n.x1
-        x2 = n.x2
-        y1 = n.y1
-        y2 = n.y2
-        z1 = n.z1
-        z2 = n.z2
-        center_x = (x1 + x2) / 2.
-        center_y = (y1 + y2) / 2.
-        center_z = (z1 + z2) / 2.
-        direction_x = x2 - x1
-        direction_y = y2 - y1
-        direction_z = z2 - z1
-        # normal_x = direction_x * np.cos(90) - direction_y * np.sin(90)
-        # normal_y = direction_x * np.sin(90) + direction_y * np.cos(90)
-        # normal_z = direction_z
-        height = ((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2) ** 0.5
-        radius = n.radius
-        # We add the color and opacity to a list:
-        color = n.color
-        colors.append(color)
-        opacity.append(1) # Here, all the elements are supposed to be fully opaques
-
-        if n.label == "Internode":
-            # We create a new cylinder with the proper dimensions and position:
-            shape = pv.Cylinder(center=(center_x,center_y,center_z), direction=(direction_x, direction_y, direction_z),
-                                radius=radius, height=height)
-        elif n.label == "Leaf":
-            shape = pv.Disc(center=(center_x, center_y, center_z), inner=0., outer=n.length/2., c_res=12,
-                            normal=(-direction_x, -direction_y, direction_z))
-            # shape = pv.Triangle([[x1,y1,z1], [x2-0.1,y2-0.1,z2], [x2+0.1,y2+0.1,z2]])
-            # shape = shape.rotate_vector(vector=(x2, -y2, 0), angle=180, point=(center_x, center_y, center_z))
-            # shape = shape.rotate_vector(vector=(direction_x, direction_y, 0), angle=180, point=(center_x, center_y, center_z))
-        # And we add this shape to the list of blocks:
-        blocks.append(shape)
-
-    # We reset the warning option in Numpy:
-    np.seterr(invalid=None)
-
-    # CREATING THE SCENE:
-    # Adding the multi-blocks to a plot:
-    actor, mapper = p.add_composite(blocks)
-    print("    > Adding the colors and transparencies of the plot...")
-    # We cover each block and set its color and opacity:
-    for i in range(1,blocks.n_blocks+1):
-        mapper.block_attr[i].color = colors[i-1]
-        mapper.block_attr[i].opacity = opacity[i-1]
-
-    # We set the color of the background:
-    p.background_color = background_color
-
-    # ADJUSTING THE CAMERA:
-    # We can define the target position and the camera position:
-    p.camera.focal_point = (focal_x, focal_y, focal_z)
-    p.camera.position = (camera_x, camera_y, camera_z)
-    # Or we can define the relative distance and elevation of the camera compared to the middle of the plot:
-    # p.camera.distance = 0.2
-    # p.camera_elevation = -0.2
-    # p.reset_camera()
-    # p.view_yz()
-    # pv.Axes.origin=(0,0,0.0)
-    p.camera_set = True
-
-    # SETTING AXES:
-    # p.add_axes()
-    # p.add_axes_at_origin()
-
-    # DIVERSE SETTINGS:
-    # We set the background color of the plot:
-    p.background_color = background_color
-    # We set the final size of the window:
-    p.window_size = [plot_width, plot_height]
-    # We can improve the resolution of the image:
-    p.image_scale = factor_of_higher_resolution
-
-    # p.line_smoothing = True
-    # p.add_bounding_box(line_width=3, color='black')
-    # p.enable_terrain_style(mouse_wheel_zooms=True, shift_pans=True)
-
-    print("> The plot has been created!")
-
-    # SHOWING/RECORDING THE PLOT:
-    if recording_image:
-        # p.screenshot(filename='test_MTG.png')
-        p.show(screenshot=image_file, auto_close=closing_window)
-        # # p.close()
-    elif showing:
-        p.show(auto_close=closing_window)
-
-    if closing_window:
-        pv.close_all()
-
-    return p
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# This function enables to record the properties of each element of the MTG:
-def recording_MTG_properties(g, file_name='g_properties.csv'):
-    """
-    This function records the properties of each node of the MTG "g" inside a csv file.
-    :param g: the MTG where properties are recorded
-    :param file_name: the name of the csv file where properties of each node will be recorded
-    :return: [no return]
-    """
-
-    # We define the list of all properties of the MTG:
-    initial_list_of_properties = list(g.properties().keys())
-    # We verify that the list does not contain any "None" property:
-    list_of_properties = []
-    for property in initial_list_of_properties:
-        if property is None:
-            print("WARNING: a None property was detected in the MTG!")
-            continue
-        else:
-            list_of_properties.append(property)
-    # We sort the list by alphabetical order
-    list_of_properties.sort()
-
-    # We create an empty list of node indices:
-    node_index = []
-    # We create an empty list that will contain the properties of each node:
-    g_properties = []
-
-    # We cover all the vertices in the MTG:
-    for vid in g.vertices_iter(scale=1):
-        # Initializing an empty list of properties for the current node:
-        node_properties = []
-        # Adding the index at the beginning of the list:
-        node_properties.append(vid)
-        # n represents the vertex:
-        n = g.node(vid)
-        # For each possible property:
-        for property in list_of_properties:
-            # We add the value of this property to the list:
-            node_properties.append(getattr(n, property, "NA"))
-        # Finally, we add the new node's properties list as a new item in g_properties:
-        g_properties.append(node_properties)
-    # We create a list containing the headers of the dataframe:
-    column_names = ['node_index']
-    column_names.extend(list_of_properties)
-    # We create the final dataframe:
-    data_frame = pd.DataFrame(g_properties, columns=column_names)
-    # We record the dataframe as a csv file:
-    data_frame.to_csv(file_name, na_rep='NA', index=False, header=True)
-
-    return data_frame
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-def computing_light_interception(g,
+def computing_light_interception(shoot_MTG,
                                  incoming_light_density = 400,
                                  isolated_plant=False,
                                  zenithal_light=False,
@@ -1029,16 +394,28 @@ def computing_light_interception(g,
                                  leaf_shape="oval"
                                  ):
     """
+    This function computes the light intercepted by a plant within a specific population design defined by a scene.
 
     Parameters
     ----------
-    g: the MTG corresponding to the shoot system
-    incoming_light_density: the zenital light density input (umol of photons per m2 per second)
+    shoot_MTG: the MTG structure of a plant
+    incoming_light_density: the density of incoming light above the plant (in micromoles of photons per square meter of land per second)
+    isolated_plant: if True, the plant will be considered isolated from any other plants; otherwise, the light will be computed for a population of plants
+    zenithal_light: if True, light will be considered coming as only a vertical vector; otherwise, it will come from all directions
+    infinite: if True, the scene will be mutliplied on each side to precisely define the intercepted light
+    number_of_plants_per_square_meter: the density of plants in the scene (plants per square meter of land)
+    inter_row_distance: the distance between two rows (meters)
+    scene_length: the length of the scene (meters)
+    scene_width: the width of the scene (meters)
+    leaf_shape: option to design the shape of the leaves to be displayed ('oval', 'typical_leaf_shape', 'unileaflet', 'drop_shape')
 
     Returns
     -------
-
+    [Nothing is returned; the shoot MTG has been updated with the properties 'PAR_intercepted' and 'Caribu_area', 'Caribu_Ei', 'Caribu_Eabs']
     """
+
+    # We rename the shoot MTG as 'g':
+    g = shoot_MTG
 
     # can = scene3d(g)
     # zenith = [(100, (0, 0, -1))]
@@ -1130,56 +507,87 @@ def computing_light_interception(g,
     # TODO: Check this once for all: is it the total light per m2 of soil surface? per m2 of leaf surface?
     # Note that the PAR_intercepted is expressed here in umol of photons per m2 of organ (?) per second.
 
-    # print("Ending light interception!")
-
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calculating the actual photosynthesis rate:
-def computing_photosynthesis_rate(g, SCA=1e-6):
+def computing_photosynthesis_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.):
     """
-    This function calculates the actual photosythesis rate (in gC per second) for each organ of the plant g, based on its
-    intercepted PAR (micromol of photons per m2 per second), its photosynthetic surface (m2) and a parameter SCA, i.e.
-    its specific carbon assimilation (gC per micromol of photons).
-    :param g: the shoot MTG containing each organ as node
-    :param SCA: specific carbon assimilation (gC per micromol of photon) - this is similar to RUE at the organ scale
-                but not for net photosynthesis; it does not vary with the N content of the organ
-    :return: [no return - the MTG g has been updated with the property 'photosynthesized_C_rate' (gC per second)]
+    This function calculates the actual photosythesis rate (in gC per second) for each organ of the shoot MTG, based on
+    its intercepted PAR (micromol of photons per m2 per second), its photosynthetic surface (m2)
+    and a temperature-dependent parameter SCA, i.e. its specific carbon assimilation (gC per micromol of photons).
+
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG containing each organ as node
+    air_temperature_in_degree_Celsius: the average temperature of the air experienced by the shoots
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with the property 'photosynthesized_C_rate' (gC per second)]
     """
 
+    # We correct the specific carbon assimilation, based on air temperature:
+    corrected_SCA = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+                                             process_at_T_ref=param.SCA,
+                                             T_ref=param.SCA_T_ref,
+                                             A=param.SCA_A,
+                                             B=param.SCA_B,
+                                             C=param.SCA_C)
+
     # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        n = shoot_MTG.node(vid)
         n.photosynthetic_area = n.surface
         # We calculate the photosynthesis rate for this organ:
-        n.photosynthesized_C_rate = SCA * n.PAR_intercepted * n.photosynthetic_area
+        n.photosynthesized_C_rate = corrected_SCA * n.PAR_intercepted * n.photosynthetic_area
         # TODO: have the SCA vary with the level of "green" within the leaf? with the level of N? with the senescence status?
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing the C cost for maintenance respiration (as opposed to growth respiration):
-def computing_maintenance_rate(g, Vmax_maintenance=1., Km_maintenance=1.):
+def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.):
     """
-    This function calculates the respiration rate (in gC per second) for the maintenance of each organ of the plant g.
-    :param g: the shoot MTG containing each organ as node
-    :param Vmax_maintenance: maximal rate of respiration (gC per gram of dry structural mass per second)
-    :param Km_maintenance: Michaelis_Menten constant for maintenance (gC per gram of dry structural mass),
-                           i.e. the concentration of labile C for which the respiration rate is half of the maximal rate
-    :return: [no return - the MTG g has been with the updated property 'maintenance_respiration_rate' (gC per second)]
-    """
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
+    This function calculates the respiration rate (in gC per second) for the maintenance of each organ of the shoot MTG.
 
-        # If the element does not have any C left, it can't respire!
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG containing each organ as node
+    air_temperature_in_degree_Celsius: the average temperature of the air experienced by the shoots
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with the property 'maintenance_respiration_rate' (gC per second)]
+    """
+
+    # We compute a modifying factor based on temperature:
+    temperature_modifier = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+                                                    process_at_T_ref=1,
+                                                    T_ref=param.resp_maintenance_max_T_ref,
+                                                    A=param.resp_maintenance_max_A,
+                                                    B=param.resp_maintenance_max_B,
+                                                    C=param.resp_maintenance_max_C)
+
+    # We convert the maximal rate (originally expressed in mol of C per gDW per second, now in gC per gDW per second),
+    # and we adjust it with temperature:
+    corrected_Vmax = param.resp_maintenance_max * 12.01 * temperature_modifier
+
+    # We also adjust the unit of the Km inherited from RhizoDep (originally expressed in moles of equivalent-hexose):
+    Km_maintenance = param.Km_maintenance * 6 * 12.01  # now in gC per gram of structural mass per second
+
+    # We cover each organ n of the shoot:
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        n = shoot_MTG.node(vid)
+
+        # If the element does not have any C left, it cannot respire!
         if n.C_labile <= 0.:
             n.shoot_maintenance_respiration_rate = 0.
             continue
 
         # The maintenance rate is based on a maximal rate of respiration per gram of structural mass, modulated by the
         # amount of labile C in the organ:
-        n.shoot_maintenance_respiration_rate = Vmax_maintenance * n.C_labile / (Km_maintenance + n.C_labile) * n.struct_mass
+        n.shoot_maintenance_respiration_rate = corrected_Vmax * n.C_labile / (Km_maintenance + n.C_labile) * n.struct_mass
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1371,7 +779,6 @@ def computing_shoot_C_storage(g, time_step_in_seconds=60.*60.*24.):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-
 def potential_shoot_growth(g,
                            SFQN=1,
                            LA_max=10,
@@ -1651,6 +1058,132 @@ def updating_coordinates(g):
             son.z1 = n.z2
 
     return
+# -----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
+def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_degree_Celsius=20):
+    """
+    This functions increases the age of each organ in the shoot MTG. The age is expressed in seconds, either as actual
+    time or as time equivalent to the reference growth temperature.
+
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG containing each organ as node
+    time_step_in_seconds: the actual time step of the simulation (in seconds)
+    air_temperature_in_degree_Celsius: the average temperature of the air experienced by the shoots (in degree Celsius)
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with the properties 'actual_time_since_formation' and 'thermal_time_since_formation' (seconds)]
+    """
+
+    # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
+    temperature_time_adjustment_shoot = temperature_modification(
+        temperature_in_Celsius=air_temperature_in_degree_Celsius,
+        process_at_T_ref=1,
+        T_ref=param.shoot_growth_T_ref,
+        A=param.shoot_growth_A,
+        B=param.shoot_growth_B,
+        C=param.shoot_growth_C)
+
+    for vid in g.vertices_iter(scale=1):
+        element = g.node(vid)
+        element.actual_time_since_formation += time_step_in_seconds
+        element.thermal_time_since_formation += time_step_in_seconds * temperature_time_adjustment_shoot
+
+    return
+# -----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
+def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_leaf_length=0.001):
+    # On part sur une structure potentielle maximale paramétrée.
+    # Le virage floral est atteint au bout d'un certain temps thermique (entre mi-décembre et mi-janvier).
+
+    # Au virage floral, le méristème principal ne fera plus de feuilles et que une fleur (ou plusieurs).
+    # Le nombre total de phytomères sur la tige principal sera:
+    # n_phytomers_formés (y compris non émergés) = k * (n_feuilles_rosette_émergées au virage floral)
+    # Modèle "sapin" pour définir le nombre d'entre-noeuds sur les ramifs primaires (+1 en descendant du haut de la tige vers le bas)
+    # Pour les secondaires : plutôt en haut...
+
+    # Le profil de longueur d'entre-noeuds sur la tige principale est plutôt ventru (max au milieu de la tige, pas en bas).
+    # Elongation forcée + limitation trophique + dominance apicale (depuis le haut)
+
+    # La date d'élongation est différente du virage floral (vers février-mars). Temps thermique constant ?
+
+    # ***
+
+    # La floraison est indéterminée. A partir du virage floral, on a élongation tige principale, puis apparition
+    # inflorescence à la fin des axes + élongation des ramifications.
+    # Idée de l’archi potentielle : x feuilles au virage floral conditionnent un nombre total de feuilles n
+    # (sachant que les entrenoeuds courts ne donnent pas de ramifications).. A partir du premier entrenoeud qui ramifie,
+    # tous les entrenoeuds au-dessus vont former des ramifications. Chaque axe latéral va avoir un nombre max d’entrenoeud :
+    # 1 au sommet, puis 2 sur l’axe latéral en dessous, puis 3, etc. Pour les secondaires, en théorie on aurait la même chose.
+    # Comment est régulé le numéro de la ramification la plus basse ? Les axes ramifiés démarrent à peu près tous en même temps,
+    # donc on les fait partir en même temps, à partir du moment où une part. Le RC/RS diminue en partant du haut dans le couvert.
+    # Il y aurait donc un seuil critique qui déclenche la ramif à partir de cet entrenoeud  ça détermine donc
+    # la position de l’entrenoeud de départ.
+    # Quand déclencher ? Avec un temps thermique donné de départ pour la plante, ou pour l’entrenoeud de départ.
+    # Ou photopériode ? Ou température critique ? Faut-il tenir compte aussi de l’ensoleillement global ?
+    # Pourquoi les ramif du haut s’allongeraient plus lentement ? Dominance apicale à coder en dur par rapport à la distance
+    # à l’inflorescence de l’axe principal ?
+
+    # We rename the shoot_MTG for simplification:
+    g = shoot_MTG
+
+    # DEFINING THE CONDITIONS OF TURNING DORMANT BUDS INTO ACTIVE BUDS:
+    for vid in g.vertices_iter(scale=1):
+        if g.node(vid).label != "Bud":
+            continue
+        else:
+            bud = g.node(vid)
+            # We get the leaf below the bud (as the bud has been defined as the child of the leaf):
+            leaf_index = g.Father(vid, EdgeType='+')
+            leaf = g.node(leaf_index)
+            # We calculate the density of light intercepted by this leaf (micromoles of photons per second per square meter of leaf):
+            light_interception = leaf.PAR_intercepted / leaf.surface
+            # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
+            if (light_interception >= param.bud_light_threshold
+                    and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
+                    and bud.ramification_order <= 1):
+                bud.emergence_possibility = True
+
+    # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
+    # We select the vertices corresponding to the buds that are allowed to emerge:
+    list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Bud"
+                      and g.node(vid).emergence_possibility == True]
+
+    # As long as the list of apices to treat is not empty:
+    while list_of_apices != []:
+        # We cover each apex present in the list:
+        for apex in list_of_apices:
+            # We remove the current apex from the list, so that it is not considered next time:
+            list_of_apices.remove(apex)
+            # Then we add a new phytomer at the top of the current apex:
+            [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
+                                                       internode_radius=apex.radius,
+                                                       internode_length=initial_internode_length,
+                                                       leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
+                                                       leaf_length=initial_leaf_length,
+                                                       bud_length=0.,
+                                                       properties_identical_to_parent=False,
+                                                       nil_properties=True
+                                                       )
+            # By default, we set the bud as dormant:
+            bud.emergence_possibility = False
+            # We remove the previous apex, as a new one will now be formed on the top of the new phytomer:
+            g.remove_vertex(apex.index(), reparent_child=True)
+            # And we add a new apex at the top of the new internode, of length 0:
+            new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
+                                            edge_type="<",
+                                            label="Apex",
+                                            properties_identical_to_parent=True,
+                                            nil_properties=False)
+            # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
+            new_apex.length = 0.
+            # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
+            # # Finally, we update the list of apices by adding the new apex that has been formed,
+            # # in case it could itself form a new phytomer:
+            # list_of_apices.append(new_apex)
+
+    return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_senescence(shoot_MTG,
@@ -1683,6 +1216,24 @@ def computing_senescence(shoot_MTG,
                     or (n.thermal_time_since_formation + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
                 # We declare that the element should senesce:
                 n.senescence_status = True
+
+    return
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+def computing_leaf_fall(shoot_MTG,
+                         time_step_in_seconds=1/(60.*60.*24.),
+                         air_temperature_in_degree_Celsius=10.):
+
+    # We get the list of all living leaves in the shoot MTG:
+    list_of_leaves = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Leaf"]
+
+    # We cover each leaf:
+    for leaf in list_of_leaves:
+        # If the leaf has to fall:
+        if (leaf.senescence_status == True
+                and (leaf.C_labile / leaf.struct_mass) <= param.C_labile_content_treshold_for_leaf_fall
+                and (leaf.N_labile / leaf.struct_mass) <= param.N_labile_content_treshold_for_leaf_fall):
+            leaf.label="Fallen_leaf"
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1737,7 +1288,8 @@ def shoot_organ_CN_balance(shoot_MTG, time_step_in_seconds = 60.*60.*24., resett
         n.shoot_N_mobilization_rate = 0.
 
     return
-
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
 def summing_in_shoot_system(shoot_system, shoot_MTG, resetting_rates=False):
 
     # We rename the shoot system as "s" and the shoot MTG as "g":
@@ -1777,7 +1329,8 @@ def summing_in_shoot_system(shoot_system, shoot_MTG, resetting_rates=False):
     # print("After summing, the shoot labile N pool is", s.shoot_labile_N_pool)
 
     return
-
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
 def shoot_CN_balance(shoot_system, time_step_in_seconds = 60.*60):
 
     # We rename the shoot system as "s":
@@ -1817,105 +1370,6 @@ def shoot_CN_balance(shoot_system, time_step_in_seconds = 60.*60):
 
     return
 
-def ageing(g, time_step_in_seconds=24*60.*60., leaf_temperature=20):
-
-    for vid in g.vertices_iter(scale=1):
-        element=g.node(vid)
-        element.actual_time_since_formation += time_step_in_seconds
-        element.thermal_time_since_formation += time_step_in_seconds/(24*60.*60.) * leaf_temperature
-
-    return
-
-def ramification(g, initial_internode_length=0.0005, initial_leaf_length=0.001):
-    # On part sur une structure potentielle maximale paramétrée.
-    # Le virage floral est atteint au bout d'un certain temps thermique (entre mi-décembre et mi-janvier).
-
-    # Au virage floral, le méristème principal ne fera plus de feuilles et que une fleur (ou plusieurs).
-    # Le nombre total de phytomères sur la tige principal sera:
-    # n_phytomers_formés (y compris non émergés) = k * (n_feuilles_rosette_émergées au virage floral)
-    # Modèle "sapin" pour définir le nombre d'entre-noeuds sur les ramifs primaires (+1 en descendant du haut de la tige vers le bas)
-    # Pour les secondaires : plutôt en haut...
-
-    # Le profil de longueur d'entre-noeuds sur la tige principale est plutôt ventru (max au milieu de la tige, pas en bas).
-    # Elongation forcée + limitation trophique + dominance apicale (depuis le haut)
-
-    # La date d'élongation est différente du virage floral (vers février-mars). Temps thermique constant ?
-
-    # ***
-
-    # La floraison est indéterminée. A partir du virage floral, on a élongation tige principale, puis apparition
-    # inflorescence à la fin des axes + élongation des ramifications.
-    # Idée de l’archi potentielle : x feuilles au virage floral conditionnent un nombre total de feuilles n
-    # (sachant que les entrenoeuds courts ne donnent pas de ramifications).. A partir du premier entrenoeud qui ramifie,
-    # tous les entrenoeuds au-dessus vont former des ramifications. Chaque axe latéral va avoir un nombre max d’entrenoeud :
-    # 1 au sommet, puis 2 sur l’axe latéral en dessous, puis 3, etc. Pour les secondaires, en théorie on aurait la même chose.
-    # Comment est régulé le numéro de la ramification la plus basse ? Les axes ramifiés démarrent à peu près tous en même temps,
-    # donc on les fait partir en même temps, à partir du moment où une part. Le RC/RS diminue en partant du haut dans le couvert.
-    # Il y aurait donc un seuil critique qui déclenche la ramif à partir de cet entrenoeud  ça détermine donc
-    # la position de l’entrenoeud de départ.
-    # Quand déclencher ? Avec un temps thermique donné de départ pour la plante, ou pour l’entrenoeud de départ.
-    # Ou photopériode ? Ou température critique ? Faut-il tenir compte aussi de l’ensoleillement global ?
-    # Pourquoi les ramif du haut s’allongeraient plus lentement ? Dominance apicale à coder en dur par rapport à la distance
-    # à l’inflorescence de l’axe principal ?
-
-    # DEFINING THE CONDITIONS OF TURNING DORMANT BUDS INTO ACTIVE BUDS:
-    for vid in g.vertices_iter(scale=1):
-        if g.node(vid).label != "Bud":
-            continue
-        else:
-            bud = g.node(vid)
-            # We get the leaf beneath the bud:
-            leaf_index = g.Father(vid, EdgeType='+')
-            leaf = g.node(leaf_index)
-            light_interception = leaf.PAR_intercepted / leaf.surface
-            # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
-            if  (light_interception >= param.bud_light_threshold
-                    and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
-                    and bud.ramification_order <= 1):
-                bud.emergence_possibility = True
-
-    # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
-    # We select the vertices corresponding to the buds that are allowed to emerge:
-    list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Bud"
-                      and g.node(vid).emergence_possibility == True]
-
-    # As long as the list of apices to treat is not empty:
-    while list_of_apices != []:
-        # We cover each apex present in the list:
-        for apex in list_of_apices:
-            # We remove the current apex from the list, so that it is not considered next time:
-            list_of_apices.remove(apex)
-            # Then we add a new phytomer at the top of the current apex:
-            [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
-                                                       internode_radius=apex.radius,
-                                                       internode_length=initial_internode_length,
-                                                       leaf_radius=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
-                                                       leaf_length=initial_leaf_length,
-                                                       bud_length=0.,
-                                                       properties_identical_to_parent=False,
-                                                       nil_properties=True
-                                                       )
-            # By default, we set the bud as dormant:
-            bud.emergence_possibility = False
-            # We remove the previous apex:
-            g.remove_vertex(apex.index(), reparent_child=True)
-            # And we add a new apex at the top of the new internode, of length 0:
-            new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
-                                            edge_type="<",
-                                            label="Apex",
-                                            properties_identical_to_parent=True,
-                                            nil_properties=False)
-            # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
-            new_apex.length = 0.
-            # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
-            # # Finally, we update the list of apices by adding the new apex that has been formed,
-            # # in case it could itself form a new phytomer:
-            # list_of_apices.append(new_apex)
-
-    return
-
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
 def calling_the_different_shoot_modules(shoot_g,
                                         time_step_in_days=1,
                                         phytomers_initiation = True,
@@ -1948,13 +1402,10 @@ def calling_the_different_shoot_modules(shoot_g,
                                  )
 
     # We calculate the C production based on PAR:
-    computing_photosynthesis_rate(g,
-                                  SCA = param.SCA)
+    computing_photosynthesis_rate(g)
 
     # We calculate the C respiration cost associated to maintenance:
-    computing_maintenance_rate(g,
-                               Vmax_maintenance=param.Vmax_maintenance,
-                               Km_maintenance = param.Km_maintenance)
+    computing_maintenance_rate(g)
 
     # We allocate the N available from the base of the shoot up to each leaf, based on PAR:
     computing_shoot_N_distribution(g,
@@ -2018,41 +1469,19 @@ def calling_the_different_shoot_modules(shoot_g,
 
     # 5) Ageing of the plant:
     # -----------------------
-    ageing(g, time_step_in_seconds=time_step_in_days*24*60.*60., leaf_temperature=20)
+    ageing(g, time_step_in_seconds=time_step_in_days*24*60.*60., air_temperature_in_degree_Celsius=10.)
 
     # 6) Ramification:
     #-----------------
-    ramification(g)
+    computing_ramification(g)
 
     # 7) Senescence and leaf fall:
     #-----------------------------
     computing_senescence(g)
+    computing_leaf_fall(g)
 
     return
-
-def loading_parameters_from_file(parameters_filepath = "parameters_AllocF.xlsx",
-                                 outputs_path = "outputs"):
-
-    # We read the scenario to be run:
-    scenarios_df = pd.read_excel(parameters_filepath, header=0, sheet_name="scenarios_as_columns")
-    # We remove the columns containing unnecessary details about parameters:
-    useless_columns = ["Explanation", "Type / Unit", "Reference value", "Justification of the reference value"]
-    scenarios_df.drop(useless_columns, axis=1, inplace=True)
-    # Before transposing the dataframe, we rename the first column as 'Scenario':
-    scenarios_df.rename(columns={'Parameter': 'Scenario'}, inplace=True)
-    # Because the way of dealing with data type is not well suited with the current Excel file, we transpose the
-    # dataframe, record it as a CSV file in the outputs folder, and reload it with the proper type for each
-    # parameter:
-    transposed_df = scenarios_df.T
-    transposed_df.to_csv(os.path.join(outputs_path, 'scenarios_list.csv'), na_rep='NA', header=False)
-    new_scenarios_df = pd.read_csv(os.path.join(outputs_path, 'scenarios_list.csv'), index_col='Scenario', header=0)
-    # We convert the dataframe into a dictionnary:
-    scenario = new_scenarios_df.to_dict(orient='records')[0]
-    # And we finally update the parameters from the original python file with the parameters taken from this dictionnary:
-    param.__dict__.update(scenario)
-
-    return
-
+#-----------------------------------------------------------------------------------------------------------------------
 ########################################################################################################################
 ########################################################################################################################
 
@@ -2098,7 +1527,7 @@ if __name__ == '__main__':
 
     # UPDATING PARAMETERS FROM FILE:
     loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
-                                     outputs_path = os.path.join(my_path, "simulation", "outputs"))
+                                 outputs_path = os.path.join(my_path, "simulation", "outputs"))
 
     # # We display the MTG in its initial state with PlantGL:
     # empty_scene = pgl.Scene()
@@ -2169,15 +1598,13 @@ if __name__ == '__main__':
                                             scene_length=row_length,
                                             scene_width=scene_width)
 
-        # We test the ramification:
-        ramification(g)
-
         # PLOTTING ONE SINGLE PLANT OVER TIME:
         # We display the MTG in its new state:
         # Option 1A - With PlantGL:
         #--------------------------
         graph = plotting_shoot_MTG(g,
-                                   leaf_shape="typical_leaf_shape",
+                                   leaf_shape="oval",
+                                   # leaf_shape="typical_leaf_shape",
                                    # leaf_shape="drop_shape",
                                    width=1200, height=900,
                                    x_center=0, y_center=0, z_center=0.03,

@@ -1,3 +1,12 @@
+#  -*- coding: utf-8 -*-
+
+"""
+    The script 'simbal_orchestrator' is used to run simulations with both shoots and roots.
+
+    :copyright: see AUTHORS.
+    :license: see LICENSE for details.
+"""
+
 import openalea.mtg
 from openalea.mtg import *
 from openalea.mtg import turtle as turt
@@ -8,231 +17,17 @@ import openalea.plantgl.all as pgl
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
-import openalea.rhizodep.parameters as rhizodep_param
-from openalea.rhizodep.tool.tools import circle_coordinates
-from tools import plotting_whole_plant, temperature_modification
+from tools import (loading_parameters_from_file, formatted_inputs, temperature_modification, recording_MTG_properties,
+                   circle_coordinates, plotting_whole_plant)
 
 import os
 import numpy as np
 import pandas as pd
+from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
-from math import sqrt, pi, floor, trunc, exp, isnan, cos, acos
 
 ########################################################################################################################
-
-def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
-                                 outputs_path = "outputs"):
-
-    # We read the scenario to be run:
-    scenarios_df = pd.read_excel(parameters_filepath, header=0, sheet_name="scenarios_as_columns")
-    # We remove the columns containing unnecessary details about parameters:
-    useless_columns = ["Explanation", "Type / Unit", "Reference value", "Justification of the reference value"]
-    scenarios_df.drop(useless_columns, axis=1, inplace=True)
-    # Before transposing the dataframe, we rename the first column as 'Scenario':
-    scenarios_df.rename(columns={'Parameter': 'Scenario'}, inplace=True)
-    # Because the way of dealing with data type is not well suited with the current Excel file, we transpose the
-    # dataframe, record it as a CSV file in the outputs folder, and reload it with the proper type for each
-    # parameter:
-    transposed_df = scenarios_df.T
-    transposed_df.to_csv(os.path.join(outputs_path, 'scenarios_list.csv'), na_rep='NA', header=False)
-    new_scenarios_df = pd.read_csv(os.path.join(outputs_path, 'scenarios_list.csv'), index_col='Scenario', header=0)
-    # We convert the dataframe into a dictionnary:
-    scenario = new_scenarios_df.to_dict(orient='records')[0]
-    # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
-    param.__dict__.update(scenario)
-    # We do the same with the parameters of rhizodep:
-    rhizodep_param.__dict__.update(scenario)
-
-    return
-
-#-----------------------------------------------------------------------------------------------------------------------
-
-# Function for transforming the inputs of the model based on the required time step:
-def formatted_inputs(original_input_file="None", final_input_file='updated_input_file.csv',
-                     original_time_step_in_days=1., final_time_step_in_days=1./24.,
-                     simulation_period_in_days=60., do_not_execute_if_file_with_suitable_size_exists=False):
-    """
-    This function creates a new input file to be read by the model, based on an original file. The new file is adapted
-    to the required time step (higher, equal or lower than the original time step).
-    If the option 'do_not_execute_if_file_with_suitable_size_exists' is set to True, a new file will be created only if
-    the already-existing 'input_file.csv' does not contain the correct number of lines.
-    """
-
-    # We mae sure that there is an original input file to be read:
-    if original_input_file == "None":
-        print("ERROR: no input file has been provided!")
-    else:
-
-        # We first define the path and the file to read as a .csv:
-        PATH1 = os.path.join('..', original_input_file)
-        # Then we read the file and copy it in a dataframe "df":
-        df = pd.read_csv(PATH1, sep=',', header=0)
-        # We calculate the number of steps in the final input table to be created:
-        n_steps = round(simulation_period_in_days / final_time_step_in_days)
-        # print("The total number of steps is", n_steps)
-
-        # We consider not modifying the current table if it has already the same number of lines as expected
-        # with the required time step:
-        if do_not_execute_if_file_with_suitable_size_exists:
-            PATH2 = os.path.join('..', 'input_file.csv')
-            previous_file = pd.read_csv(PATH2, sep=',', header=0)
-            if len(previous_file['step_number']) == n_steps:
-                print("There is already an 'input_file.csv' of proper length for this tutorial, "
-                      "we therefore did not create a new input file here (if you wish to do so, please select 'do_not_execute_if_file_with_suitable_size_exists=False').")
-                return previous_file
-
-        # We get the list of names from each column:
-        column_names_list = df.columns.values.tolist()
-        # We get a second list containing only the names of the input variables:
-        input_variables_list = column_names_list.copy()
-        input_variables_list.remove("step_number")
-        input_variables_list.remove("time_in_days")
-        # We create a temporary dictionnary that will contain the variables and their associated values:
-        dict={variable:0 for variable in input_variables_list}
-
-        # We create the new, final dataframe that will be used to read the final inputs:
-        input_frame = pd.DataFrame(columns=column_names_list)
-        # We set the step number and the initial and final time in days:
-        initial_step_number = df["step_number"].iloc[0]
-        input_frame["step_number"] = range(initial_step_number * round(original_time_step_in_days/final_time_step_in_days),
-                                           initial_step_number * round(original_time_step_in_days/final_time_step_in_days) + n_steps)
-        input_frame["initial_time_in_days"] = input_frame["step_number"] * final_time_step_in_days
-        input_frame["final_time_in_days"] = input_frame["initial_time_in_days"] + final_time_step_in_days
-        # We remove the unnecessary column "time_in_days":
-        input_frame = input_frame.drop(columns=["time_in_days"])
-
-        print("Creating a new input file adapted to the required time step (time step =",
-              "{:.2f}".format(Decimal(final_time_step_in_days)), "days)...")
-
-        # CASE 1: the final time step is higher than the original one, so we have to calculate an average value:
-        # -------------------------------------------------------------------------------------------------------
-        if final_time_step_in_days >= original_time_step_in_days:
-
-            # We initialize the row ID "j" in which the final values for each variable will be recorded:
-            j = 0
-            # We initialize the time over which values will be integrated:
-            cumulated_time_in_days = 0.
-            time_in_days = 0.
-
-            # For each line of the original data frame:
-            for i in range(0, len(df['time_in_days'])):
-
-                # If the current cumulated time is lower than the required time step:
-                if (cumulated_time_in_days + original_time_step_in_days) < 0.9999 * final_time_step_in_days:
-                    # Then the amount of time elapsed here is the initial time step:
-                    net_elapsed_time_in_days = original_time_step_in_days
-                    remaining_time = 0.
-                else:
-                    # Otherwise, we limit the elapsed time to the one necessary for reaching a round number of final_time_step_in_days:
-                    net_elapsed_time_in_days = (original_time_step_in_days
-                                                - (cumulated_time_in_days + original_time_step_in_days - final_time_step_in_days))
-                    remaining_time = (cumulated_time_in_days + original_time_step_in_days - final_time_step_in_days)
-
-                # For each variable in the original table:
-                for variable in input_variables_list:
-                    # We ponderate its value by the contribution over the current period
-                    # (knowing that we will eventually divide the sum by the final time step):
-                    dict[variable] += df.loc[i, variable] * net_elapsed_time_in_days
-
-                # If at the end of the original time step corresponding to the line i in df, one final time step has
-                # been reached or if this is the last line of the original table df to be read:
-                if cumulated_time_in_days + original_time_step_in_days >= 0.9999 * final_time_step_in_days \
-                        or i == len(df['time_in_days']) - 1:
-
-                    # Then for each variable in the original table:
-                    for variable in input_variables_list:
-                        # We record the final mean value of this variable in the final table, by dividing the ponderated
-                        # sum by the total elapsed time over the time step::
-                        input_frame.loc[j, variable] = dict[variable] / (cumulated_time_in_days + net_elapsed_time_in_days)
-
-                    # And we move to the next row in the final table:
-                    j += 1
-
-                    # We also reinitialize the time counter with the exact time that has not been included yet:
-                    cumulated_time_in_days = remaining_time
-
-                    # For each variable in the original table:
-                    for variable in input_variables_list:
-                        # We reinitialize the corresponding value with the remaining that has not been taken into account:
-                        dict[variable] = df.loc[i, variable] * cumulated_time_in_days
-
-                # Otherwise, we simply increase the cumulated time with the time step of the original table:
-                else:
-                    cumulated_time_in_days += original_time_step_in_days
-
-                # If the number of total lines of the final input frame has been reached:
-                if j >= n_steps:
-                    # Then we stop the loop here:
-                    break
-
-        # CASE 2: the final time step is lower than the original one, so we have to interpolate values between two points:
-        # ----------------------------------------------------------------------------------------------------------------
-        if final_time_step_in_days < original_time_step_in_days:
-
-            # We initialize the row ID "i" in which the original values are read:
-            i = 1
-
-            # We initialize the time over which variables will be integrated:
-            cumulated_time_in_days = 0.
-            time_in_days = 0.
-            # We initialize the values:
-            for variable in input_variables_list:
-                dict[variable + "_initial"] = df.loc[0, variable]
-
-            # For each line of the final table:
-            for j in range(0, n_steps):
-
-                # If the current cumulated time is below the time step of the main tutorial:
-                if cumulated_time_in_days + final_time_step_in_days < 0.9999 * original_time_step_in_days:
-                    # Then the amount of time elapsed here is the initial time step:
-                    net_elapsed_time_in_days = final_time_step_in_days
-                    remaining_time = 0.
-                else:
-                    # Otherwise, we limit the elapsed time to the one necessary for reaching a round number of original_time_step_in_days:
-                    net_elapsed_time_in_days = (final_time_step_in_days
-                                                - (cumulated_time_in_days + final_time_step_in_days - original_time_step_in_days))
-                    remaining_time = (cumulated_time_in_days + final_time_step_in_days - original_time_step_in_days)
-
-                # Then we calculate the value of each variable for the current line:
-                for variable in input_variables_list:
-                    dict[variable] = (dict[variable + "_initial"] + (df.loc[i, variable] - dict[variable + "_initial"])
-                                      / original_time_step_in_days * cumulated_time_in_days)
-
-                print("   Creating line", j + 1, "on", n_steps, "lines in the new input frame...")
-                # We record the final values in the final table:
-                for variable in input_variables_list:
-                    input_frame.loc[j, variable] = dict[variable]
-
-                # If at the end of the final time step corresponding to the line j in input_frame, one original time step has been reached:
-                if cumulated_time_in_days + final_time_step_in_days >= 0.9999 * original_time_step_in_days:
-
-                    # We reinitialize with the current value of each variable in the original table:
-                    for variable in input_variables_list:
-                        dict[variable + "_initial"] = df.loc[i, variable]
-
-                    # We move to the next row in the original table, unless we are already at the last line:
-                    if i < len(df['time_in_days']) - 1:
-                        i += 1
-
-                    # We reinitialize the counter with the exact time that has not been included yet:
-                    cumulated_time_in_days = remaining_time
-
-                else:
-
-                    cumulated_time_in_days += final_time_step_in_days
-
-                # If the number of total lines of the final input frame has been reached:
-                if j >= n_steps:
-                    # Then we stop the loop here:
-                    break
-
-    input_frame.to_csv(final_input_file, na_rep='NA', index=False, header=True)
-    print("The new input file adapted to the required time step has been created and saved as 'updated_input_file.csv'.")
-    print("")
-
-    return input_frame
-
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
 
 # We define a class that will be used to contain the properties of the interface between shoot and roots:
 class whole_plant(object):
@@ -264,9 +59,8 @@ class whole_plant(object):
         self.actual_C_consumption_rate_by_shoot_growth = 0. # mol of C per second
         self.actual_N_consumption_rate_by_shoot_growth = 0. # mol of N per second
         self.net_shoot_N_immobilization_rate = 0. # mol of N per second
-
 #-----------------------------------------------------------------------------------------------------------------------
-
+#-----------------------------------------------------------------------------------------------------------------------
 # We define a function that computes C & N exchanges between shoot and root systems:
 def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=False, time_step_in_seconds=1*(60*60*24),
                         C_option="by_diffusion", N_option="by_diffusion",
@@ -376,10 +170,9 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
 #                     C_option="by_diffusion", N_option="by_water_flux")
 # print("The new flux of C from shoot to root is", i.C_flux_to_root, "mol of C per second.")
 # print("The new flux of N from root to shoot is", i.N_flux_to_shoot, "mol of N per second.")
-
-########################################################################################################################
-########################################################################################################################
-
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation(my_path=None,
                    simulation_period_in_days=20., time_step_in_days=1/24., starting_time_in_days=0.,
                    input_file=None,
@@ -470,7 +263,7 @@ def run_simulation(my_path=None,
     # was formed (used together with the phyllochrone later on):
     shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
     # We record the properties in the initial state of the shoot MTG in an external file:
-    AllocF.recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_directory, 'MTG_00000.csv'))
+    recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_directory, 'MTG_00000.csv'))
 
     # INITIALIZING ROOT STRUCTURE:
     # We create another MTG corresponding to the root system:
@@ -491,9 +284,11 @@ def run_simulation(my_path=None,
     RootSimple.updating_exchange_surface(plant, root_g)
 
     # INITIALIZING PLANT'S RESOURCES:
-    # We initialize the pools of labile C (mol of C) and labile N (mol of N):
+    # We initialize the pools of labile and reserve C (gC per plant) and N (gN per plant):
     plant.root_labile_C_pool = initial_root_labile_C_concentration * plant.root_struct_mass
     plant.root_labile_N_pool = initial_root_labile_N_concentration * plant.root_struct_mass
+    plant.root_reserve_C_pool = 0.
+    plant.root_reserve_N_pool = 0.
     plant.shoot_labile_C_pool = initial_shoot_labile_C_concentration * plant.shoot_struct_mass
     plant.shoot_labile_N_pool = initial_shoot_labile_N_concentration * plant.shoot_struct_mass
 
@@ -614,8 +409,7 @@ def run_simulation(my_path=None,
 
         # N INPUTS TO THE ROOT SYSTEM:
         # We compute the rate of N uptake from soil (gN per plant per second):
-        RootSimple.computing_N_uptake_rate(plant, root_g,
-                                           Vmax_N_uptake = param.Vmax_N_uptake, Km_N_uptake = param.Km_N_uptake,
+        RootSimple.computing_N_uptake_rate(root_system=plant, root_MTG=root_g,
                                            N_soil = soil_available_nitrogen,
                                            soil_temperature_in_degree_Celsius=soil_temperature)
         # We compute the rate of N uptake from atmosphere, i.e. the rate of N2 fixation by root nodules, if any
@@ -625,11 +419,15 @@ def run_simulation(my_path=None,
 
         # NET C LOSSES FROM THE ROOT SYSTEM (WITHOUT GROWTH):
         # We compute the rate of rhizodeposition (gC per plant per second):
-        RootSimple.computing_rhizodeposition_rate(plant, root_g, time_step_in_seconds=time_step_in_seconds)
+        RootSimple.computing_rhizodeposition_rate(root_system=plant, root_MTG=root_g,
+                                                  time_step_in_seconds=time_step_in_seconds,
+                                                  soil_temperature_in_degree_Celsius=soil_temperature)
         # We compute the rate of maintenance respiration (gC per plant per second):
-        RootSimple.computing_maintenance_rate(plant, Vmax=param.resp_maintenance_max, Km=param.Km_maintenance)
+        RootSimple.computing_maintenance_rate(root_system=plant,
+                                              soil_temperature_in_degree_Celsius=soil_temperature)
         # We compute the rate of C exchange with reserve (gC per plant per second):
-        RootSimple.computing_exchange_rates_with_reserve(plant)
+        RootSimple.computing_exchange_rates_with_reserve(root_system=plant,
+                                                         soil_temperature_in_degree_Celsius=soil_temperature)
 
         # ROOT GROWTH:
         # We reset all growth-associated variabes before performing the new growth:
@@ -733,14 +531,11 @@ def run_simulation(my_path=None,
                                             leaf_shape=param.leaf_shape
                                             )
         # We calculate the rate of C production based on the PAR intercepted by the plant:
-        AllocF.computing_photosynthesis_rate(shoot_g,
-                                             SCA = param.SCA)
+        AllocF.computing_photosynthesis_rate(shoot_g, air_temperature_in_degree_Celsius=air_temperature)
 
         # MAINTENANCE IN THE SHOOTS:
         # We calculate the C respiration cost associated to maintenance:
-        AllocF.computing_maintenance_rate(shoot_g,
-                                          Vmax_maintenance = param.Vmax_maintenance,
-                                          Km_maintenance = param.Km_maintenance)
+        AllocF.computing_maintenance_rate(shoot_g, air_temperature_in_degree_Celsius=air_temperature)
 
         #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if C_allocation_option=="No_priority_to_leaves":
@@ -927,13 +722,14 @@ def run_simulation(my_path=None,
 
         # RECORDING THE PROPERTIES:
         # We can record the main properties of the plant:
-        dataframe = AllocF.recording_MTG_properties(shoot_g, file_name = os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
+        dataframe = recording_MTG_properties(shoot_g, file_name = os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
 
     print("")
     print("Simulation is done!")
 
     return
-
+#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
 ########################################################################################################################
 
 # MAIN SIMULATION:

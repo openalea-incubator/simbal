@@ -4,7 +4,7 @@
     simbal.simbal_parameters
     ~~~~~~~~~~~~~~~~~~~~~~
 
-    The module :mod:`simbal.simbal_parameters` defines the constant parameters of the model.
+    The script `simbal.simbal_parameters` defines the constant parameters of the model.
 
 """
 
@@ -19,6 +19,11 @@ random_choice = 2
 
 # Specific Carbon Assimilation (gC per micromol of photon):
 SCA = 0.000001 # Arbitrary...
+# Temperature dependence for C assimilation:
+SCA_T_ref = 20.
+SCA_A = 0
+SCA_B = 1
+SCA_C = 0
 
 # Maximal rate of maintenance respiration (gC per gram of dry structural mass per second):
 Vmax_maintenance = 5.55092978073827E-10 # Taken from RhizoDep 2024 (4e-08 mol of hexose per gDW per second)
@@ -86,6 +91,11 @@ thermal_youth_duration = 60. * (60.*60.*24.)
 
 # We define the shape of the leaves to be displayed and used for light interception:
 leaf_shape = "oval"
+
+# We define two threshold concentrations for labile C and N in the leaves, below which a senescing leaf will fall
+# (gC (orgN) per gram of structural mass):
+C_labile_content_treshold_for_leaf_fall = 0.
+N_labile_content_treshold_for_leaf_fall = 0.
 
 ########################################################################################################################
 ########################################################################################################################
