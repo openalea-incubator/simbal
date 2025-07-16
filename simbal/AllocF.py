@@ -19,7 +19,8 @@ from alinea.caribu.data_samples import data_path
 
 import simbal_parameters as param
 from tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
-                   create_a_scene_with_plants_popuplation, plotting_shoot_MTG)
+                   circle_coordinates, updating_coordinates, create_a_scene_with_plants_popuplation,
+                   plotting_shoot_MTG, plotting_shoots_with_pyvista)
 
 import os
 import numpy as np
@@ -161,7 +162,7 @@ def ADDING_A_PHYTOMER(parent_element,
 
     # 3) We finally create an axilliary bud that is actually a "branch" on the previous internode:
     # ---------------------------------------------------------------------------------------------
-    bud = ADDING_A_CHILD_ORGAN(parent_element=leaf, # TODO: Watch out - should the parent be leaf or internode?
+    bud = ADDING_A_CHILD_ORGAN(parent_element=leaf, # WATCH OUT: here, we set the bud as the child of the leaf, not the internode!
                                edge_type='+',
                                label='Bud',
                                properties_identical_to_parent=False,
@@ -169,7 +170,9 @@ def ADDING_A_PHYTOMER(parent_element,
     # We specified some properties that may be distinct from the parent element:
     bud.radius = param.bud_radius_ratio * parent_element.radius
     bud.length = bud_length
-    bud.angle_down = (param.bud_insertion_angle - param.leaf_insertion_angle)
+    # The angle_down of the bud is defined according to the angle down of the turtle
+    # (we go back on the axis direction, then we apply the insertion angle of the bud):
+    bud.angle_down = - param.leaf_insertion_angle + param.bud_insertion_angle
     bud.angle_roll = 0.
     # We assign the surfaces and volumes:
     bud.surface = 0.
@@ -195,13 +198,15 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
-def new_phytomers_initiation(shoot_MTG, new_initiation = True,
+def new_phytomers_initiation(shoot_system,
+                             shoot_MTG, new_initiation = True,
                              initial_internode_length = 0.002,
                              initial_leaf_length = 0.002):
     """
     This function creates new phytomers (internode + leaf + bud) wherever neceassry in the shoot MTG.
     Parameters
     ----------
+    shoot_system: the object corresponding to the whole shoot system (not the MTG)
     shoot_MTG: the shoot MTG containing all shoot elements
     new_initiation: a condition for allowing the creation of new phytomers (True by default)
     initial_internode_length: the initial length of the internode of the phytomers to be created (meters)
@@ -237,7 +242,6 @@ def new_phytomers_initiation(shoot_MTG, new_initiation = True,
                                                            properties_identical_to_parent=False,
                                                            nil_properties=True
                                                            )
-
                 # We remove the previous apex:
                 shoot_MTG.remove_vertex(apex.index(), reparent_child=True)
                 # And we add a new apex at the top of the new internode, of length 0:
@@ -252,6 +256,19 @@ def new_phytomers_initiation(shoot_MTG, new_initiation = True,
                 # # Finally, we update the list of apices by adding the new apex that has been formed,
                 # # in case it could itself form a new phytomer:
                 # list_of_apices.append(new_apex)
+
+                # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
+                # We (re)initialize the structural mass produced:
+                new_structural_mass = 0.
+                # We add the structural mass of each new element:
+                for element in [internode, leaf, bud]:
+                    new_structural_mass += element.struct_mass
+                # We calculate the corresponding C (gC) and N (gN) cost for the plant:
+                C_cost = new_structural_mass * param.structural_C_content / param.yield_growth
+                N_cost = new_structural_mass * param.structural_N_content
+                # We include these costs in the labile C and N pools in the shoot system:
+                shoot_system.shoot_labile_C_pool -= C_cost
+                shoot_system.shoot_labile_N_pool -= N_cost
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -284,7 +301,7 @@ def create_shoot_MTG(number_of_phytomers=3,
 
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
-                              label='Base_of_the_shoot_system',
+                              label='Base_of_the_root_system',
                               # Geometry:
                               radius=initial_internode_radius,
                               length=0.,
@@ -333,7 +350,7 @@ def create_shoot_MTG(number_of_phytomers=3,
     new_internode.actual_time_since_formation = 0.
     new_internode.thermal_time_since_formation = 0.
 
-    # For each new phytomer:
+    # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
         # We first create an internode, and then a connected leaf and a bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
@@ -469,7 +486,7 @@ def computing_light_interception(shoot_MTG,
         LIGHT = []
         # For each light source:
         for row_index in range(0,len(reference_light_file)):
-            # We get the coordinates of the light vecto in the last 3 rows:
+            # We get the coordinates of the light vector in the last 3 rows:
             coordinates = reference_light_file.loc[row_index, 1:4].values.flatten().tolist()
             # We create a tuple containing the irradiance, then the tuple of coordinates:
             line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
@@ -535,6 +552,9 @@ def computing_photosynthesis_rate(shoot_MTG, air_temperature_in_degree_Celsius=1
                                              B=param.SCA_B,
                                              C=param.SCA_C)
 
+    # We initialize the total intercepted PAR (in micromoles of photons per second per plant):
+    total_PAR_intercepted = 0.
+
     # We cover each organ n of the shoot:
     for vid in shoot_MTG.vertices_iter(scale=1):
         n = shoot_MTG.node(vid)
@@ -542,8 +562,10 @@ def computing_photosynthesis_rate(shoot_MTG, air_temperature_in_degree_Celsius=1
         # We calculate the photosynthesis rate for this organ:
         n.photosynthesized_C_rate = corrected_SCA * n.PAR_intercepted * n.photosynthetic_area
         # TODO: have the SCA vary with the level of "green" within the leaf? with the level of N? with the senescence status?
+        # We increment the total PAR intercepted by the plant:
+        total_PAR_intercepted += n.PAR_intercepted * n.photosynthetic_area
 
-    return
+    return total_PAR_intercepted # in micromoles of photons per second per plant
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing the C cost for maintenance respiration (as opposed to growth respiration):
@@ -594,7 +616,7 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for redistributing the C among shoot organs:
 # either C allocation (1) proportionnal to PARi for each organ or (2) per phytomer then distributed between organs depending on area
-def computing_shoot_C_redistribution(g, shoot_available_C = None, intercepted_light = None, time_step_in_seconds=1.):
+def computing_shoot_C_redistribution(shoot_MTG, shoot_available_C = None, intercepted_light = None, time_step_in_seconds=1.):
 
     # 1) We calculate the amount of shoot C available and the total intercepted light:
     #---------------------------------------------------------------------------------
@@ -614,8 +636,8 @@ def computing_shoot_C_redistribution(g, shoot_available_C = None, intercepted_li
     # If either shoot_available_C or intercepted_light have not been provided:
     if shoot_available_C is None or intercepted_light is None:
         # Then we cover each organ n of the shoot:
-        for vid in g.vertices_iter(scale=1):
-            n = g.node(vid)
+        for vid in shoot_MTG.vertices_iter(scale=1):
+            n = shoot_MTG.node(vid)
             # We add the initial amount of C_labile and the net gain in C of the current organ:
             available_C += n.C_labile + (n.photosynthesized_C_rate - n.shoot_maintenance_respiration_rate) * time_step_in_seconds
             # We add the light intercepted by the organ:
@@ -625,8 +647,8 @@ def computing_shoot_C_redistribution(g, shoot_available_C = None, intercepted_li
     #------------------------------------------------------
 
     # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        n = shoot_MTG.node(vid)
         # The corresponding rate of C redistribution for this organ is calculated:
         # (NOTE: if positive, it corresponds to a C gain; if negative, it corresponds to a C source)
         n.shoot_C_redistribution_rate = available_C * n.PAR_intercepted / intercepted_light_by_the_plant / time_step_in_seconds
@@ -635,13 +657,13 @@ def computing_shoot_C_redistribution(g, shoot_available_C = None, intercepted_li
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for distributing the N coming from the roots into each shoot organ:
-def computing_shoot_N_distribution(g, shoot_available_N=None, time_step_in_seconds=60.*60.*24.):
+def computing_shoot_N_distribution(shoot_MTG, shoot_available_N=None, time_step_in_seconds=60.*60.*24.):
     """
     This function distributes the whole amount of labile N available to the whole plant to each organ which has a
     positive surface, proportionnaly to the mean surfacic PAR intercepted by the organ compared to the sum of all
     surfacic PARs of shoot elements.
 
-    :param g: the MTG corresponding to the shoot system
+    :param shoot_MTG: the MTG corresponding to the shoot system
     :param time_step_in_seconds: the time step of the simulation (in seconds)
     return: [no return - the MTG g has been updated with the property 'N_labile']
 
@@ -663,8 +685,8 @@ def computing_shoot_N_distribution(g, shoot_available_N=None, time_step_in_secon
         available_N = shoot_available_N
 
     # Then we cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        n = shoot_MTG.node(vid)
         if n.surface <= 0.:
             continue
         # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
@@ -681,9 +703,9 @@ def computing_shoot_N_distribution(g, shoot_available_N=None, time_step_in_secon
     # -----------------------------------------------------------
 
     # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
+    for vid in shoot_MTG.vertices_iter(scale=1):
         # We access the current organ"n":
-        n = g.node(vid)
+        n = shoot_MTG.node(vid)
         if n.surface <= 0.:
             continue
         # The new target for C_labile in this organ is calculated according to the relative intercepted light:
@@ -697,7 +719,7 @@ def computing_shoot_N_distribution(g, shoot_available_N=None, time_step_in_secon
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_shoot_N_remobilization(g, k_N_mobilization = 1/(24.*60.*60.)):
+def computing_shoot_N_remobilization(shoot_MTG, k_N_mobilization = 1/(24.*60.*60.)):
     """
     This function calculates the rate of N mobilization (gN per second) in each shoot organ, based on first-order kinetics.
     :param g: the MTG corresponding to the shoot system
@@ -706,9 +728,9 @@ def computing_shoot_N_remobilization(g, k_N_mobilization = 1/(24.*60.*60.)):
     """
 
     # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
+    for vid in shoot_MTG.vertices_iter(scale=1):
         # We access the current organ"n":
-        n = g.node(vid)
+        n = shoot_MTG.node(vid)
 
         # We exclude elements where a deficit of labile N has been previously recorded:
         if n.N_labile_deficit >= 0.:
@@ -721,31 +743,35 @@ def computing_shoot_N_remobilization(g, k_N_mobilization = 1/(24.*60.*60.)):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_shoot_N_immobilization(g):
+def computing_shoot_N_immobilization(shoot_MTG):
     """
     This function calculates the rate of N immobilization (gN per second) in each shoot organ.
-    :param g: the MTG corresponding to the shoot system
+    :param shoot_MTG: the MTG corresponding to the shoot system
     :return: [no return - the MTG g has been updated with the property 'net_shoot_N_immobilization_rate']
     """
 
     # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
+    for vid in shoot_MTG.vertices_iter(scale=1):
         # We access the current organ"n":
-        n = g.node(vid)
+        n = shoot_MTG.node(vid)
         # We compute the rate N mobilization:
         n.net_shoot_N_immobilization_rate = 0.
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_shoot_C_storage(g, time_step_in_seconds=60.*60.*24.):
+def computing_shoot_C_storage(shoot_system, shoot_MTG, time_step_in_seconds=60.*60.*24.):
     """
     This function calculates the rate of labile C reallocation to each leaf.
-    :param g: the MTG corresponding to the shoot system
+    :param shoot_system: the object corresponding to the whole shoot system (not the MTG!)
+    :param shoot_MTG: the MTG corresponding to the shoot system
     :param time_step_in_seconds: the time step of the simulation (seconds)
     :return: [no return - the MTG g has been updated with the property 'C_storage_rate' (gC per second)]
     #TODO: Add the increase in thickness corresponding to the additional C storage.
     """
+
+    # We rename the shoot MTG for simplification:
+    g=shoot_MTG
 
     # 1) Computing the total intercepted light (if not calculated elsewhere)
     #-----------------------------------------------------------------------
@@ -758,13 +784,13 @@ def computing_shoot_C_storage(g, time_step_in_seconds=60.*60.*24.):
         intercepted_light_by_the_plant += n.PAR_intercepted
 
     # # OPTION 2: if it has already been calculated and stored in the base of the shoot system:
-    # intercepted_light_by_the_plant = g.node(1).total_PAR_intercepted_by_the_plant
+    # intercepted_light_by_the_plant = plant.total_PAR_intercepted_by_the_plant
 
     # 2) Computing the rate of C distribution in each shoot organ
     # -----------------------------------------------------------
 
     # We access the value of the total amount of available C, stored in the base of the shoot system:
-    plant_available_C = g.node(1).shoot_available_C
+    plant_available_C = shoot_system.shoot_labile_C_pool
 
     # We cover each organ of the shoot:
     for vid in g.vertices_iter(scale=1):
@@ -774,31 +800,34 @@ def computing_shoot_C_storage(g, time_step_in_seconds=60.*60.*24.):
         n.shoot_C_storage_rate = plant_available_C * n.PAR_intercepted / intercepted_light_by_the_plant / time_step_in_seconds
 
     # We reset the value of the plant available C:
-    g.node(1).shoot_available_C = 0.
+    shoot_system.shoot_labile_C_pool = 0.
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def potential_shoot_growth(g,
+def potential_shoot_growth(shoot_MTG,
                            SFQN=1,
                            LA_max=10,
-                           LA_max_relative_increase_per_day = 0.5,
+                           LA_max_relative_increase_per_day = 0.2,
                            leaf_minimal_thickness = 1e-3,
                            elong_internode=5e-7,
                            time_step_in_seconds = 60.*60.*24.,
                            air_temperature_in_degree_Celsius = 10.):
     """
     This function computes the potential increase in volume of each organ in the shoot system.
-    :param g: the shoot system
+    :param shoot_MTG: the MTG corresponding to the shoot system
     :param SFQN: the slope of the relationship of Leaf area = f(N_labile) (m2 per gN)
     :param LA_max: the maximal area for a leaf (m2)
     #TODO: should the leaf stop growing after a predetermined duration, instead of after reaching the LA_max?
     :param leaf_minimal_thickness: the minimal thickness of a leaf (m)
-    :param elong_internode: a potential rate of elongation (m per second)
+    :param elong_internode: a potential rate of elongation (m per m of diameter per second)
     :param time_step_in_seconds: the time step of the simulation (seconds)
     :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
     :return:
     """
+
+    # We rename the MTG for simplification:
+    g=shoot_MTG
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
     temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
@@ -831,7 +860,6 @@ def potential_shoot_growth(g,
         elif n.label == "Internode":
             # We calculate a potential elongation rate:
             potential_elongation_rate = elong_internode * n.radius * 2.
-            potential_elongation_rate = elong_internode * n.radius * 2.
             # TODO: the elongation rate of the internode should react to a signal or plant stage!
             # TODO: an internode should also increase in diameter over time!
             # And we compute the potential volume increment:
@@ -843,12 +871,16 @@ def potential_shoot_growth(g,
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_C_redistribution_for_shoot_growth(g,
+def computing_C_redistribution_for_shoot_growth(shoot_system,
+                                                shoot_MTG,
                                                 yield_growth=0.8,
                                                 structural_mass_density=1e5,
                                                 structural_C_content=0.44,
                                                 time_step_in_seconds = 60.*60.*24.
                                                 ):
+
+    # We rename the shoot MTG for simplification:
+    g=shoot_MTG
 
     # We initialize the stock of C that can be redistributed to sink leaves and the one that will be eventually used:
     total_available_C = 0.
@@ -906,14 +938,13 @@ def computing_C_redistribution_for_shoot_growth(g,
         n.C_input_rate = additional_C_for_sink_leaf / time_step_in_seconds
         C_used_by_sink_leaves += additional_C_for_sink_leaf
 
-    # Eventually, we store the remaining available C in the first node:
-    base = g.node(1)
-    base.shoot_available_C = total_available_C - C_used_by_sink_leaves # The remaining amount of C here may be allocated to roots!
+    # Eventually, we store the remaining available C:
+    shoot_system.shoot_labile_C_pool = total_available_C - C_used_by_sink_leaves # The remaining amount of C here may be allocated to roots!
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def actual_shoot_growth(g,
+def actual_shoot_growth(shoot_MTG,
                         yield_growth = 0.8,
                         structural_mass_density = 1e5,
                         structural_C_content = 0.44,
@@ -924,7 +955,7 @@ def actual_shoot_growth(g,
     """
     This function computes the actual growth of the shoot system, depending on the C and N available in each organ,
     as well as the ageing of each shoot element.
-    :param g: the shoot system
+    :param shoot_MTG: the shoot system
     :param yield_growth: the fraction of the total C used for growth that will be incorporated to the new mass (the rest is respired) (gC per gC)
     :param struct_mass_density: the density of the structural mass (gram of structural maqss per m3)
     :param structural_C_content: the C content of the structural mass (gC per gram of structural mass)
@@ -934,6 +965,9 @@ def actual_shoot_growth(g,
     :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
     :return:
     """
+
+    # We rename the shoot MTG for simplification:
+    g=shoot_MTG
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
     temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
@@ -1005,61 +1039,6 @@ def actual_shoot_growth(g,
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def updating_coordinates(g):
-
-    # We define "root" as the starting point of the loop below:
-    root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
-    root = next(root_gen)
-
-    # We travel in the MTG from the base to the extremity:
-    for vid in pre_order(g, root):
-
-        # We define the current element as n:
-        n = g.node(vid)
-        # We make sure that the current element has a positive length:
-        if n.length<=0.:
-            continue
-
-        # We get the current coordinates of the vector corresponding to the element:
-        x1 = n.x1
-        x2 = n.x2
-        y1 = n.y1
-        y2 = n.y2
-        z1 = n.z1
-        z2 = n.z2
-
-        # The direction of the vector from point 1 to point 2 will be unchanged:
-        direction_x = x2 - x1
-        direction_y = y2 - y1
-        direction_z = z2 - z1
-
-        # We need to change the coordinates of the new point 2 based on the updated length.
-        # The distance between point 1 and the original point 2 can be calculated by:
-        d = ((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)**0.5
-
-        if d > 0.:
-            # The new coordinates of the second point of the current element are then:
-            n.x2 = x1 + n.length / d * direction_x
-            n.y2 = y1 + n.length / d * direction_y
-            n.z2 = z1 + n.length / d * direction_z
-        else:
-            # This situation where point 2 coincides with point 1 may happen in the case of leaves, where the turtle
-            # has returned to its initial position after creating the shape of the leaf:
-            n.x2 = x1
-            n.y2 = y1
-            n.z2 = z1
-
-        # We try then to update the x1,y1,z1 coordinates of the next element, if any:
-        son_id = g.Successor(vid)
-        if son_id:
-            son = g.node(son_id)
-            son.x1 = n.x2
-            son.y1 = n.y2
-            son.z1 = n.z2
-
-    return
-# -----------------------------------------------------------------------------------------------------------------------
-# -----------------------------------------------------------------------------------------------------------------------
 def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_degree_Celsius=20):
     """
     This functions increases the age of each organ in the shoot MTG. The age is expressed in seconds, either as actual
@@ -1149,14 +1128,12 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     # We select the vertices corresponding to the buds that are allowed to emerge:
     list_of_apices = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Bud"
                       and g.node(vid).emergence_possibility == True]
-
-    # As long as the list of apices to treat is not empty:
+    # As long as the list of emerging buds to treat is not empty:
     while list_of_apices != []:
-        # We cover each apex present in the list:
+        # We cover each bud present in the list:
         for apex in list_of_apices:
-            # We remove the current apex from the list, so that it is not considered next time:
-            list_of_apices.remove(apex)
-            # Then we add a new phytomer at the top of the current apex:
+            print("For the bud", apex.index(),"the initial angle down is", apex.angle_down)
+            # We add a new phytomer at the top of the current apex:
             [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                        internode_radius=apex.radius,
                                                        internode_length=initial_internode_length,
@@ -1166,6 +1143,9 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                                        properties_identical_to_parent=False,
                                                        nil_properties=True
                                                        )
+            # We correct the angle down of the new internode, so that its direction corresponds to the one from the initial bud:
+            internode.angle_down = apex.angle_down
+            print("For the new internode created from the bud", apex.index(), "the angle down is", internode.angle_down)
             # By default, we set the bud as dormant:
             bud.emergence_possibility = False
             # We remove the previous apex, as a new one will now be formed on the top of the new phytomer:
@@ -1176,8 +1156,10 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                             label="Apex",
                                             properties_identical_to_parent=True,
                                             nil_properties=False)
-            # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
             new_apex.length = 0.
+            new_apex.angle_down = 0.
+            # We remove the former apex from the list, so that it is not considered next time:
+            list_of_apices.remove(apex)
             # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
             # # Finally, we update the list of apices by adding the new apex that has been formed,
             # # in case it could itself form a new phytomer:
@@ -1211,10 +1193,10 @@ def computing_senescence(shoot_MTG,
             continue
         # We verify whether the current element shoud start senescing:
         if n.senescence_status == False:
-            # If there is no labile C to sustain the element or if it has reached a maximal "youth" age:
-            if (n.C_labile_deficit >= 0.
-                    or (n.thermal_time_since_formation + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
-                # We declare that the element should senesce:
+            # If there is no labile C to sustain the element and if it has reached a maximal "youth" age:
+            if (n.C_labile_deficit > 0.
+                    and (n.thermal_time_since_formation + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
+                # We declare that the element should enter senescence:
                 n.senescence_status = True
 
     return
@@ -1223,6 +1205,9 @@ def computing_senescence(shoot_MTG,
 def computing_leaf_fall(shoot_MTG,
                          time_step_in_seconds=1/(60.*60.*24.),
                          air_temperature_in_degree_Celsius=10.):
+
+    # We rename the shoot MTG for simplicity:
+    g=shoot_MTG
 
     # We get the list of all living leaves in the shoot MTG:
     list_of_leaves = [g.node(vid) for vid in g.vertices_iter(scale=1) if g.node(vid).label == "Leaf"]
@@ -1240,6 +1225,7 @@ def computing_leaf_fall(shoot_MTG,
 #-----------------------------------------------------------------------------------------------------------------------
 def shoot_organ_CN_balance(shoot_MTG, time_step_in_seconds = 60.*60.*24., resetting_rates=False):
 
+    # We rename the MTG for simplification:
     g = shoot_MTG
 
     # We cover each organ of the shoot:
@@ -1370,7 +1356,7 @@ def shoot_CN_balance(shoot_system, time_step_in_seconds = 60.*60):
 
     return
 
-def calling_the_different_shoot_modules(shoot_g,
+def calling_the_different_shoot_modules(shoot_MTG,
                                         time_step_in_days=1,
                                         phytomers_initiation = True,
                                         number_of_plants_per_square_meter=33,
@@ -1387,7 +1373,8 @@ def calling_the_different_shoot_modules(shoot_g,
     # -"C_allocation_to_roots_before_C_storage": We first achieve the actual growth of source leaves and of the sink
     # leaves before C reallocation, then we allocate C to roots, and the remaining is used for reallocating C to sink leaves.
 
-    g = shoot_g
+    # We rename the MTG for simplification:
+    g = shoot_MTG
 
     # WE SUCCESSIVELY CALL THE DIFFERENT MODULES:
 
@@ -1426,7 +1413,8 @@ def calling_the_different_shoot_modules(shoot_g,
                            )
 
     # We calculate the fraction of C that can be redistributed by source leaves, and distribute a fraction of it in sink leaves:
-    computing_C_redistribution_for_shoot_growth(g,
+    computing_C_redistribution_for_shoot_growth(shoot_system=plant,
+                                                shoot_MTG=g,
                                                 yield_growth=param.yield_growth,
                                                 structural_mass_density=param.struct_mass_density,
                                                 structural_C_content=param.structural_C_content,
@@ -1444,7 +1432,11 @@ def calling_the_different_shoot_modules(shoot_g,
                         )
 
     # We initiate the structure of new phytomers (if any):
-    new_phytomers_initiation(g, new_initiation=phytomers_initiation)
+    new_phytomers_initiation(shoot_system = plant,
+                             shoot_MTG = g,
+                             new_initiation=phytomers_initiation,
+                             initial_internode_length=param.initial_internode_length,
+                             initial_leaf_length=param.initial_leaf_length)
 
     # We update all dimensions of the organs:
     updating_coordinates(g)
@@ -1454,7 +1446,7 @@ def calling_the_different_shoot_modules(shoot_g,
 
     # This function reallocates all the remaining C available to the different organs according to their PAR,
     # and stores it as additional structural mass:
-    computing_shoot_C_storage(g,time_step_in_seconds=time_step_in_days*60.*60.*24.)
+    computing_shoot_C_storage(shoot_system=plant, shoot_MTG=g, time_step_in_seconds=time_step_in_days*60.*60.*24.)
 
     # This function mobilizes N from the organs and stores it at the base of the shoot system:
     computing_shoot_N_remobilization(g, k_N_mobilization=param.k_N_mobilization)
@@ -1473,7 +1465,9 @@ def calling_the_different_shoot_modules(shoot_g,
 
     # 6) Ramification:
     #-----------------
-    computing_ramification(g)
+    computing_ramification(g,
+                           initial_internode_length=param.initial_internode_length,
+                           initial_leaf_length=param.initial_leaf_length)
 
     # 7) Senescence and leaf fall:
     #-----------------------------
@@ -1501,7 +1495,16 @@ if __name__ == '__main__':
     # g = create_MTG_from_csv_file()
 
     # OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
-    g = create_shoot_MTG(number_of_phytomers=5)
+    g = create_shoot_MTG(number_of_phytomers=3,
+                         initial_internode_height=0.002,
+                         initial_internode_radius=0.0008,
+                         initial_leaf_length=0.02)
+
+    # By default, we consider the object "shoot_system" representing the whole shoots as the first node of the MTG:
+    plant = g.node(1)
+    # We initialize the labile content of C and N:
+    plant.shoot_labile_C_pool = 1e-2
+    plant.shoot_labile_N_pool = 1e-3
 
     # We delete the previous files containing plots or MTG properties:
     plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
@@ -1529,22 +1532,6 @@ if __name__ == '__main__':
     loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
                                  outputs_path = os.path.join(my_path, "simulation", "outputs"))
 
-    # # We display the MTG in its initial state with PlantGL:
-    # empty_scene = pgl.Scene()
-    # pgl.Viewer.display(empty_scene)
-    # plotting_shoot_MTG(g, width=1200, height=900,
-    #                x_center=0, y_center=0, z_center=2.,
-    #                x_cam=5., y_cam=5., z_cam=5.,
-    #                grid=False,
-    #                background_color=[0, 0, 0],
-    #                single_color=None,
-    #                property_name='PAR_intercepted', cmap='jet', vmin=0.1, vmax=100, lognorm=False,
-    #                recording_plot=True,
-    #                plot_name=os.path.join(plot_directory,'plot_0000.png'))
-
-    # # Plotting the MTG with Pyvista:
-    # plotting_shoots_with_pyvista(g)
-
     # We record the properties in its initial state:
     recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
 
@@ -1560,6 +1547,17 @@ if __name__ == '__main__':
     row_length = 1.
     scene_width = 1.
 
+    # PREPARING THE COORDINATES OF CAMERA ROTATION:
+    # We calculate the x,y,z coordinates of the different positions of the camera:
+    [x_coordinates, y_coordinates, z_coordinates] = circle_coordinates(x_center=param.x_center,
+                                                                       y_center=param.y_center,
+                                                                       z_center=param.z_camera,
+                                                                       radius=sqrt(
+                                                                           (param.x_camera ** 2 + param.y_camera ** 2)),
+                                                                       n_points=param.camera_rotation_n_points)
+    # We initialize the index in the list of the coordinates:
+    index_camera = 0
+
     # 2) OVER TIME:
     #--------------
     # For each time step covering the scenarios period:
@@ -1573,8 +1571,8 @@ if __name__ == '__main__':
         print("-----------------------")
 
         # CALLING THE EXCHANGE WITH ROOTS:
-        # TODO: change this forced inputs with the actual connection with RootSimple
-        g.node(1).shoot_available_N = 10.
+        # We artificially replenish the pool of labile N in the shoots:
+        plant.shoot_labile_N_pool = 0.1
 
         # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
 
@@ -1583,15 +1581,17 @@ if __name__ == '__main__':
         phytomer_formation = False
         # We increment the time elapsed since the last phytomer formation with the current time step:
         elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
+        # TODO: WATCH OUT: this does not take into account the actual temperature!
         # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
-        if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochron_in_days:
+        if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochron / (60.*60.*24.):
             # We authorize the formation of a new phytomer:
             phytomer_formation = True
             # And we reset the elapsed time:
-            elapsed_time_in_days_since_last_leaf_emergence = elapsed_time_in_days_since_last_leaf_emergence - param.phyllochron_in_days
+            elapsed_time_in_days_since_last_leaf_emergence = (elapsed_time_in_days_since_last_leaf_emergence
+                                                              - (param.phyllochron / (60.*60.*24.)))
 
         # We call the different modules:
-        calling_the_different_shoot_modules(shoot_g = g,
+        calling_the_different_shoot_modules(shoot_MTG = g,
                                             phytomers_initiation=phytomer_formation,
                                             number_of_plants_per_square_meter=plant_density_in_square_meter,
                                             inter_row_distance=inter_row_distance,
@@ -1602,13 +1602,23 @@ if __name__ == '__main__':
         # We display the MTG in its new state:
         # Option 1A - With PlantGL:
         #--------------------------
+        x_cam = x_coordinates[index_camera]
+        y_cam = y_coordinates[index_camera]
+        z_cam = z_coordinates[index_camera]
+        # We define the index of the coordinates to read at the next step:
+        index_camera = index_camera + 1
+        # If this index is higher than the number of coordinates in each vector:
+        if index_camera >= param.camera_rotation_n_points:
+            # Then we reset the index to 0:
+            index_camera = 0
         graph = plotting_shoot_MTG(g,
                                    leaf_shape="oval",
                                    # leaf_shape="typical_leaf_shape",
                                    # leaf_shape="drop_shape",
                                    width=1200, height=900,
                                    x_center=0, y_center=0, z_center=0.03,
-                                   x_cam=0.18, y_cam=0.18, z_cam=0.03,
+                                   # x_cam=0.18, y_cam=0.18, z_cam=0.03,
+                                   x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
                                    grid=False,
                                    # background_color=[0, 0, 0],
                                    single_color=[100,150,50],
@@ -1619,8 +1629,8 @@ if __name__ == '__main__':
                                    recording_plot=True,
                                    plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
 
-        # # Option 1B - With Pyvista:
-        # #--------------------------
+        # Option 1B - With Pyvista:
+        #--------------------------
         # plotting_shoots_with_pyvista(g)
 
         # # PLOTTING A POPULATION OF PLANTS:

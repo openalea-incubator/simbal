@@ -9,6 +9,7 @@
 
 from openalea.mtg import turtle as turt
 from openalea.mtg.plantframe import color
+from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
 
 import simbal_parameters as param
@@ -115,7 +116,7 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         # 1) CASE OF A LEAF:
         # -------------------
         # In the current element corresponds to a leaf:
-        if n.label == 'Leaf':
+        if n.label == 'Leaf' or n.label == "Fallen_leaf":
             # A. OPTION WITH OVAL SHAPE:
             if leaf_shape == "oval":
                 # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
@@ -282,6 +283,61 @@ def circle_coordinates(x_center=0., y_center=0., z_center=0., radius=1., n_point
         angle += theta
 
     return x_coordinates, y_coordinates, z_coordinates
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+def updating_coordinates(g):
+
+    # We define "root" as the starting point of the loop below:
+    root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
+    root = next(root_gen)
+
+    # We travel in the MTG from the base to the extremity:
+    for vid in pre_order(g, root):
+
+        # We define the current element as n:
+        n = g.node(vid)
+        # We make sure that the current element has a positive length:
+        if n.length<=0.:
+            continue
+
+        # We get the current coordinates of the vector corresponding to the element:
+        x1 = n.x1
+        x2 = n.x2
+        y1 = n.y1
+        y2 = n.y2
+        z1 = n.z1
+        z2 = n.z2
+
+        # The direction of the vector from point 1 to point 2 will be unchanged:
+        direction_x = x2 - x1
+        direction_y = y2 - y1
+        direction_z = z2 - z1
+
+        # We need to change the coordinates of the new point 2 based on the updated length.
+        # The distance between point 1 and the original point 2 can be calculated by:
+        d = ((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)**0.5
+
+        if d > 0.:
+            # The new coordinates of the second point of the current element are then:
+            n.x2 = x1 + n.length / d * direction_x
+            n.y2 = y1 + n.length / d * direction_y
+            n.z2 = z1 + n.length / d * direction_z
+        else:
+            # This situation where point 2 coincides with point 1 may happen in the case of leaves, where the turtle
+            # has returned to its initial position after creating the shape of the leaf:
+            n.x2 = x1
+            n.y2 = y1
+            n.z2 = z1
+
+        # We try then to update the x1,y1,z1 coordinates of the next element, if any:
+        son_id = g.Successor(vid)
+        if son_id:
+            son = g.node(son_id)
+            son.x1 = n.x2
+            son.y1 = n.y2
+            son.z1 = n.z2
+
+    return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def create_a_scene_with_plants_popuplation(g,
@@ -547,7 +603,13 @@ def plotting_shoot_MTG(g,
                 shapes[vid].appearance = pgl.Material(colors[vid], transparency=0.0)
             else:
                 # Otherwise, we can print it with a unique color:
-                shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
+                if n.label=="Fallen_leaf":
+                    # If the leaf has fallen, we print in grey, semi-transparent:
+                    shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
+                elif n.label=="Bud":
+                    shapes[vid].appearance = pgl.Material([250, 0, 0], transparency=0.5)
+                else:
+                    shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
     # We add each shape of the current MTG to the final scene:
     for shape in scene:
         new_scene += shape
@@ -840,7 +902,11 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                 shapes[vid].appearance = pgl.Material(colors_shoot[vid], transparency=0.2)
             else:
                 # Otherwise, we can print it with a unique color:
-                shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
+                if n.label=="Fallen_leaf":
+                    # If the leaf has fallen, we print in grey, semi-transparent:
+                    shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
+                else:
+                    shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.3)
 
     # We add each shape of the current MTG to the final scene:
     for shape in shoot_scene:

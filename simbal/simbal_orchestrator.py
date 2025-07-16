@@ -18,7 +18,7 @@ import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
 from tools import (loading_parameters_from_file, formatted_inputs, temperature_modification, recording_MTG_properties,
-                   circle_coordinates, plotting_whole_plant)
+                   circle_coordinates, updating_coordinates, plotting_whole_plant)
 
 import os
 import numpy as np
@@ -29,36 +29,36 @@ from decimal import Decimal
 ########################################################################################################################
 ########################################################################################################################
 
-# We define a class that will be used to contain the properties of the interface between shoot and roots:
+# We define a class that will contain the properties of the interface between shoot and roots (amounts and rates):
 class whole_plant(object):
     # We initiate the object:
     def __init__(self):
         self.shoot_struct_mass = 0.
         self.root_struct_mass = 0.
 
-        self.shoot_labile_C_pool = 0. # mol of C per shoot system
-        self.shoot_labile_C_deficit = 0. # mol of C per shoot system
-        self.shoot_labile_N_pool = 0. # mol of N per shoot system
-        self.shoot_labile_N_deficit = 0. # mol of N per shoot system
-        self.root_labile_C_pool = 0.  # mol of C per root system
-        self.root_labile_C_deficit = 0. # mol of C per root system
-        self.root_labile_N_pool = 0.  # mol of N per root system
-        self.root_labile_N_deficit = 0. # mol of N per root system
+        self.shoot_labile_C_pool = 0. # gC per shoot system
+        self.shoot_labile_C_deficit = 0. # gC per shoot system
+        self.shoot_labile_N_pool = 0. # gN per shoot system
+        self.shoot_labile_N_deficit = 0. # gN per shoot system
+        self.root_labile_C_pool = 0.  # gC per root system
+        self.root_labile_C_deficit = 0. # gC per root system
+        self.root_labile_N_pool = 0.  # gN per root system
+        self.root_labile_N_deficit = 0. # gN per root system
 
-        self.C_flux_to_shoot = 0.  # mol of C per second
-        self.N_flux_to_shoot = 0.  # mol of N per second
-        self.C_flux_to_root = 0.  # mol of C per second
-        self.N_flux_to_root = 0.  # mol of N per second
+        self.C_flux_to_shoot = 0.  # gC per second
+        self.N_flux_to_shoot = 0.  # gN per second
+        self.C_flux_to_root = 0.  # gC per second
+        self.N_flux_to_root = 0.  # gN per second
 
-        self.net_C_transfer_from_shoot_to_root_rate = 0. # mol of C per second
-        self.net_N_transfer_from_root_to_shoot_rate = 0. # mol of N per second
-        self.transpiration_flux = 0. # mol of water per second
+        self.net_C_transfer_from_shoot_to_root_rate = 0. # gC per second
+        self.net_N_transfer_from_root_to_shoot_rate = 0. # gN per second
+        self.transpiration_flux = 0. # gram of water per second
 
-        self.photosynthesized_C_rate = 0. # mol of C per second
-        self.shoot_maintenance_respiration_rate = 0. # mol of C per second
-        self.actual_C_consumption_rate_by_shoot_growth = 0. # mol of C per second
-        self.actual_N_consumption_rate_by_shoot_growth = 0. # mol of N per second
-        self.net_shoot_N_immobilization_rate = 0. # mol of N per second
+        self.photosynthesized_C_rate = 0. # gC per second
+        self.shoot_maintenance_respiration_rate = 0. # gC per second
+        self.actual_C_consumption_rate_by_shoot_growth = 0. # gC per second
+        self.actual_N_consumption_rate_by_shoot_growth = 0. # gN per second
+        self.net_shoot_N_immobilization_rate = 0. # gN per second
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # We define a function that computes C & N exchanges between shoot and root systems:
@@ -98,7 +98,7 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
                                            - i.root_labile_C_pool / i.root_struct_mass)) * i.exchange_section
             else:
                 print("!!! ERROR: the structural mass of shoot and root are", i.shoot_struct_mass, "and", i.root_struct_mass, "gDW, respectively!")
-                print("           > We set the flux of C from shoot to root to 0.")
+                print("           > We set the flow rate of C from shoot to root to 0.")
                 shoot_to_root_C_flux = 0.
             # We register the transfer rate:
             i.net_C_transfer_from_shoot_to_root_rate = shoot_to_root_C_flux
@@ -107,7 +107,7 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
         elif C_option == "full_transfer_from_shoot_to_root":
             i.net_C_transfer_from_shoot_to_root_rate = i.shoot_labile_C_pool / time_step_in_seconds
         else:
-            print("WATCH OUT: the option for computing the transfer of C from shoot to root is not recognized! The flux has been set to zero.")
+            print("WATCH OUT: the option for computing the transfer of C from shoot to root is not recognized! The flow rate has been set to 0.")
             i.net_C_transfer_from_shoot_to_root_rate = 0.
 
     # COMPUTING THE EXCHANGE OF NITROGEN:
@@ -116,7 +116,7 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
         if N_option == "by_diffusion":
             # Then the net N flux is calculated using a gradient of concentration, a diffusion coefficient,
             # and the section of exchange:
-            i.exchange_section = 0.01
+            i.exchange_section = 0.01 # TODO: the exchange section between shoots and roots should be calculated somewhere else!
             if i.shoot_struct_mass > 0. and i.root_struct_mass > 0.:
                 root_to_shoot_N_flux = (param.N_diffusion_coefficient
                                         * (i.root_labile_N_pool / i.root_struct_mass
@@ -124,7 +124,7 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
             else:
                 print("!!! ERROR: the structural mass of shoot and root are", i.shoot_struct_mass, "and",
                       i.root_struct_mass, "gDW, respectively!")
-                print("           > We set the flux of N from root to shoot to 0.")
+                print("           > We set the flow rate of N from root to shoot to 0.")
                 root_to_shoot_N_flux = 0.
             # We register the transfer rate:
             i.net_N_transfer_from_root_to_shoot_rate = root_to_shoot_N_flux
@@ -136,19 +136,19 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
             if i.transpiration_flux >= 0.:
                 i.net_N_transfer_from_root_to_shoot_rate = (i.transpiration_flux / water_concentration
                                                             * i.root_labile_N_pool / i.root_struct_mass)
-                # NOTE: N_flux in mol of N per plant and per second
-                #       transpiration_flux in mol of water per plant and per second
-                #       water_concentration in mol of water per gDW of root structural mass
-                #       root_labile_N_pool in mol of N per plant
+                # NOTE: N_flux in gN per plant and per second
+                #       transpiration_flux in gram of water per plant and per second
+                #       water_concentration in gram of water per gDW of root structural mass
+                #       root_labile_N_pool in gN per plant
                 #       root_struct_mass in gDW of root structural mass
             else:
-                print("ERROR - the transpiration flux was negative! The flux of N from root to shoot was set to 0.")
+                print("ERROR - the transpiration flux was negative! The flow rate of N from root to shoot was set to 0.")
                 i.net_N_transfer_from_root_to_shoot_rate = 0.
         # Otherwise, if the N present in the root is meant to be transfer in totality to the shoot system:
         elif N_option == "full_transfer_from_root_to_shoot":
             i.net_N_transfer_from_root_to_shoot_rate = i.root_labile_N_pool / time_step_in_seconds
         else:
-            print("WATCH OUT: the option for computing the transfer of N from root to shoot is not recognized! The flux has been set to zero.")
+            print("WATCH OUT: the option for computing the transfer of N from root to shoot is not recognized! The flow rate has been set to 0.")
             i.net_N_transfer_from_root_to_shoot_rate = 0.
 
     return
@@ -168,8 +168,8 @@ def shoot_root_exchange(i, computing_C_exchange=False, computing_N_exchange=Fals
 #
 # shoot_root_exchange(i, computing_C_exchange=True, computing_N_exchange=True,
 #                     C_option="by_diffusion", N_option="by_water_flux")
-# print("The new flux of C from shoot to root is", i.C_flux_to_root, "mol of C per second.")
-# print("The new flux of N from root to shoot is", i.N_flux_to_shoot, "mol of N per second.")
+# print("The new flux of C from shoot to root is", i.C_flux_to_root, "gC per second.")
+# print("The new flux of N from root to shoot is", i.N_flux_to_shoot, "gN per second.")
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calling the main functions in a specific order and run the whole simulation:
@@ -192,6 +192,37 @@ def run_simulation(my_path=None,
                    initial_root_labile_N_concentration = 1e-4 # in gN per gram of structural mass
                    ):
 
+    """
+    This function organizes the main simulation. After plant initiation, it calls the different modules and functions
+    from SIMBAL for each time step, and records the outputs.
+    Parameters
+    ----------
+    my_path
+    simulation_period_in_days
+    time_step_in_days
+    starting_time_in_days
+    input_file
+    input_file_time_step_in_days
+    forcing_constant_aboveground_environment
+    constant_air_temperature_in_Celsius
+    constant_light_irradiation
+    forcing_constant_belowground_environment
+    constant_soil_temperature_in_Celsius
+    constant_soil_available_nitrogen
+    plant_density_in_square_meter
+    inter_row_distance
+    row_length
+    scene_width
+    C_allocation_option
+    initial_shoot_labile_C_concentration
+    initial_shoot_labile_N_concentration
+    initial_root_labile_C_concentration
+    initial_root_labile_N_concentration
+
+    Returns
+    -------
+
+    """
 
     # SETTING FILE PATHS AND FOLDERS:
     #--------------------------------
@@ -251,7 +282,10 @@ def run_simulation(my_path=None,
     
     # INITIALIZING SHOOT STRUCTURE:
     # We create a MTG "shoot_g" corresponding to the shoot (stem and leaves):
-    shoot_g = AllocF.create_shoot_MTG(number_of_phytomers=5)
+    shoot_g = AllocF.create_shoot_MTG(number_of_phytomers=3,
+                                      initial_internode_height=0.0005,
+                                      initial_internode_radius=0.0008,
+                                      initial_leaf_length=0.003)
     # We update the shoot system general properties based on the shoot MTG:
     for vid in shoot_g.vertices_iter(scale=1):
         n = shoot_g.node(vid)
@@ -260,14 +294,14 @@ def run_simulation(my_path=None,
         except:
             print("!!! ERROR: we could not add the properties of the shoot element", vid, "to the whole plant!")
     # We add an extra-property to the base of the shoot system, corresponding to the time since the last phytomer
-    # was formed (used together with the phyllochrone later on):
+    # was formed (used together with the phyllochron later on):
     shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
     # We record the properties in the initial state of the shoot MTG in an external file:
     recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_directory, 'MTG_00000.csv'))
 
     # INITIALIZING ROOT STRUCTURE:
     # We create another MTG corresponding to the root system:
-    root_g = RootSimple.initiate_mtg(initial_segment_length=5e-3)
+    root_g = RootSimple.initiate_mtg(initial_segment_length=0.001)
     # We reinitialize the variables in the root MTG:
     RootSimple.reinitializing_growth_variables(root_g)
     # We update the distance from tip for each root element in each root axis:
@@ -300,14 +334,13 @@ def run_simulation(my_path=None,
     simulation_period_in_days = simulation_period_in_days
     time_step_in_seconds = time_step_in_days * 60*60*24
     n_steps = trunc(simulation_period_in_days / time_step_in_days)
-    # We initialize a counter that will be used over successive time steps together with the phyllochrone:
+    # We initialize a counter that will be used over successive time steps together with the phyllochron:
     elapsed_time_in_days_since_last_leaf_emergence = 0.
 
     # READING THE INPUT FILE:
     # -----------------------
     if input_file and not (forcing_constant_aboveground_environment and forcing_constant_belowground_environment):
-        # We use the function 'formatted inputs' to create a table containing the input data for each required step,
-        # depending on the chosen time step:
+        # We use the function 'formatted inputs' to create a table containing the input data for each time step:
         input_frame = formatted_inputs(original_input_file=input_file,
                                        final_input_file=os.path.join(outputs_directory, 'updated_input_file.csv'),
                                        original_time_step_in_days=input_file_time_step_in_days,
@@ -337,13 +370,13 @@ def run_simulation(my_path=None,
         # We initialize the index in the list of the coordinates:
         index_camera = 0
 
-    # LOOPING OVER TIME:
-    ####################
+    # SIMULATING OVER TIME:
+    ######################
 
-    # For each time step covering the period:
+    # For each time step covering the simulation period:
     for step in range(initial_step_number, initial_step_number + n_steps):
 
-        # We calculate the current time in hours:
+        # We calculate the initial and final time of the current time step (in days):
         initial_time_in_days = initial_time + (step) * time_step_in_days
         final_time_in_days = initial_time + (step+1) * time_step_in_days
 
@@ -356,10 +389,12 @@ def run_simulation(my_path=None,
             air_temperature = constant_air_temperature_in_Celsius
         # Otherwise, if there is an input file to be used:
         elif input_file:
+            # We extract the information on incident light and air temperature from the input file:
             light_input = input_frame.loc[step - initial_step_number, 'light_irradiation_in_micromol_per_m2_per_second']
             air_temperature = input_frame.loc[step - initial_step_number, 'air_temperature_in_degree_Celsius']
         else:
             print("!!! ERROR: no input file has been provided!")
+
         # Similarly, if constant belowground conditions have been chosen:
         if forcing_constant_belowground_environment:
             soil_temperature = constant_soil_temperature_in_Celsius
@@ -373,8 +408,8 @@ def run_simulation(my_path=None,
         print("-------------------------")
         print("    Air temperature is", "{:.2f}".format(Decimal(air_temperature)), "degree Celsius; soil temperature is",
               "{:.2f}".format(Decimal(soil_temperature)), "degree Celsius.")
-        print("    Incoming light is", "{:.2f}".format(Decimal(light_input)), "micromol of photons per square meter per second.")
-        print("    Soil available N is", "{:.2f}".format(Decimal(soil_available_nitrogen)), "gN per gram of dry soil.")
+        print("    Incoming light is", "{:.0f}".format(Decimal(light_input)), "micromol of photons per square meter per second.")
+        print("    Soil available N is", "{:.2E}".format(Decimal(soil_available_nitrogen)), "gN per gram of dry soil.")
         print("")
 
         # CALCULATING AN EQUIVALENT OF THERMAL TIME:
@@ -430,7 +465,7 @@ def run_simulation(my_path=None,
                                                          soil_temperature_in_degree_Celsius=soil_temperature)
 
         # ROOT GROWTH:
-        # We reset all growth-associated variabes before performing the new growth:
+        # We reset all growth-associated variables before performing the new growth:
         RootSimple.reinitializing_growth_variables(root_g)
         # We calculate the potential growth of each root element according to ArchiSimple:
         RootSimple.potential_growth(root_g, time_step_in_seconds=time_step_in_seconds,
@@ -449,7 +484,7 @@ def run_simulation(my_path=None,
         RootSimple.ArchiSimple_growth_with_C_and_N(plant, root_g,
                                                    satisf_for_C, satisf_for_N,
                                                    time_step_in_seconds=time_step_in_seconds)
-        # We proceed to the segmentation of the whole root system
+        # We proceed to the segmentation of the whole root system:
         RootSimple.segmentation_and_primordia_formation(root_g, time_step_in_seconds,
                                                         soil_temperature_in_Celsius=soil_temperature, random=True,
                                                         root_order_limitation=False)
@@ -480,7 +515,7 @@ def run_simulation(my_path=None,
                             N_option="by_diffusion")
         # We then limit the transfer of N from roots to shoots (or from shoots to roots) to the maximal amount of N
         # available in the source compartment.
-        # We first calculate the expected amount of N that should be exchanged based on the flux:
+        # We first calculate the expected amount of N that should be exchanged based on the exchange rate that has been computed:
         expected_N_exchange = plant.net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds
         # CASE 1: The flow of N from root to shoot is positive, but there is not enough N in the root to sustain it.
         if expected_N_exchange > (plant.root_labile_N_pool - plant.root_labile_N_deficit):
@@ -509,29 +544,18 @@ def run_simulation(my_path=None,
         print("    Labile C pool in the shoot system is initially", "{:.2E}".format(Decimal(plant.shoot_labile_C_pool)),
               "gC and labile N pool is", "{:.2E}".format(Decimal(plant.shoot_labile_N_pool)), "gN.")
 
-        # # We first examine whether new phytomers will be produced at this time step.
-        # # We reset the authorization to add a new phytomer:
-        # phytomer_formation = False
-        # # We increment the time elapsed since the last phytomer formation with the current time step:
-        # elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
-        # # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
-        # if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochrone_in_days:
-        #     # We authorize the formation of a new phytomer:
-        #     phytomer_formation = True
-        #     # And we reset the elapsed time:
-        #     elapsed_time_in_days_since_last_leaf_emergence = elapsed_time_in_days_since_last_leaf_emergence - param.phyllochrone_in_days
-
         # UPTAKE OF C BY THE SHOOTS:
-        # We calculate light interception based on the architecture:
+        # We calculate light interception based on the shoot architecture:
         AllocF.computing_light_interception(shoot_g,
+                                            incoming_light_density=light_input,
                                             number_of_plants_per_square_meter=plant_density_in_square_meter,
                                             inter_row_distance=inter_row_distance,
                                             scene_length=row_length,
                                             scene_width=scene_width,
                                             leaf_shape=param.leaf_shape
                                             )
-        # We calculate the rate of C production based on the PAR intercepted by the plant:
-        AllocF.computing_photosynthesis_rate(shoot_g, air_temperature_in_degree_Celsius=air_temperature)
+        # We calculate the rate of C production based on the PAR intercepted by the plant (and we also get the total PAR intercepted by the plant):
+        total_PAR_intercepted = AllocF.computing_photosynthesis_rate(shoot_g, air_temperature_in_degree_Celsius=air_temperature)
 
         # MAINTENANCE IN THE SHOOTS:
         # We calculate the C respiration cost associated to maintenance:
@@ -545,17 +569,22 @@ def run_simulation(my_path=None,
         # At this stage, we distribute the residual C in each organ according to PAR:
         AllocF.computing_shoot_C_redistribution(shoot_g,
                                                 shoot_available_C = plant.shoot_labile_C_pool,
-                                                intercepted_light = None, time_step_in_seconds=time_step_in_seconds)
+                                                intercepted_light = total_PAR_intercepted,
+                                                time_step_in_seconds=time_step_in_seconds)
 
         # We allocate the N available from the base of the shoot up to each leaf, based on PAR:
         AllocF.computing_shoot_N_distribution(shoot_g,
                                               shoot_available_N =  plant.shoot_labile_N_pool,
-                                              # shoot_available_N=None,
                                               time_step_in_seconds=time_step_in_seconds)
 
         # AllocF.shoot_organ_CN_balance(shoot_g, time_step_in_seconds=time_step_in_seconds, resetting_rates=True)
 
         # GROWTH IN THE SHOOTS:
+        # We start considering the possibility of ramification:
+        AllocF.computing_ramification(shoot_MTG=shoot_g,
+                                      initial_internode_length=param.initial_internode_length,
+                                      initial_leaf_length=param.initial_leaf_length)
+
         # We calculate the possible increase in volume of each organ:
         AllocF.potential_shoot_growth(shoot_g,
                                       SFQN=param.SFQN, #TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
@@ -563,16 +592,17 @@ def run_simulation(my_path=None,
                                       leaf_minimal_thickness=param.leaf_minimal_thickness,
                                       elong_internode=param.elong_internode,
                                       time_step_in_seconds=time_step_in_days*60.*60.*24.,
-                                      air_temperature_in_degree_Celsius = air_temperature
-                                      )
+                                      air_temperature_in_degree_Celsius = air_temperature)
+
         # We calculate the fraction of C that can be redistributed by source leaves, and distribute a fraction of it
         # in sink leaves:
-        AllocF.computing_C_redistribution_for_shoot_growth(shoot_g,
+        AllocF.computing_C_redistribution_for_shoot_growth(shoot_system=plant,
+                                                           shoot_MTG=shoot_g,
                                                            yield_growth=param.yield_growth,
                                                            structural_mass_density=param.struct_mass_density,
                                                            structural_C_content=param.structural_C_content,
-                                                           time_step_in_seconds=time_step_in_days*60.*60.*24.
-                                                           )
+                                                           time_step_in_seconds=time_step_in_days*60.*60.*24.)
+
         # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each organ:
         AllocF.actual_shoot_growth(shoot_g,
                                    yield_growth=param.yield_growth,
@@ -583,30 +613,33 @@ def run_simulation(my_path=None,
                                    time_step_in_seconds=time_step_in_days*60.*60.*24.,
                                    air_temperature_in_degree_Celsius=air_temperature
                                    )
+
         # We now consider the initiation of the structure of new phytomers (if any).
         # We increment the time since the last phytomer was formed at the top of the main stem:
         thermal_time_since_last_phytomer_formation\
             = shoot_g.node(0).thermal_time_since_last_phytomer_formation + thermal_time_step_in_seconds_shoots
-        # We get the value of the prescribed phyllochrone (in seconds equivalent to the reference temperature):
-        phyllochron = param.phyllochron_in_days * (60 * 60 * 24)
-        # print("Time since the last phytomer was formed is now", thermal_time_since_last_phytomer_formation/(60.*60.*24.),
-        #       "days, and the phyllochrone is", param.phyllochron_in_days," days.")
-        # If the period since the last phytomer was formed is higher than the phyllochrone:
+        # We get the value of the prescribed phyllochron (in seconds equivalent to the reference temperature):
+        phyllochron = param.phyllochron
+        # If the period since the last phytomer was formed is higher than the phyllochron:
         if thermal_time_since_last_phytomer_formation > phyllochron:
             print("A new phytomer should be formed!")
             # Then at least one phytomer should be formed on the main stem.
             # We keep looping until all phytomers have been formed:
             while thermal_time_since_last_phytomer_formation - phyllochron > 0:
-                # We subtract the value of the phyllochrone to the time since last phytomer was formed:
+                # We subtract the value of the phyllochron to the time since last phytomer was formed:
                 thermal_time_since_last_phytomer_formation -= phyllochron
                 # We add a set of new phytomers in the shoot system:
-                AllocF.new_phytomers_initiation(shoot_g, new_initiation=True)
+                AllocF.new_phytomers_initiation(shoot_system=plant,
+                                                shoot_MTG=shoot_g,
+                                                new_initiation=True,
+                                                initial_leaf_length=param.initial_leaf_length,
+                                                initial_internode_length=param.initial_internode_length)
                 print("> A new phytomer has been formed!")
                 # TODO: Check how resources should be allocated to the initiation of new phytomers, if the dimensions are positive
         # Once all phytomers have been added, we update the time since the last one was formed, which is stored at the base of the shoot system:
         shoot_g.node(0).thermal_time_since_last_phytomer_formation = thermal_time_since_last_phytomer_formation
         # We finally update all dimensions of the organs:
-        AllocF.updating_coordinates(shoot_g)
+        updating_coordinates(shoot_g)
 
         #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if C_allocation_option=="C_allocation_to_roots_before_C_storage":
@@ -617,13 +650,15 @@ def run_simulation(my_path=None,
         # EXCHANGE WITH RESERVE:
         # This function reallocates all the remaining C available to the different organs according to their PAR,
         # and stores it as additional structural mass:
-        AllocF.computing_shoot_C_storage(shoot_g,time_step_in_seconds=time_step_in_days*60.*60.*24.)
+        AllocF.computing_shoot_C_storage(shoot_system=plant,
+                                         shoot_MTG=shoot_g,
+                                         time_step_in_seconds=time_step_in_days*60.*60.*24.)
 
-        # # This function mobilizes N from the organs and stores it at the base of the shoot system:
-        # AllocF.computing_shoot_N_remobilization(shoot_g, k_N_mobilization=param.k_N_mobilization)
-        #
-        # # This function immobilizes N in each shoot organ:
-        # AllocF.computing_shoot_N_immobilization(shoot_g)
+        # This function mobilizes N from the organs and stores it at the base of the shoot system:
+        AllocF.computing_shoot_N_remobilization(shoot_g, k_N_mobilization=param.k_N_mobilization)
+
+        # This function immobilizes N in each shoot organ:
+        AllocF.computing_shoot_N_immobilization(shoot_g)
 
         # C&N BALANCE IN THE SHOOTS:
         # This function performs the actual C & N balance and updates the labile pools of C & N in each organ:
@@ -636,7 +671,8 @@ def run_simulation(my_path=None,
         # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         # SENESCENCE AND LEAF FALL:
-        AllocF.computing_senescence(shoot_g)
+        AllocF.computing_senescence(shoot_g, time_step_in_seconds=time_step_in_seconds, air_temperature_in_degree_Celsius=air_temperature)
+        AllocF.computing_leaf_fall(shoot_g, time_step_in_seconds=time_step_in_seconds, air_temperature_in_degree_Celsius=air_temperature)
 
         # # Updating the shoot system general properties:
         # for vid in shoot_g.vertices_iter(scale=1):
@@ -736,8 +772,13 @@ def run_simulation(my_path=None,
 ##################
 
 if __name__ == '__main__':
+
+    simulation_period_in_days=120
+    time_step_in_days=1/24.
+    starting_time_in_days=0.
+
     run_simulation(my_path="C:/Users/frees/SIMBAL",
-                   simulation_period_in_days=20., time_step_in_days=1/24., starting_time_in_days=0.,
+                   simulation_period_in_days=simulation_period_in_days, time_step_in_days=1/24., starting_time_in_days=0.,
                    input_file="C:/Users/frees/SIMBAL/simulation/inputs/inputs_over_time.csv",
                    input_file_time_step_in_days=1.,
                    forcing_constant_aboveground_environment=False)

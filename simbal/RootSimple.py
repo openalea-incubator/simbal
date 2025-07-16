@@ -231,7 +231,7 @@ def updating_root_labile_N_with_input(root_system, time_step_in_seconds = 1 * (6
     """
 
     # We update the labile pool:
-    root_system.root_labile_N_pool += (root_system.N_uptake_rate + root_system.N2_fixation_rate) * time_step_in_seconds # mol of N per root system
+    root_system.root_labile_N_pool += (root_system.N_uptake_rate + root_system.N2_fixation_rate) * time_step_in_seconds # gN per root system
     if root_system.root_labile_N_pool < 0.:
         print("WATCH OUT: after N uptake from soil, the labile N pool is negative - we reset it to 0!")
         root_system.root_labile_N_pool = 0.
