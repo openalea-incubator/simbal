@@ -122,7 +122,9 @@ def ADDING_A_PHYTOMER(parent_element,
                                      nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
     internode.radius = internode_radius
+    internode.potential_radius = internode_radius
     internode.length = internode_length
+    internode.potential_length = internode_length
     internode.angle_down = 0.
     internode.angle_roll = param.phyllotactic_angle
     # We calculate the surface, volume and structural mass of the new organ:
@@ -169,7 +171,9 @@ def ADDING_A_PHYTOMER(parent_element,
                                nil_properties=True)
     # We specified some properties that may be distinct from the parent element:
     bud.radius = param.bud_radius_ratio * parent_element.radius
+    bud.potential_radius = bud.radius
     bud.length = bud_length
+    bud.potential_length = bud_length
     # The angle_down of the bud is defined according to the angle down of the turtle
     # (we go back on the axis direction, then we apply the insertion angle of the bud):
     bud.angle_down = - param.leaf_insertion_angle + param.bud_insertion_angle
@@ -304,7 +308,9 @@ def create_shoot_MTG(number_of_phytomers=3,
                               label='Base_of_the_root_system',
                               # Geometry:
                               radius=initial_internode_radius,
+                              potential_radius=initial_internode_radius,
                               length=0.,
+                              potential_length=0.,
                               angle_down=0.,
                               angle_roll=0.,
                               x1=0.,
@@ -614,9 +620,31 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for redistributing the C among shoot organs:
-# either C allocation (1) proportionnal to PARi for each organ or (2) per phytomer then distributed between organs depending on area
-def computing_shoot_C_redistribution(shoot_MTG, shoot_available_C = None, intercepted_light = None, time_step_in_seconds=1.):
+# Function for redistributing the C among shoot organs, with a C allocation. Different possibilities can be considered:
+# - proportionnal to PARi for each organ compared to the total PAR intercepted by the plant
+# - proportionnal to PARi/surface for each organ compared to the sum of PARi/surface of all organs
+# - proportionnal to PARi/surface of the leaf of the phytomer for each organ compared to the sum of PARi/surface of all leaves
+def computing_shoot_C_redistribution(shoot_MTG,
+                                     shoot_available_C = None,
+                                     intercepted_light = None,
+                                     time_step_in_seconds=60*60,
+                                     option="classic_PAR"):
+
+    """
+
+    Parameters
+    ----------
+    shoot_MTG
+    shoot_available_C
+    intercepted_light
+    time_step_in_seconds
+    option: "classic_PAR" (micromol of photons per second),
+            "surfacic_PAR" (micromol of photons per m2 of organ per second)
+
+    Returns
+    -------
+
+    """
 
     # 1) We calculate the amount of shoot C available and the total intercepted light:
     #---------------------------------------------------------------------------------
@@ -626,6 +654,7 @@ def computing_shoot_C_redistribution(shoot_MTG, shoot_available_C = None, interc
     else:
         # Otherwise, the available C is directly the provided shoot available C:
         available_C = shoot_available_C
+
     if intercepted_light is None:
         # We initialize the intercepted light by the shoot system to 0:
         intercepted_light_by_the_plant = 0.
@@ -633,15 +662,23 @@ def computing_shoot_C_redistribution(shoot_MTG, shoot_available_C = None, interc
         # Otherwise, the intercepted light is directly the light that has been provided:
         intercepted_light_by_the_plant = intercepted_light
 
+    # We initialize the sum of surfacic PAR, if needed:
+    if option == "surfacic_PAR":
+        sum_of_surfacic_PAR = 0.
+
     # If either shoot_available_C or intercepted_light have not been provided:
     if shoot_available_C is None or intercepted_light is None:
         # Then we cover each organ n of the shoot:
         for vid in shoot_MTG.vertices_iter(scale=1):
             n = shoot_MTG.node(vid)
             # We add the initial amount of C_labile and the net gain in C of the current organ:
+            # TODO: WATCH OUT - Here, we already add the C from photosynthetis and withdraw the C for maintenance to calculate the remaining C!
             available_C += n.C_labile + (n.photosynthesized_C_rate - n.shoot_maintenance_respiration_rate) * time_step_in_seconds
-            # We add the light intercepted by the organ:
-            intercepted_light_by_the_plant += n.PAR_intercepted
+            # We add the light (or light density) intercepted by the organ:
+            if option == "classic_PAR":
+                intercepted_light_by_the_plant += n.PAR_intercepted
+            elif option == "surfacic_PAR" and n.surface > 0.:
+                sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
 
     # 2) We redistribute the C according to specific rules:
     #------------------------------------------------------
@@ -651,7 +688,14 @@ def computing_shoot_C_redistribution(shoot_MTG, shoot_available_C = None, interc
         n = shoot_MTG.node(vid)
         # The corresponding rate of C redistribution for this organ is calculated:
         # (NOTE: if positive, it corresponds to a C gain; if negative, it corresponds to a C source)
-        n.shoot_C_redistribution_rate = available_C * n.PAR_intercepted / intercepted_light_by_the_plant / time_step_in_seconds
+        if option == "classic_PAR":
+            n.shoot_C_redistribution_rate = (available_C * n.PAR_intercepted / intercepted_light_by_the_plant
+                                             / time_step_in_seconds)
+        elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
+            n.shoot_C_redistribution_rate = (available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
+                                             / time_step_in_seconds)
+        else:
+            n.shoot_C_redistribution_rate = 0.
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -808,9 +852,9 @@ def computing_shoot_C_storage(shoot_system, shoot_MTG, time_step_in_seconds=60.*
 def potential_shoot_growth(shoot_MTG,
                            SFQN=1,
                            LA_max=10,
-                           LA_max_relative_increase_per_day = 0.2,
                            leaf_minimal_thickness = 1e-3,
                            elong_internode=5e-7,
+                           plant_age=0.,
                            time_step_in_seconds = 60.*60.*24.,
                            air_temperature_in_degree_Celsius = 10.):
     """
@@ -819,8 +863,8 @@ def potential_shoot_growth(shoot_MTG,
     :param SFQN: the slope of the relationship of Leaf area = f(N_labile) (m2 per gN)
     :param LA_max: the maximal area for a leaf (m2)
     #TODO: should the leaf stop growing after a predetermined duration, instead of after reaching the LA_max?
-    :param leaf_minimal_thickness: the minimal thickness of a leaf (m)
-    :param elong_internode: a potential rate of elongation (m per m of diameter per second)
+    :param leaf_minimal_thickness: the minimal thickness of a leaf (meter)
+    :param elong_internode: a potential rate of elongation (meter per second)
     :param time_step_in_seconds: the time step of the simulation (seconds)
     :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
     :return:
@@ -830,21 +874,26 @@ def potential_shoot_growth(shoot_MTG,
     g=shoot_MTG
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
-    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+    temperature_adjustement = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
                                                                  process_at_T_ref=1,
                                                                  T_ref=param.shoot_growth_T_ref,
                                                                  A=param.shoot_growth_A,
                                                                  B=param.shoot_growth_B,
                                                                  C=param.shoot_growth_C)
     # We calculate the equivalent time step in thermal time:
-    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_adjustement
     thermal_time_step_in_days = thermal_time_step_in_seconds/(60.*60.*24.)
 
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
+    # To cover the MTG in a specific order, we need to define its "root":
+    root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
+    root = next(root_gen)
+    # We cover each organ n of the shoot, from the tip of axes up to the base:
+    for vid in post_order(g, root):
         # We define the current organ as "n":
         n = g.node(vid)
-        # For a leaf:
+
+        # CASE 1: the shoot element is a leaf
+        #------------------------------------
         if n.label == "Leaf":
             # We calculate the potential surface based on the available N in the leaf:
             potential_leaf_surface = SFQN * n.N_labile
@@ -852,21 +901,88 @@ def potential_shoot_growth(shoot_MTG,
             potential_surface_increase = min(potential_leaf_surface - n.surface, LA_max - n.surface)
             # We calculate the maximal surface increase (m2), knowing that the surface increase cannot become higher
             # than the maximal increase rate allowed:
-            maximal_surface_increase = n.surface * LA_max_relative_increase_per_day * thermal_time_step_in_days
+            maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day * thermal_time_step_in_days
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
             # TODO: what happens if the leaf has already a thickness higher than the minimal one?
-        # For an internode:
+
+        # CASE 2: the shoot element is an internode
+        #------------------------------------------
         elif n.label == "Internode":
-            # We calculate a potential elongation rate:
-            potential_elongation_rate = elong_internode * n.radius * 2.
-            # TODO: the elongation rate of the internode should react to a signal or plant stage!
-            # TODO: an internode should also increase in diameter over time!
-            # And we compute the potential volume increment:
-            n.potential_volume_increment = potential_elongation_rate * (n.radius ** 2 * pi) * thermal_time_step_in_seconds
+
+            # 1) We calculate a potential elongation rate.
+
+            # We check whether the lateral bud has emerged or is about to emerge.
+            try:
+                # We initialize a Boolean that will determine whether elongation is fast or not:
+                fast_elongation = False
+                # We try to get the ID of the first element of the ramification, i.e. the lateral axis of the leaf:
+                leaf_vid = g.Sons(vid, EdgeType='+')[0]
+                lateral_vid = g.Sons(leaf_vid, EdgeType='+')[0]
+                bud = g.node(lateral_vid)
+                # We then examine whether the bud has emerged or is about to emerge:
+                if bud.emergence_possibility is True:
+                    fast_elongation = True
+            except:
+                fast_elongation = False
+
+            # If the plant has reached a minimal age above which it can fully elongate:
+            if plant_age > param.minimal_age_for_internode_elongation and fast_elongation:
+                # Then we set the potential elongation rate to the full potential:
+                potential_elongation_rate = elong_internode * temperature_adjustement
+            else:
+                # Otherwise, we only allow only a very slow elongation rate:
+                potential_elongation_rate = elong_internode * temperature_adjustement / 100.
+            # Eventually, we record the potential new length:
+            n.potential_length = n.length + potential_elongation_rate * time_step_in_seconds
+
+            # 2) We calculate the potential radial increase.
+            # We first need to consider all children of the current internode in order to verifiy whether the radius
+            # of the internode should increase according to the pipe model rule.
+            # We initialize the sections of the children:
+            son_section=0.
+            sum_of_lateral_sections=0.
+            # We cover each child of the internode (either the neighbouring internode, or a lateral leaf):
+            for child in n.children():
+                # If the child belongs to the same axis, it is an internode:
+                if child.properties()['edge_type'] == '<':
+                    # Then we record the POTENTIAL section of this child:
+                    son_section = child.potential_radius ** 2 * pi
+                # Otherwise if the child belongs to a lateral axis, it is a leaf:
+                elif child.properties()['edge_type'] == '+':
+                    # The we go the the child of this leaf, which corresponds to an unemerged bud or the internode of a ramification:
+                    grand_child = child.children()[0]
+                    # If its length is positive, it is a lateral ramification:
+                    if grand_child.length  > 0.:
+                        # We add the POTENTIAL section of this lateral ramification to a sum of lateral sections:
+                        sum_of_lateral_sections += grand_child.potential_radius ** 2 * pi
+            # Eventually, we calculate the theoretical new radius of the initial internode according to its children:
+            theoretical_radius = sqrt(son_section / pi + param.SGC_shoot * sum_of_lateral_sections / pi)
+            # If the net difference is below 0.1% of the initial radius:
+            if (theoretical_radius - n.radius) <= 0.001 * n.radius:
+                # Then we reset the theoretical radius value to the initial value to avoid computational problems:
+                theoretical_radius = n.radius
+            # We also estimate the maximal thickening rate (meter per second) according to air temperature:
+            thickening_rate = param.max_internode_thickening * n.radius * temperature_adjustement
+            # The maximal possible new radius according to this regulation is therefore:
+            new_radius_max = (1 + thickening_rate * time_step_in_seconds) * n.radius
+            # If the potential new radius is higher than the maximal new radius:
+            if theoretical_radius > new_radius_max:
+                # Then potential thickening is limited up to the maximal new radius:
+                n.potential_radius = new_radius_max
+            # Otherwise, the potential radius to achieve is equal to the theoretical one:
+            else:
+                n.potential_radius = theoretical_radius
+
+            #  Finally, we compute the potential volume increment:
+            potential_volume = n.potential_length * (n.potential_radius ** 2 * pi)
+            n.potential_volume_increment = potential_volume - n.length * (n.radius ** 2 * pi)
+
+        # CASE 3: the shoot element is anything else
+        #-------------------------------------------
         else:
+            # Then we set the potential volume increment to 0:
             n.potential_volume_increment = 0.
-        # TODO: define a case for the transformation of axillary buds into active apices!
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -876,7 +992,8 @@ def computing_C_redistribution_for_shoot_growth(shoot_system,
                                                 yield_growth=0.8,
                                                 structural_mass_density=1e5,
                                                 structural_C_content=0.44,
-                                                time_step_in_seconds = 60.*60.*24.
+                                                time_step_in_seconds = 60.*60.*24.,
+                                                option="classic_PAR"
                                                 ):
 
     # We rename the shoot MTG for simplification:
@@ -884,12 +1001,14 @@ def computing_C_redistribution_for_shoot_growth(shoot_system,
 
     # We initialize the stock of C that can be redistributed to sink leaves and the one that will be eventually used:
     total_available_C = 0.
-    C_used_by_sink_leaves = 0.
+    C_used_by_sink_organs = 0.
     # We initialize the total intercepted light:
-    # We add the light intercepted by the organ:
-    intercepted_light = 0.
+    if option == "classic_PAR":
+        intercepted_light = 0.
+    elif option == "surfacic_PAR":
+        sum_of_surfacic_PAR = 0.
     # We initialize a list that will contain the indices of the leaves that will need additional C:
-    list_of_sink_leaves = []
+    list_of_sink_organs = []
 
     # 1) DEFINING THE AMOUNT OF AVAILABLE C:
     ########################################
@@ -899,13 +1018,11 @@ def computing_C_redistribution_for_shoot_growth(shoot_system,
         # We define the current organ as "n":
         n = g.node(vid)
 
-        # # We exclude any organ that is not a leaf:
-        # if n.label != "Leaf":
-        #     continue
-        # TODO: should other organs be excluded in the C redistribution for growth?
-
         # We add the light intercepted by the organ:
-        intercepted_light += n.PAR_intercepted
+        if option == "classic_PAR":
+            intercepted_light += n.PAR_intercepted
+        elif option == "surfacic_PAR" and n.surface > 0.:
+            sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
 
         # We calculate the C that may be consumed by the potential growth, and the C that may remain in a "source" leaf:
         C_consumption_by_growth = (n.potential_volume_increment * structural_mass_density
@@ -920,26 +1037,30 @@ def computing_C_redistribution_for_shoot_growth(shoot_system,
         else:
             # The leaf is a sink, and may receive additional C for its growth:
             n.C_sink_status = True
-            list_of_sink_leaves.append(vid)
+            list_of_sink_organs.append(vid)
 
-    # 2) RE-ALLOCATING C TO SINK LEAVES:
-    ####################################
+    # 2) RE-ALLOCATING C TO SINK ORGANS:
+    ###################################
 
     # We cover each organ n of the shoot:
-    for vid in list_of_sink_leaves:
+    for vid in list_of_sink_organs:
         # We define the current organ as "n":
         n = g.node(vid)
-        # The new amount of C_labile in this organ is calculated according to the relative intercepted light:
-        additional_C_for_sink_leaf = total_available_C * n.PAR_intercepted / intercepted_light
-        # TODO: Here, only the fraction of C corresponding to (light_intercepted_by_sink_leaves) / (total_light_intercepted_by all_leaves) is used...
-        # TODO: Watch out - leaves that have not emerged don't get any C!!!
-
-        # n.C_labile += additional_C_for_sink_leaf
-        n.C_input_rate = additional_C_for_sink_leaf / time_step_in_seconds
-        C_used_by_sink_leaves += additional_C_for_sink_leaf
+        # The new amount of C_labile in this organ is calculated, after its initialization:
+        additional_C_for_sink_organ = 0.
+        if option == "classic_PAR":
+            additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / intercepted_light
+        elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
+            additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
+        # TODO: Note that in either case, only the fraction of C corresponding to (light_intercepted_by_sink_organs)
+        #  / (total_light_intercepted_by all_organs) is used...
+        # We adjust the properties of the organ:
+        # n.C_labile += additional_C_for_sink_organ
+        n.C_input_rate = additional_C_for_sink_organ / time_step_in_seconds
+        C_used_by_sink_organs += additional_C_for_sink_organ
 
     # Eventually, we store the remaining available C:
-    shoot_system.shoot_labile_C_pool = total_available_C - C_used_by_sink_leaves # The remaining amount of C here may be allocated to roots!
+    shoot_system.shoot_labile_C_pool = total_available_C - C_used_by_sink_organs # The remaining amount of C here may be allocated to roots!
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -970,21 +1091,17 @@ def actual_shoot_growth(shoot_MTG,
     g=shoot_MTG
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
-    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+    temperature_adjustment = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
                                                                  process_at_T_ref=1,
                                                                  T_ref=param.shoot_growth_T_ref,
                                                                  A=param.shoot_growth_A,
                                                                  B=param.shoot_growth_B,
                                                                  C=param.shoot_growth_C)
     # We calculate the equivalent time step in thermal time:
-    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_adjustment
 
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
-
-        # We reinitialize temporary variables:
-        final_volume_increment = 0.
-        length_increment = 0.
 
         # We define the current organ as "n":
         n = g.node(vid)
@@ -1000,10 +1117,12 @@ def actual_shoot_growth(shoot_MTG,
         if n.C_labile <=0. or n.N_labile <=0.:
             continue
 
+        # COMPUTING THE MAXIMAL VOLUME INCREMENT:
+        #########################################
+
         # The maximal volume increment is defined according to the amount of labile C or N available for growth:
         max_volume_increment_by_C = n.C_labile / (structural_mass_density * structural_C_content / yield_growth)
         max_volume_increment_by_N = n.N_labile / (structural_mass_density * structural_N_content)
-
         # The final volume is the minimal volume between the potential volume calculated from potential growth
         # and the maximal volumes that can be created from the available C and N:
         final_volume_increment = min(n.potential_volume_increment, max_volume_increment_by_C, max_volume_increment_by_N)
@@ -1017,11 +1136,45 @@ def actual_shoot_growth(shoot_MTG,
         # The C respired because of growth is also calculated:
         n.shoot_growth_respiration_rate = n.actual_C_consumption_rate_by_shoot_growth * (1 - yield_growth)
 
-        # The final dimensions of the organ are recorded:
+        # COMPUTING THE FINAL DIMENSIONS OF THE SHOOT ELEMENT
+        #####################################################
+
+        # CASE 1: The shoot element is an internode
+        #------------------------------------------
         if n.label == "Internode":
-            length_increment = final_volume_increment / (n.radius ** 2 * pi)
-            n.length += length_increment
+            # We compute the maximal length increment and radius increment based on the final volume increment:
+            possible_length_increment = final_volume_increment / (n.radius ** 2 * pi)
+            possible_radius_increment = sqrt(n.radius ** 2 + (final_volume_increment / (n.length * pi))) - n.radius
+            # If there is no expected radial increase:
+            if n.potential_radius == n.radius:
+                # Then we simply elongated the internode according to the final volume increment:
+                n.length += possible_length_increment
+            # If there is no expected elongation:
+            elif n.potential_length == n.length:
+                # Then we simply increase the radius according to the final volume increment:
+                n.radius += possible_radius_increment
+            # Otherwise we can increase both the length and the radius of the internode:
+            else:
+                # If the potential length previously computed cannot be created in totality:
+                if n.potential_length > n.length + possible_length_increment:
+                    # Then we give priority to elongation and elongate the internode according to the final volume increment:
+                    n.length += possible_length_increment
+                    # The radius is however not increased.
+                # Otherwise, we can perform the elongation up to the full potential:
+                else:
+                    # First, we calculate the volume increment corresponding to this elongation:
+                    volume_increment_by_elongation = (n.radius ** 2 * pi) * (n.potential_length - n.length)
+                    # We increase the actual length of the internode up to its potential length:
+                    n.length =  n.potential_length
+                    # And we increase the radius according to the remaining "volume_increment" that is left:
+                    remaining_volume_increment = final_volume_increment - volume_increment_by_elongation
+                    n.radius = sqrt(n.radius ** 2 + (remaining_volume_increment / (n.length * pi)))
+
+            # Eventually, we recompute the external surface of the internode:
             n.surface = n.length * n.radius * 2 * pi
+
+        # CASE 2: The shoot element is a leaf
+        #------------------------------------
         elif n.label == "Leaf":
             surface_increment = final_volume_increment / leaf_minimal_thickness
             n.surface += surface_increment
@@ -1056,7 +1209,7 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
     """
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
-    temperature_time_adjustment_shoot = temperature_modification(
+    temperature_adjustment = temperature_modification(
         temperature_in_Celsius=air_temperature_in_degree_Celsius,
         process_at_T_ref=1,
         T_ref=param.shoot_growth_T_ref,
@@ -1067,7 +1220,7 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
     for vid in g.vertices_iter(scale=1):
         element = g.node(vid)
         element.actual_time_since_formation += time_step_in_seconds
-        element.thermal_time_since_formation += time_step_in_seconds * temperature_time_adjustment_shoot
+        element.thermal_time_since_formation += time_step_in_seconds * temperature_adjustment
 
     return
 # -----------------------------------------------------------------------------------------------------------------------
@@ -1173,14 +1326,14 @@ def computing_senescence(shoot_MTG,
                          air_temperature_in_degree_Celsius=10.):
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
-    temperature_time_adjustment_shoot = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
+    temperature_adjustement = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
                                                                  process_at_T_ref=1,
                                                                  T_ref=param.shoot_growth_T_ref,
                                                                  A=param.shoot_growth_A,
                                                                  B=param.shoot_growth_B,
                                                                  C=param.shoot_growth_C)
     # We calculate the equivalent time step in thermal time:
-    thermal_time_step_in_seconds = time_step_in_seconds * temperature_time_adjustment_shoot
+    thermal_time_step_in_seconds = time_step_in_seconds * temperature_adjustement
     thermal_time_step_in_days = thermal_time_step_in_seconds/(60.*60.*24.)
 
     # We cover each organ of the shoot:
@@ -1398,6 +1551,7 @@ def calling_the_different_shoot_modules(shoot_MTG,
     computing_shoot_N_distribution(g,
                                    time_step_in_seconds=time_step_in_days*60.*60.*24.)
 
+    # TODO: Is this step necessary or not?
     # This calculates the total amount of available C, and distributes it in each organ according to PAR:
     # computing_shoot_C_redistribution(g)
 

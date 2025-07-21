@@ -13,6 +13,7 @@ from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
 
 import simbal_parameters as param
+import openalea.rhizodep.model as rhizodep_param
 
 import os
 import numpy as np
@@ -251,15 +252,22 @@ def get_root_visitor():
     return root_visitor
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def circle_coordinates(x_center=0., y_center=0., z_center=0., radius=1., n_points=50):
+def circle_coordinates(x_center=0., y_center=0., z_center=0., radius=1.,
+                       n_points=50, n_loops=1, step_back_coefficient=0., step_up_coefficient=0.):
     """
     This function calculates the coordinates of n points evenly distributed on a circle of a specified radius
-    within the x-y plane for a given height (z).
-    :param x_center: the x-coordinate of the center of the circle
-    :param y_center: the y-coordinate of the center of the circle
-    :param z_center: the z-coordinate of the center of the circle
-    :param radius: the radius of the circle
+    within the x-y plane for a given height (z). Additionnaly, the number of loops specified how many rotations have to
+    be considered for generating the coordinates, and step-back and step-up coefficients are used to move the camera
+    a bit more at each time step. Note that if the number of points specified by the user is 0 or 1, no rotation occurs,
+    but the step-back and step-up coefficients are still considered for generating the coordinates.
+    :param x_center: the x-coordinate of the center of the circle (meters)
+    :param y_center: the y-coordinate of the center of the circle (meters)
+    :param z_center: the z-coordinate of the center of the circle (meters)
+    :param radius: the radius of the circle (meters)
     :param n_points: the number of points distributed on the circle
+    :param n_loops: the number of loops to take into account around the target
+    :param step_back_coefficient: the relative increase in distance of the camera for each new simulation step (meters)
+    :param step_up_coefficient: the relative movement of the camera along the z-axis for each new simulation step (meters)
     :return: three lists containing all x-coordinates, y-coordinates and z-coordinates, respectively
     """
 
@@ -270,15 +278,23 @@ def circle_coordinates(x_center=0., y_center=0., z_center=0., radius=1., n_point
 
     # We initalize the angle at 0 rad:
     angle = 0
-    # We calculate the increment theta that will be added to the angle for each new point:
-    theta = 2 * pi / float(n_points)
+    if n_points > 0:
+        # We calculate the increment theta that will be added to the angle for each new point:
+        theta = 2 * pi / float(n_points)
+        # We calculate the total number of coordinates to generate:
+        n_steps = n_points * n_loops
+    else:
+        # If the user has given 0 for the number of points, we assume there is no rotation (theta = 0):
+        theta = 0
+        # And we assume that the number of coordinates to calculate is equal to the number of loops specified:
+        n_steps = n_loops
 
     # For each point of the circle which coordinates should be calculated:
-    for step in range(0, n_points):
+    for step in range(0, n_steps):
         # We calculate the coordinates of the point corresponding to the new angle:
-        x_coordinates.append(x_center + radius * cos(angle))
-        y_coordinates.append(y_center + radius * sin(angle))
-        z_coordinates.append(z_center)
+        x_coordinates.append(x_center + (radius + step_back_coefficient * step) * cos(angle))
+        y_coordinates.append(y_center + (radius + step_back_coefficient * step) * sin(angle))
+        z_coordinates.append(z_center + step_up_coefficient * step)
         # And we increase the angle by theta:
         angle += theta
 
@@ -1006,6 +1022,47 @@ def temperature_modification(temperature_in_Celsius, process_at_T_ref=1., T_ref=
     return modified_process
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
+def buildDic(dict_scenario, dic=None):
+    """
+    Function that build a nested dictionary (dict of dict), e.g. buildDic({'a:b:c': 1, 'a:b:d': 2})
+    returns {'a': {'b': {'c': 1, 'd': 2}}}
+    """
+
+    def is_int(dt):
+        """
+        Returns True if dt is an integer, False in other cases.
+        """
+        try:
+            num = int(dt)
+        except ValueError:
+            return False
+        return True
+
+    def _buildDic(keyList, val, dic):
+        if len(keyList) == 1:
+            dic[keyList[0]] = val
+            return
+
+        newDic = dic.get(keyList[0], {})
+        dic[keyList[0]] = newDic
+        _buildDic(keyList[1:], val, newDic)
+
+    if not dic:
+        dic = {}
+
+    for k, v in dict_scenario.items():
+        if not pd.isnull(v):
+            keyList = k.split(':')
+            keyList_converted = []
+            for kk in keyList:
+                if is_int(kk):
+                    keyList_converted.append(int(kk))
+                else:
+                    keyList_converted.append(kk)
+            _buildDic(keyList_converted, v, dic)
+
+    return dic
+
 def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
                                  outputs_path = "outputs"):
 
@@ -1026,10 +1083,10 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
     scenario = new_scenarios_df.to_dict(orient='records')[0]
     # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
     param.__dict__.update(scenario)
-    # # We do the same with the parameters of rhizodep:
-    # rhizodep_param.__dict__.update(scenario)
+    # We do the same with the parameters of rhizodep:
+    rhizodep_param.__dict__.update(scenario)
 
-    return
+    return scenario
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for transforming the inputs of the model based on the required time step:

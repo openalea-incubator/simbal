@@ -25,12 +25,12 @@ SCA_A = 0
 SCA_B = 1
 SCA_C = 0
 
-# Maximal rate of maintenance respiration (gC per gram of dry structural mass per second):
-Vmax_maintenance = 5.55092978073827E-10 # Taken from RhizoDep 2024 (4e-08 mol of hexose per gDW per second)
-
-# Michaelis_Menten constant for maintenance, i.e. the concentration of labile C for which the respiration rate is half
-# of the maximal rate (gC per gram of dry structural mass):
-Km_maintenance = 3.8578961976131E-06 # Taken from RhizoDep 2024 and Barillot et al. (2016) (2.78e-04 mol of hexose per gDW)
+# # Maximal rate of maintenance respiration (gC per gram of dry structural mass per second):
+# Vmax_maintenance = 5.55092978073827E-10 # Taken from RhizoDep 2024 (4e-08 mol of hexose per gDW per second)
+#
+# # Michaelis_Menten constant for maintenance, i.e. the concentration of labile C for which the respiration rate is half
+# # of the maximal rate (gC per gram of dry structural mass):
+# Km_maintenance = 3.8578961976131E-06 # Taken from RhizoDep 2024 and Barillot et al. (2016) (2.78e-04 mol of hexose per gDW)
 
 # Time constant corresponding to a first-order decay for N mobilization (second-1):
 k_N_mobilization = 1/(24.*60.*60.) # We assume that the half life of the mobile N in the leaf is 1 day.
@@ -61,6 +61,9 @@ bud_light_threshold = 350
 # Maximal area of a leaf (square meter):
 LA_max = 0.1
 
+# Maximal rate of relative increase in leaf surface area (m2 per m2 per day):
+LA_max_relative_increase_per_day = 0.5
+
 # Minimal thickness of a leaf (meter):
 leaf_minimal_thickness = 0.001
 
@@ -69,6 +72,16 @@ leaf_width_to_length_ratio = 0.5
 
 # Potential rate of internode elongation (meter per second):
 elong_internode = 2.89351851851852E-07
+
+# Proportionality coefficient between the section area of the internode and the sum of distal section areas
+# (dimensionless, 0 = no radial growth):
+SGC_shoot = 0.5
+
+# Maximal rate of internode radial growth per meter of initial radius (meter per meter per second):
+max_internode_thickening = 2e-3 / (60.*60.*24.) # We assume that the increase is below 2 mm per day
+
+# Minimal plant age below which no significant elongation of internodes should occur (seconds equivalent at the reference growth temperature):
+minimal_age_for_internode_elongation = 5. * (60*60*24)
 
 # Growth yield as defined by Thornley and Cannell (2000), which corresponds to the fraction of C consumed by growth
 # that is actually used for biomass production (gC per gC):
