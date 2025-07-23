@@ -1553,7 +1553,7 @@ def calling_the_different_shoot_modules(shoot_MTG,
 
     # TODO: Is this step necessary or not?
     # This calculates the total amount of available C, and distributes it in each organ according to PAR:
-    # computing_shoot_C_redistribution(g)
+    computing_shoot_C_redistribution(g)
 
     # 2) Growth of organs:
     #---------------------

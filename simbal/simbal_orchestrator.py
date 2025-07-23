@@ -17,7 +17,7 @@ import openalea.plantgl.all as pgl
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
-import openalea.rhizodep.model as rhizodep_param
+import openalea.rhizodep.model as rhizodep_param #TODO: Solve the problem of parameters updating for RhizoDep functions...!
 
 from tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
                    recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant)
@@ -27,8 +27,6 @@ import numpy as np
 import pandas as pd
 from math import sqrt, pi, floor, trunc, ceil, exp, isnan, cos, sin, acos
 from decimal import Decimal
-
-#TODO: Solve the problem of parameters updating for RhizoDep functions...
 
 ########################################################################################################################
 ########################################################################################################################
@@ -856,9 +854,6 @@ def run_simulation(my_path=None,
 
 if __name__ == '__main__':
 
-    # We run the whole simulation according to the instructions and parameters defined in the 'simbal_parameters.xlsx' file:
-    run_simulation(my_path="C:/Users/frees/SIMBAL",
-                   simulation_period_in_days=120, time_step_in_days=1/24., starting_time_in_days=0.,
-                   input_file="C:/Users/frees/SIMBAL/simulation/inputs/inputs_over_time.csv",
-                   input_file_time_step_in_days=1.,
-                   forcing_constant_aboveground_environment=False)
+    # We run the whole simulation according to the instructions and parameters defined in the 'simbal_parameters.xlsx'
+    # file (otherwise, default parameters from the 'simbal_parameters.py' file or from the function will be used):
+    run_simulation()
