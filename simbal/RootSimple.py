@@ -1,7 +1,7 @@
 #  -*- coding: utf-8 -*-
 
 """
-    The script 'RootSimple' contains all functions for running the development anf functionning of the roots.
+    The script 'RootSimple' contains all functions for running the development and functionning of the roots.
 
     :copyright: see AUTHORS.
     :license: see LICENSE for details.
@@ -68,10 +68,12 @@ def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60)
         print("    WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
         root_system.root_labile_C_deficit = - root_system.root_labile_C_pool
         root_system.root_labile_C_pool = 0.
+
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
-
+# Function for calculating root exchange surface in each root segment and at the scale of the whole root system:
+#---------------------------------------------------------------------------------------------------------------
 def updating_exchange_surface(root_system, root_MTG):
     """
     This function covers each element of the root MTG and computes a total surface of exchange for the whole root system.
@@ -112,7 +114,8 @@ def updating_exchange_surface(root_system, root_MTG):
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
-
+# Function for calculating N uptake by each root segment and the resulting uptake at the scale of the whole root system:
+#-----------------------------------------------------------------------------------------------------------------------
 def computing_N_uptake_rate(root_system, root_MTG, N_soil = 1e-6, soil_temperature_in_degree_Celsius=10.):
 
     """
@@ -161,6 +164,8 @@ def computing_N_uptake_rate(root_system, root_MTG, N_soil = 1e-6, soil_temperatu
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
+# Function for calculating Né fixation at the scale of the whole root system:
+#----------------------------------------------------------------------------
 def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree_Celsius=10.):
     """
     This function computes the rate of nitrogen fixation by nodules that have developed on the root system. The nodules
@@ -218,37 +223,16 @@ def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree
     # print("N2 fixation rate is", N2_fixation_rate, "gN per plant per second.")
 
     return
-
 #-----------------------------------------------------------------------------------------------------------------------
-def updating_root_labile_N_with_input(root_system, time_step_in_seconds = 1 * (60*60*24)):
-    """
-    This function simply updates the pool of labile N in roots based on the rates of N uptake and N2 fixation.
-    Parameters
-    ----------
-    root_system: the root system containing general variables
-    time_step_in_seconds: the actual time step (seconds)
-
-    Returns
-    -------
-    [Nothing is returned, the root system has been updated with the new 'root_labile_N_pool']
-    """
-
-    # We update the labile pool:
-    root_system.root_labile_N_pool += (root_system.N_uptake_rate + root_system.N2_fixation_rate) * time_step_in_seconds # gN per root system
-    if root_system.root_labile_N_pool < 0.:
-        print("WATCH OUT: after N uptake from soil, the labile N pool is negative - we reset it to 0!")
-        root_system.root_labile_N_pool = 0.
-    # print("After N uptake, the root system has now", root_system.root_labile_N_pool, "gN available.")
-    return
-
-#-----------------------------------------------------------------------------------------------------------------------
-
+# Function for calculating rhizodeposition at the scale of the whole root system:
+#--------------------------------------------------------------------------------
 def computing_rhizodeposition_rate(root_system, root_MTG,
                                    option="loss_as_input_rate_fraction",
                                    C_rhizodeposition_fraction=0.20,
                                    N_rhizodeposition_fraction=0.10,
                                    time_step_in_seconds=60*60,
-                                   soil_temperature_in_degree_Celsius=10.):
+                                   soil_temperature_in_degree_Celsius=10.,
+                                   rhizodeposits_distribution=True):
     """
     This function computes a rate of rhizodeposition at the scale of the whole root system, based either on a fraction
     of the total input rate of C (or N) that is lost over time, or on a fraction of the total C (or N) labile pools.
@@ -263,6 +247,8 @@ def computing_rhizodeposition_rate(root_system, root_MTG,
     N_rhizodeposition_fraction: the fraction of N to be lost (gN per gN)
     time_step_in_seconds: the actual time step (seconds)
     soil_temperature_in_degree_Celsius: the mean temperature perceived by the root system (degree Celsius)
+    rhizodeposits_distribution: if True, the function will distribute the rate of rhizodeposition among the different
+    root elements of the root MTG, based on their exchange surface
 
     Returns
     -------
@@ -294,23 +280,26 @@ def computing_rhizodeposition_rate(root_system, root_MTG,
         r.N_rhizodeposition_rate = (N_rhizodeposition_fraction * temperature_modifier
                                     * r.root_labile_N_pool / time_step_in_seconds) # gN per root system per second
 
-    # 2) We now distribute the rhizodeposition along the roots.
-    # We cover all the vertices in the MTG:
-    for vid in root_MTG.vertices_iter(scale=1):
-        # n represents the vertex:
-        n = root_MTG.node(vid)
-        # If the root element has a positive length:
-        if n.length > 0.:
-            # We allocate a part of the rate of rhizodeposition to this element, based on its contribution
-            # to total exchange surface:
-            relative_fraction = n.exchange_surface / r.root_exchange_surface
-            n.C_rhizodeposition_rate = relative_fraction * r.C_rhizodeposition_rate
-            n.N_rhizodeposition_rate = relative_fraction * r.N_rhizodeposition_rate
+    if rhizodeposits_distribution:
+        # 2) We now distribute the rhizodeposition along the roots, for allowing a spatialization of rhizodeposit
+        # distribution in the soil.
+        # We cover all the vertices in the MTG:
+        for vid in root_MTG.vertices_iter(scale=1):
+            # n represents the vertex:
+            n = root_MTG.node(vid)
+            # If the root element has a positive length:
+            if n.length > 0.:
+                # We allocate a part of the rate of rhizodeposition to this element, based on its contribution
+                # to total exchange surface:
+                relative_fraction = n.exchange_surface / r.root_exchange_surface
+                n.C_rhizodeposition_rate = relative_fraction * r.C_rhizodeposition_rate
+                n.N_rhizodeposition_rate = relative_fraction * r.N_rhizodeposition_rate
     
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
-
+# Function for calculating maintenance at the scale of the whole root system:
+#----------------------------------------------------------------------------
 def computing_maintenance_rate(root_system, soil_temperature_in_degree_Celsius=10.):
 
     """
@@ -358,7 +347,7 @@ def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degre
 
     Parameters
     ----------
-    root_system: the root system containing general variables
+    root_system: the root system object containing general variables
     soil_temperature_in_degree_Celsius: the mean temperature perceived by the root system (degree Celsius)
 
     Returns
@@ -424,7 +413,50 @@ def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degre
 
     # NET N IMMOBILIZATION:
     #######################
-    #TODO: To be completed with N mobilization/immobilization?
+
+    # We adjust the units of the parameters inherited from RhizoDep (originally expressed in moles of equivalent-hexose):
+    max_mobilization_rate = param.max_mobilization_rate * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass per second
+    Km_mobilization = param.Km_mobilization * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass
+    max_immobilization_rate = param.max_immobilization_rate * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass per second
+    Km_immobilization = param.Km_immobilization * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass
+    root_reserve_N_min = param.C_hexose_reserve_min * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass
+    root_reserve_N_max = param.C_hexose_reserve_max * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass
+    root_labile_N_min_for_reserve = param.C_hexose_root_min_for_reserve * 6 * 12.01 * param.reserve_CN_ratio # now in gN per gram of structural mass
+
+    # We correct the maximum rates according to soil temperature:
+    corrected_max_mobilization_rate = max_mobilization_rate * temperature_modification(
+        temperature_in_Celsius=soil_temperature_in_degree_Celsius,
+        process_at_T_ref=1,
+        T_ref=param.max_mobilization_rate_T_ref,
+        A=param.max_mobilization_rate_A,
+        B=param.max_mobilization_rate_B,
+        C=param.max_mobilization_rate_C)
+    corrected_max_immobilization_rate = max_immobilization_rate * temperature_modification(
+        temperature_in_Celsius=soil_temperature_in_degree_Celsius,
+        process_at_T_ref=1,
+        T_ref=param.max_immobilization_rate_T_ref,
+        A=param.max_immobilization_rate_A,
+        B=param.max_immobilization_rate_B,
+        C=param.max_immobilization_rate_C)
+
+    # CALCULATIONS OF THEORETICAL MOBILIZATION RATE:
+    # -----------------------------------------------
+    if r.root_reserve_N_pool <= root_reserve_N_min:
+        N_mobilization_from_reserve_rate = 0.
+    else:
+        # We calculate the potential mobilization of N from reserve according to the Michaelis-Menten function:
+        NC_mobilization_from_reserve_rate = (corrected_max_mobilization_rate * r.root_struct_mass
+                                            * r.root_reserve_N_pool / (Km_mobilization + r.root_reserve_N_pool))
+
+    # CALCULATIONS OF THEORETICAL IMMOBILIZATION RATE:
+    # -----------------------------------------------
+    if r.root_labile_N_pool <= root_labile_N_min_for_reserve or r.root_reserve_N_pool >= root_reserve_N_max:
+        # Then there is no possible immobilization in the reserve:
+        N_immobilization_as_reserve_rate = 0.
+    else:
+        # We calculate the potential immobilization:
+        N_immobilization_as_reserve_rate = (corrected_max_immobilization_rate * r.root_struct_mass
+                                            * r.root_labile_N_pool / (Km_immobilization + r.root_labile_N_pool))
 
     # RECORDING THE RESULTS:
     # -----------------------
@@ -434,7 +466,6 @@ def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degre
     return
 
 #-----------------------------------------------------------------------------------------------------------------------
-
 # Function calculating a satisfaction coefficient for the growth of the whole root system:
 # -----------------------------------------------------------------------------------------
 def computing_growth_demand_and_satisfaction_coefficients(root_MTG, labile_C_pool, labile_N_pool,
@@ -645,13 +676,25 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
     r.C_consumption_by_growth_rate = total_mass_produced * param.struct_mass_C_content / param.yield_growth / time_step_in_seconds
     r.N_consumption_by_growth_rate = total_mass_produced * param.struct_mass_N_content / time_step_in_seconds
 
-    # # AND THE LABILE POOLS OF C AND N:
-    # r.root_labile_C_pool -= total_mass_produced * param.struct_mass_C_content / param.yield_growth
-    # r.root_labile_N_pool -= total_mass_produced * param.struct_mass_N_content
-
     return
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for computing new amounts of labile C & N in the whole root system:
+#-----------------------------------------------------------------------------
+def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
 
-def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
+    """
+    This function computes the new amounts of labile C and labile N in the root system object, based on the initial
+    amounts and the rates of C&N  exchanges already stored in the root object.
+
+    Parameters
+    ----------
+    root_system: the object corresponding to the whole root system
+    time_step_in_seconds: the time step (seconds)
+
+    Returns
+    -------
+
+    """
 
     # We rename the root system as "r":
     r = root_system
@@ -669,17 +712,12 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
 
     # We update the pool of labile N, taking into account the possible deficit in N previously recorded,
     # and all processes affecting the N pool:
-    # print("Before N balance, the labile N in roots is", r.root_labile_N_pool)
-    # print("The deficit in N was", r.root_labile_N_deficit, "and here are the fluxes involved:", r.N_uptake_rate, r.N_rhizodeposition_rate, r.net_N_immobilization_rate, r.net_N_transfer_from_root_to_shoot_rate, r.N_consumption_by_growth_rate)
-    net_variation = (- r.root_labile_N_deficit +
+    r.root_labile_N_pool += (- r.root_labile_N_deficit +
                              (r.N_uptake_rate + r.N2_fixation_rate
                               - r.N_rhizodeposition_rate
                               - r.net_N_immobilization_rate
                               - r.net_N_transfer_from_root_to_shoot_rate
                               - r.N_consumption_by_growth_rate) * time_step_in_seconds)
-    # print("The net variation of N was", net_variation, "gN")
-    r.root_labile_N_pool += net_variation
-    # print("After N balance, the labile N in roots is", r.root_labile_N_pool)
     # We reset the root labile N deficit to 0:
     r.root_labile_N_deficit = 0.
 
@@ -693,106 +731,4 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60):
         r.root_labile_N_pool = 0.
 
     return
-
-########################################################################################################################
-########################################################################################################################
-
-# MAIN SIMULATION:
-##################
-
-if __name__ == '__main__':
-
-    print("Performing a simulation by RootSimple alone...")
-
-    # # We define the MTG g:
-    # g = initiate_mtg()
-    # reinitializing_growth_variables(g)
-    # # We update the distance from tip for each root element in each root axis:
-    # update_distance_from_tip(g)
-    # # We update the surfaces and volumes of each root element:
-    # update_surfaces_and_volumes(g)
-    #
-    # # And we create a root system r from it:
-    # r = root_system(g)
-    # # We adjust the properties of the whole root system according to g:
-    # g_properties = summing_and_possibly_homogenizing(g)
-    # r.root_struct_mass = g_properties["total_living_root_struct_mass"]
-    # updating_exchange_surface(r, g)
-    #
-    # r.root_labile_C_pool = 1e-3 * r.root_struct_mass
-    # r.root_labile_N_pool = 1e-4 * r.root_struct_mass
-    #
-    # time_step_in_seconds = 3600.
-    # n_steps = 24*10
-    # soil_temperature=20
-    #
-    # # We perform the simulation:
-    # for time_step in range(1, n_steps+1):
-    #
-    #     # TODO: Change this artifical exchange with the shoot!
-    #     r.net_C_transfer_from_shoot_to_root_rate = 1e-9
-    #     r.net_N_transfer_from_root_to_shoot_rate = 1e-10
-    #
-    #     print("For step", time_step,":")
-    #
-    #     # Setting N uptake by the root system:
-    #     computing_N_uptake_rate(r, g,
-    #                             N_soil = 1e-3,
-    #                             soil_temperature_in_degree_Celsius=soil_temperature)
-    #     computing_N2_fixation_rate(r, g,
-    #                                soil_temperature_in_degree_Celsius=soil_temperature)
-    #
-    #     # Rhizodeposition and update of labile C:
-    #     computing_rhizodeposition_rate(r, g,
-    #                                    time_step_in_seconds=time_step_in_seconds,
-    #                                    soil_temperature_in_degree_Celsius=soil_temperature)
-    #
-    #     # Maintenance respiration and update of labile C:
-    #     computing_maintenance_rate(r,
-    #                                soil_temperature_in_degree_Celsius=soil_temperature)
-    #
-    #     # Exchange with reserve and update of labile C:
-    #     computing_exchange_rates_with_reserve(r,
-    #                                           soil_temperature_in_degree_Celsius=soil_temperature)
-    #
-    #     # Growth:
-    #     #--------
-    #     # We reset all growth-associated variabes before performing the new growth:
-    #     reinitializing_growth_variables(g)
-    #     # We calculate the potential growth of each root element according to ArchiSimple:
-    #     potential_growth(g, time_step_in_seconds=time_step_in_seconds,
-    #                      ArchiSimple=True,
-    #                      soil_temperature_in_Celsius=soil_temperature)
-    #     # We calculate the "satisfaction coefficients" for growth, depending on the amount of labile C and N left:
-    #     satisf_for_C, satisf_for_N = computing_growth_demand_and_satisfaction_coefficients(g,
-    #                                                                                        labile_C_pool = r.root_labile_C_pool,
-    #                                                                                        labile_N_pool = r.root_labile_N_pool)
-    #     print("    The satisfaction coefficient for C is", "{:.2f}".format(Decimal(satisf_for_C)),
-    #           "and the one for N is", "{:.2f}".format(Decimal(satisf_for_N)))
-    #     # We use the function ArchiSimple_growth to adapt the potential growth to the available labile C and N,
-    #     # and we update the labile pools of C and N:
-    #     ArchiSimple_growth_with_C_and_N(r, g, satisf_for_C, satisf_for_N, time_step_in_seconds=time_step_in_seconds)
-    #     # We proceed to the segmentation of the whole root system
-    #     segmentation_and_primordia_formation(g, time_step_in_seconds,
-    #                                          soil_temperature_in_Celsius=soil_temperature, random=True,
-    #                                          root_order_limitation=False)
-    #
-    #     #TODO: Include root hairs dynamics once the cost of C & N is properly registered!
-    #
-    #     # # We modifiy root hairs characteristics according to their specific dynamics:
-    #     # root_hairs_dynamics(g, time_step_in_seconds=time_step_in_seconds,
-    #     #                     soil_temperature_in_Celsius=soil_temperature)
-    #
-    #     # We update the distance from tip for each root element in each root axis:
-    #     update_distance_from_tip(g)
-    #     # We update the surfaces and volumes of each root element:
-    #     update_surfaces_and_volumes(g)
-    #     updating_exchange_surface(r, g)
-    #
-    #     # We update the pools of labile C and N:
-    #     root_CN_balance(r, time_step_in_seconds=time_step_in_seconds)
-    #
-    #     print("    Labile C pool in the root system is now", "{:.2E}".format(Decimal(r.root_labile_C_pool)),
-    #           "gram of C and labile N pool is", "{:.2E}".format(Decimal(r.root_labile_N_pool)), "gram of N.")
-    #     print("    The root system contains", g.nb_vertices(), "different root elements.")
-    #     print("")
+#-----------------------------------------------------------------------------------------------------------------------

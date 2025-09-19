@@ -18,7 +18,7 @@ random_choice = 2
 ###############
 
 # Specific Carbon Assimilation (gC per micromol of photon):
-SCA = 0.000001 # Arbitrary...
+SCA = 0.000001
 # Temperature dependence for C assimilation:
 SCA_T_ref = 20. # The reference temperature is 20 degree Celsius
 SCA_A = 0
@@ -34,6 +34,9 @@ SCA_C = 0
 
 # Time constant corresponding to a first-order decay for N mobilization (second-1):
 k_N_mobilization = 1/(24.*60.*60.) # We assume that the half life of the mobile N in the leaf is 1 day.
+
+# C:N mass ratio of the reserve pool (gC per gN):
+reserve_CN_ratio = 10.
 
 # Slope of the relationship of Leaf Area = f(N_labile) (gN per m2 of leaf):
 SFQN = 10 # We assume that 1 gram of N leads to 10 m2 of leaves
