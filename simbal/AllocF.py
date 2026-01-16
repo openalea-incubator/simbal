@@ -1709,7 +1709,7 @@ def calling_the_different_shoot_modules(shoot_MTG,
 if __name__ == '__main__':
 
     # my_path = os.getcwd()
-    my_path = "C:/Users/frees/SIMBAL/"
+    my_path = "C:/Users/frees/fspm/simbal"
 
     # 1) INITIAL CONDITIONS
     #----------------------
