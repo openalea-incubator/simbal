@@ -14,13 +14,17 @@ from openalea.mtg.traversal import pre_order, post_order
 from openalea.mtg.plantframe import color
 import openalea.plantgl.all as pgl
 
+from alinea.caribu.plantgl_adaptor import scene_to_cscene, pgl_to_triangles
+
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
 import openalea.rhizodep.model as rhizodep_param #TODO: Solve the problem of parameters updating for RhizoDep functions...!
 
 from tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
-                   recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant)
+                   recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant,
+                   get_shoot_visitor, get_root_visitor)
+                   # create_a_scene_with_plants_popuplation)
 
 import os
 import numpy as np

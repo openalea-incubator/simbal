@@ -1579,6 +1579,225 @@ def shoot_CN_balance(shoot_system, time_step_in_seconds = 60.*60):
 
     return
 
+########################################################################################################################
+########################################################################################################################
+# Function that distributes plant MTG within a framework:
+def prepare_plants_population(list_of_reference_MTG=[],
+                              number_of_plants_per_square_meter=9,
+                              inter_row_distance=0.45,
+                              scene_length=1.,
+                              scene_width=1.,
+                              upscaling_factor=1):
+
+    """
+    This function distributes plants within a spatial framework based on plant density and inter row distance,
+    and, when provided with a (list of) reference MTG, generates a list of plant MTG to be used in this population.
+
+    Parameters
+    ----------
+    list_of_reference_MTG: a list containing zero, one or several (e.g. in case of multiple species) refence plant
+                           MTG to be duplicated in the population
+    number_of_plants_per_square_meter: plant density for this population (plants per square meter)
+    inter_row_distance: the distance between two rows (meters)
+    scene_length: length of the zone to populate with plants (meters)
+    scene_width: width of the zone to populate with plants (meters)
+    upscaling_factor: a factor by which all dimensions should be multiplied
+                      (e.g. 100 to convert dimensions from meters to centimeters)
+
+    Returns
+    -------
+    scene_information: a dictionnary containing a list of plant indices and a list of their corresponding positions
+    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
+                 has been provided as an input of the function)
+    """
+
+    # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
+    scene_information = {}
+    scene_information["plant_id"] = []
+    scene_information["position"] = []
+    list_of_MTG = []
+
+    # We calculate the number of rows and plants to be show in the scene:
+    number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
+    number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
+    # We make sure that there is a least one row containing plants:
+    if number_of_plants < number_of_rows:
+        number_of_rows = number_of_plants
+
+    # We calculate the number of plants per row:
+    number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
+    # We calculate the distance between two plants within a row (in meters):
+    inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
+    # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
+    # within the square scene:
+    lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
+    lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
+
+    # We move to the position of the first plant:
+    x = lateral_border_length * upscaling_factor
+    y = lateral_border_width * upscaling_factor
+    z = 0. * upscaling_factor
+
+    # We cover each plant of the scene:
+    for plant_index in range(0, number_of_plants):
+
+        # If a reference MTG or a list of reference MTG has been given, we take the first one
+        # and copy it in the list of MTG:
+        if len(list_of_reference_MTG) > 0:
+            reference_g = list_of_reference_MTG[0]
+            list_of_MTG.append(reference_g.copy())
+
+        # We add the current plant ID to the list of plant ID:
+        scene_information["plant_id"].append(plant_index)
+
+        # We record the new position (x,y,z)
+        scene_information["position"].append((x, y, z))
+
+        # And we move from one plant to another on the same row:
+        x += inter_plant_distance * upscaling_factor
+        # If we have reached the maximal length of a given row:
+        if x > scene_length * upscaling_factor:
+            # Then we switch to the next row:
+            y += inter_row_distance * upscaling_factor
+            # And we start at the beginning of the new row:
+            x = lateral_border_length * upscaling_factor
+
+    return scene_information, list_of_MTG
+
+    ########################################################################################################################
+########################################################################################################################
+
+# Function for creating a scene with uniques shapes ID:
+def create_plants_population_scene(scene_information,
+                                   list_of_MTG,
+                                   scene_length=1.,
+                                   scene_width=1.,
+                                   creating_a_soil_surface=False,
+                                   upscaling_factor=1,
+                                   leaf_shape="oval"):
+
+    """
+    This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
+    to display in the scene. The scene created by this function contains a shape coinciding with each
+    visible plant element and characterized by a unique identifyer. The function also updates the plant MTG with
+    their actual spatial coordinates, and updates the scene information with plant rotation and with the list
+    of initial and reindexed indices of shapes.
+
+    Parameters
+    ----------
+    scene_information: a dictionnary containing a list of plant indices ("plant_id") and a list
+                       of their corresponding positions ("position"), each represented as a tuple (x,y,z)
+    list_of_MTG: a list of plant MTG used to populate the scene
+    scene_length: length of the zone to populate with plants (meters)
+    scene_width: width of the zone to populate with plants (meters)
+    upscaling_factor: a factor by which all dimensions should be multiplied
+                      (e.g. 100 to convert dimensions from meters to centimeters)
+    leaf_shape: a string describing the type of leaf shape to be used (see get_shoot_visitor)
+
+    Returns
+    -------
+
+    scene_information: a dictionnary containing a list of plant indices, a list of their corresponding positions,
+                       a list of their relative rotation, the list of all shapes and the list of all triangles
+                       in the scene, and a dictionnary associating the reindexed ID of shapes with the original ID
+                       in each plant MTG
+    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
+                 has been provided as an input of the function)
+    """
+
+    # We initialize additional properties of scene_information:
+    scene_information["rotation"] = []
+    scene_information["shapes"] = []
+    scene_information["triangles"] = []
+    # We initialize an indexer that will record the correspondance between the initial vid of the MTG and the new,
+    # unique indices of the scene:
+    shapes_indexer = {}
+    # We initialize a lag number that will be used for reindexing the shapes of each individual plant
+    vid_lag = 0
+
+    # We initialize a turtle in PlantGL:
+    turtle = turt.PglTurtle()
+    # We initialize the final scene:
+    final_scene = pgl.Scene()
+
+    # We get the list of plant positions from the scene_information:
+    list_of_positions = scene_information["position"]
+
+    # We cover each plant in the population:
+    for plant_index in range(0, len(list_of_positions)):
+
+        # We access the MTG corresponding to the current plant index:
+        new_MTG = list_of_MTG[plant_index]
+
+        # We initialize the indexer for the current plant:
+        shapes_indexer[plant_index] = {}
+
+        # We first define the seed of random, depending on the index of the plant:
+        np.random.seed(int(param.random_choice * plant_index))
+        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
+        angle_roll = abs(np.random.normal(180, 180))
+        # We record this rotation in the scene information:
+        scene_information["rotation"].append(angle_roll)
+
+        # We reset the turtle:
+        turtle.reset()
+        # And we reposition the turtle from there:
+        turtle.move(list_of_positions[plant_index])
+        turtle.rollL(angle_roll)
+        # We create a scene for one plant by moving the turtle along the MTG:
+        scene = turt.TurtleFrame(new_MTG,
+                                 visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                           upscaling_factor=upscaling_factor),
+                                 turtle=turtle, gc=False)
+
+        # We get a dictionnary of all shapes in the scene:
+        shapes = dict((sh.id, sh) for sh in scene)
+        # We reindex the different shapes by adding the lag number:
+        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene)
+        # And we increment the lag number to reindex the vid of the next plant:
+        vid_lag += len(new_MTG)
+        # We cover each reindexed shape of the original scene corresponding to the MTG of the current plant:
+        for shape_id in reindexed_shapes.keys():
+            # We get the corresponding shape:
+            shape = reindexed_shapes[shape_id]
+            # We access its original id:
+            old_shape_id = shape.id
+            # We modify it with the new id:
+            shape.id = shape_id
+            # We store the correspondence between the new id and the old id:
+            shapes_indexer[plant_index][shape_id] = old_shape_id
+            # Finally, we add the reindexed shape to the final scene:
+            final_scene += shape
+
+        # We record the new shapes:
+        scene_information["shapes"].append(reindexed_shapes)
+
+    # We record the reindexer:
+    scene_information["new_index_to_old_index"] = shapes_indexer
+
+    # We transform the scene into triangles:
+    triangle_scene = pgl_to_triangles(scene)
+    # We record the triangles:
+    scene_information["triangles"].append(triangle_scene)
+
+    if creating_a_soil_surface:
+        # We create a flat soil surface corresponding to the limits of the scene:
+        points = [(0, 0, 0),
+                  (scene_length * upscaling_factor, 0, 0),
+                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
+                  (0, scene_width * upscaling_factor, 0)]
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        square = pgl.QuadSet(points, indices, normals, indices)
+        # We define the same color for each of the 4 points:
+        square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
+        final_scene += square
+
+    return final_scene, scene_information, list_of_MTG
+
+########################################################################################################################
+########################################################################################################################
+
 def calling_the_different_shoot_modules(shoot_MTG,
                                         time_step_in_days=1,
                                         phytomers_initiation = True,
@@ -1708,181 +1927,244 @@ def calling_the_different_shoot_modules(shoot_MTG,
 
 if __name__ == '__main__':
 
-    # my_path = os.getcwd()
-    my_path = "C:/Users/frees/SIMBAL/"
+    # # my_path = os.getcwd()
+    # my_path = "C:/Users/frees/SIMBAL/"
+    #
+    # # 1) INITIAL CONDITIONS
+    # #----------------------
+    # # OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
+    # # # We read the input file:
+    # # input_dataframe = pd.read_excel('APTOS_input_1.xlsx', header=0, sheet_name="scenario")
+    # # g = create_MTG_from_csv_file()
+    #
+    # # OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
+    # g = create_shoot_MTG(number_of_phytomers=3,
+    #                      initial_internode_height=0.002,
+    #                      initial_internode_radius=0.0008,
+    #                      initial_leaf_length=0.02)
+    #
+    # # By default, we consider the object "shoot_system" representing the whole shoots as the first node of the MTG:
+    # plant = g.node(1)
+    # # We initialize the labile content of C and N:
+    # plant.shoot_labile_C_pool = 1e-2
+    # plant.shoot_labile_N_pool = 1e-3
+    #
+    # # We delete the previous files containing plots or MTG properties:
+    # plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
+    # # If this directory doesn't exist:
+    # if not os.path.exists(plot_directory):
+    #     # Then we create it:
+    #     os.mkdir(plot_directory)
+    # else:
+    #     # Otherwise, we delete all the images that are already present inside:
+    #     for root, dirs, files in os.walk(plot_directory):
+    #         for file in files:
+    #             os.remove(os.path.join(root, file))
+    # MTG_directory = os.path.join(my_path, "simulation", "outputs", "MTG_properties")
+    # # If this directory doesn't exist:
+    # if not os.path.exists(MTG_directory):
+    #     # Then we create it:
+    #     os.mkdir(MTG_directory)
+    # else:
+    #     # Otherwise, we delete all the images that are already present inside:
+    #     for root, dirs, files in os.walk(MTG_directory):
+    #         for file in files:
+    #             os.remove(os.path.join(root, file))
+    #
+    # # UPDATING PARAMETERS FROM FILE:
+    # loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
+    #                              outputs_path = os.path.join(my_path, "simulation", "outputs"))
+    #
+    # # We record the properties in its initial state:
+    # recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
+    #
+    # # We define an initial and final step for covering a certain period:
+    # initial_time = 0.
+    # simulation_period_in_days = 50.
+    # time_step_in_days = 1.
+    # n_steps = trunc(simulation_period_in_days / time_step_in_days)
+    # elapsed_time_in_days_since_last_leaf_emergence = 0.
+    #
+    # plant_density_in_square_meter = 33
+    # inter_row_distance = 0.45
+    # row_length = 1.
+    # scene_width = 1.
+    #
+    # # PREPARING THE COORDINATES OF CAMERA ROTATION:
+    # # We calculate the x,y,z coordinates of the different positions of the camera:
+    # [x_coordinates, y_coordinates, z_coordinates] = circle_coordinates(x_center=param.x_center,
+    #                                                                    y_center=param.y_center,
+    #                                                                    z_center=param.z_camera,
+    #                                                                    radius=sqrt(
+    #                                                                        (param.x_camera ** 2 + param.y_camera ** 2)),
+    #                                                                    n_points=param.camera_rotation_n_points)
+    # # We initialize the index in the list of the coordinates:
+    # index_camera = 0
+    #
+    # # 2) OVER TIME:
+    # #--------------
+    # # For each time step covering the scenarios period:
+    # for step in range(1, n_steps+1):
+    #
+    #     # We calculate the current time in hours:
+    #     initial_time_in_days = initial_time + (step-1) * time_step_in_days
+    #     final_time_in_days = initial_time + step * time_step_in_days
+    #     print("")
+    #     print("From", initial_time_in_days,"to", final_time_in_days,"days:")
+    #     print("-----------------------")
+    #
+    #     # CALLING THE EXCHANGE WITH ROOTS:
+    #     # We artificially replenish the pool of labile N in the shoots:
+    #     plant.shoot_labile_N_pool = 0.1
+    #
+    #     # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
+    #
+    #     # We first examine whether new phytomers will be produced at this time step.
+    #     # We reset the authorization to add a new phytomer:
+    #     phytomer_formation = False
+    #     # We increment the time elapsed since the last phytomer formation with the current time step:
+    #     elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
+    #     # TODO: WATCH OUT: this does not take into account the actual temperature!
+    #     # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
+    #     if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochron / (60.*60.*24.):
+    #         # We authorize the formation of a new phytomer:
+    #         phytomer_formation = True
+    #         # And we reset the elapsed time:
+    #         elapsed_time_in_days_since_last_leaf_emergence = (elapsed_time_in_days_since_last_leaf_emergence
+    #                                                           - (param.phyllochron / (60.*60.*24.)))
+    #
+    #     # We call the different modules:
+    #     calling_the_different_shoot_modules(shoot_MTG = g,
+    #                                         phytomers_initiation=phytomer_formation,
+    #                                         number_of_plants_per_square_meter=plant_density_in_square_meter,
+    #                                         inter_row_distance=inter_row_distance,
+    #                                         scene_length=row_length,
+    #                                         scene_width=scene_width)
+    #
+    #     # PLOTTING ONE SINGLE PLANT OVER TIME:
+    #     # We display the MTG in its new state:
+    #     # Option 1A - With PlantGL:
+    #     #--------------------------
+    #     x_cam = x_coordinates[index_camera]
+    #     y_cam = y_coordinates[index_camera]
+    #     z_cam = z_coordinates[index_camera]
+    #     # We define the index of the coordinates to read at the next step:
+    #     index_camera = index_camera + 1
+    #     # If this index is higher than the number of coordinates in each vector:
+    #     if index_camera >= param.camera_rotation_n_points:
+    #         # Then we reset the index to 0:
+    #         index_camera = 0
+    #     graph = plotting_shoot_MTG(g,
+    #                                leaf_shape="oval",
+    #                                # leaf_shape="typical_leaf_shape",
+    #                                # leaf_shape="drop_shape",
+    #                                width=1200, height=900,
+    #                                x_center=0, y_center=0, z_center=0.03,
+    #                                # x_cam=0.18, y_cam=0.18, z_cam=0.03,
+    #                                x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+    #                                grid=False,
+    #                                # background_color=[0, 0, 0],
+    #                                single_color=[100,150,50],
+    #                                # property_name='labile_C', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
+    #                                property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
+    #                                # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
+    #                                # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
+    #                                recording_plot=True,
+    #                                plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
+    #
+    #     # Option 1B - With Pyvista:
+    #     #--------------------------
+    #     # plotting_shoots_with_pyvista(g)
+    #
+    #     # # PLOTTING A POPULATION OF PLANTS:
+    #     # # Option 2A - With PlantGL:
+    #     # #--------------------------
+    #     # plotting_shoot_MTG_population(g,
+    #     #                               number_of_plants_per_square_meter=plant_density_in_square_meter,
+    #     #                               inter_row_distance=inter_row_distance,
+    #     #                               scene_length=row_length,
+    #     #                               scene_width=scene_width,
+    #     #                               leaf_shape="oval",
+    #     #                               # leaf_shape="typical_leaf_shape",
+    #     #                               width=800, height=800,
+    #     #                               x_center=0., y_center=-0., z_center=0.,
+    #     #                               x_cam=3., y_cam=3., z_cam=1.,
+    #     #                               grid=False,
+    #     #                               background_color=[0, 0, 0],
+    #     #                               single_color=None,
+    #     #                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
+    #     #                               recording_plot=True,
+    #     #                               plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
+    #
+    #     # RECORDING THE PROPERTIES:
+    #     # We can record the main properties of the plant:
+    #     dataframe = recording_MTG_properties(g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
+    #
+    #     print("   > The shoot system now contains", g.nb_vertices(),"elements!")
+    #
+    # print("")
+    # print("Simulation is done!")
+    #
+    # #///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    # 1) INITIAL CONDITIONS
-    #----------------------
-    # OPTION 1: We create a MTG from its known properties (NOT COMPLETELY FINISHED!):
-    # # We read the input file:
-    # input_dataframe = pd.read_excel('APTOS_input_1.xlsx', header=0, sheet_name="scenario")
-    # g = create_MTG_from_csv_file()
+    # DEMO FOR RUNNING CARIBU ON A POPULATION OF PLANTS:
+    ####################################################
 
-    # OPTION 2: We create an initial MTG corresponding to the shoot (stem and leaves):
-    g = create_shoot_MTG(number_of_phytomers=3,
-                         initial_internode_height=0.002,
-                         initial_internode_radius=0.0008,
-                         initial_leaf_length=0.02)
+    from tools import (get_shoot_visitor, get_root_visitor)
+    from alinea.caribu.plantgl_adaptor import scene_to_cscene, pgl_to_triangles
 
-    # By default, we consider the object "shoot_system" representing the whole shoots as the first node of the MTG:
-    plant = g.node(1)
-    # We initialize the labile content of C and N:
-    plant.shoot_labile_C_pool = 1e-2
-    plant.shoot_labile_N_pool = 1e-3
+    # We create a reference MTG:
+    shoot_g = create_shoot_MTG(number_of_phytomers=3,
+                               initial_internode_height=0.002,
+                               initial_internode_radius=0.0008,
+                               initial_leaf_length=0.02)
+    # We prepare the population of plants from this reference MTG:
+    scene_information, list_of_MTG = prepare_plants_population(list_of_reference_MTG = [shoot_g],
+                                                               number_of_plants_per_square_meter=9,
+                                                               inter_row_distance=0.45,
+                                                               scene_length=1.,
+                                                               scene_width=1.)
+    # We then create the actual scene, with reindexed shapes compared to the original indices in the list of MTG:
+    scene, scene_information, list_of_MTG = create_plants_population_scene(scene_information,
+                                                                           list_of_MTG,
+                                                                           scene_length=1.,
+                                                                           scene_width=1.,
+                                                                           leaf_shape="oval",
+                                                                           upscaling_factor=1)
+    # We create the Caribu scene and run the light interception:
+    from alinea.caribu.CaribuScene import CaribuScene
+    # We define the light parameters:
+    incoming_light_density = 400
+    light_direction = (0, 0, -1)
+    LIGHT = [(incoming_light_density, light_direction)]
+    pattern = None
 
-    # We delete the previous files containing plots or MTG properties:
-    plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
-    # If this directory doesn't exist:
-    if not os.path.exists(plot_directory):
-        # Then we create it:
-        os.mkdir(plot_directory)
-    else:
-        # Otherwise, we delete all the images that are already present inside:
-        for root, dirs, files in os.walk(plot_directory):
-            for file in files:
-                os.remove(os.path.join(root, file))
-    MTG_directory = os.path.join(my_path, "simulation", "outputs", "MTG_properties")
-    # If this directory doesn't exist:
-    if not os.path.exists(MTG_directory):
-        # Then we create it:
-        os.mkdir(MTG_directory)
-    else:
-        # Otherwise, we delete all the images that are already present inside:
-        for root, dirs, files in os.walk(MTG_directory):
-            for file in files:
-                os.remove(os.path.join(root, file))
+    # We create the Caribu scene and run the light interception:
+    # from openalea.plantgl.all import Scene as pglScene, Viewer
+    # from alinea.caribu.caributriangleset import AbstractCaribuTriangleSet, CaribuTriangleSet
+    # scene = CaribuTriangleSet(scene_to_cscene(scene))
+    cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #, opt=opts)
+    raw, agg = cs.run(infinite=False, simplify=False, direct=True)
 
-    # UPDATING PARAMETERS FROM FILE:
-    loading_parameters_from_file(parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
-                                 outputs_path = os.path.join(my_path, "simulation", "outputs"))
+    # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
+    list_of_plant_id = scene_information["plant_id"]
+    # For each plant in the population:
+    for plant_id in list_of_plant_id:
+        # We get the corresponding MTG in the list:
+        g = list_of_MTG[plant_id]
+        # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
+        reindexer = scene_information["new_index_to_old_index"][plant_id]
+        # We get the corresponding result of the Caribu-computed intercepted light fo this plant:
+        # TODO: Now there is a strange "default_band" created by Caribu run at the beginning of the agg dictionnay - WHY IS IT SO?
+        sub_Ei = {reindexer[id]: agg["default_band"]["Ei"][id] for id in reindexer.keys()  }
+        sub_Eabs = {reindexer[id]: agg["default_band"]["Eabs"][id] for id in reindexer.keys()}
+        sub_area = {reindexer[id]: agg["default_band"]["area"][id] for id in reindexer.keys()}
+        # We update the properties of the current MTG with this new property that has been reindexed to correspond to the original vid:
+        g.properties()["Caribu_area"].update(sub_area)
+        g.properties()["Caribu_Ei"].update(sub_Ei)
+        g.properties()["Caribu_Eabs"].update(sub_Eabs)
+        g.properties()["PAR_intercepted"].update(sub_Eabs)
 
-    # We record the properties in its initial state:
-    recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
-
-    # We define an initial and final step for covering a certain period:
-    initial_time = 0.
-    simulation_period_in_days = 50.
-    time_step_in_days = 1.
-    n_steps = trunc(simulation_period_in_days / time_step_in_days)
-    elapsed_time_in_days_since_last_leaf_emergence = 0.
-
-    plant_density_in_square_meter = 33
-    inter_row_distance = 0.45
-    row_length = 1.
-    scene_width = 1.
-
-    # PREPARING THE COORDINATES OF CAMERA ROTATION:
-    # We calculate the x,y,z coordinates of the different positions of the camera:
-    [x_coordinates, y_coordinates, z_coordinates] = circle_coordinates(x_center=param.x_center,
-                                                                       y_center=param.y_center,
-                                                                       z_center=param.z_camera,
-                                                                       radius=sqrt(
-                                                                           (param.x_camera ** 2 + param.y_camera ** 2)),
-                                                                       n_points=param.camera_rotation_n_points)
-    # We initialize the index in the list of the coordinates:
-    index_camera = 0
-
-    # 2) OVER TIME:
-    #--------------
-    # For each time step covering the scenarios period:
-    for step in range(1, n_steps+1):
-
-        # We calculate the current time in hours:
-        initial_time_in_days = initial_time + (step-1) * time_step_in_days
-        final_time_in_days = initial_time + step * time_step_in_days
-        print("")
-        print("From", initial_time_in_days,"to", final_time_in_days,"days:")
-        print("-----------------------")
-
-        # CALLING THE EXCHANGE WITH ROOTS:
-        # We artificially replenish the pool of labile N in the shoots:
-        plant.shoot_labile_N_pool = 0.1
-
-        # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
-
-        # We first examine whether new phytomers will be produced at this time step.
-        # We reset the authorization to add a new phytomer:
-        phytomer_formation = False
-        # We increment the time elapsed since the last phytomer formation with the current time step:
-        elapsed_time_in_days_since_last_leaf_emergence += time_step_in_days
-        # TODO: WATCH OUT: this does not take into account the actual temperature!
-        # If the elapsed time since last phytomer formation is higher than the prescribed phyllochrone:
-        if elapsed_time_in_days_since_last_leaf_emergence >= param.phyllochron / (60.*60.*24.):
-            # We authorize the formation of a new phytomer:
-            phytomer_formation = True
-            # And we reset the elapsed time:
-            elapsed_time_in_days_since_last_leaf_emergence = (elapsed_time_in_days_since_last_leaf_emergence
-                                                              - (param.phyllochron / (60.*60.*24.)))
-
-        # We call the different modules:
-        calling_the_different_shoot_modules(shoot_MTG = g,
-                                            phytomers_initiation=phytomer_formation,
-                                            number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                            inter_row_distance=inter_row_distance,
-                                            scene_length=row_length,
-                                            scene_width=scene_width)
-
-        # PLOTTING ONE SINGLE PLANT OVER TIME:
-        # We display the MTG in its new state:
-        # Option 1A - With PlantGL:
-        #--------------------------
-        x_cam = x_coordinates[index_camera]
-        y_cam = y_coordinates[index_camera]
-        z_cam = z_coordinates[index_camera]
-        # We define the index of the coordinates to read at the next step:
-        index_camera = index_camera + 1
-        # If this index is higher than the number of coordinates in each vector:
-        if index_camera >= param.camera_rotation_n_points:
-            # Then we reset the index to 0:
-            index_camera = 0
-        graph = plotting_shoot_MTG(g,
-                                   leaf_shape="oval",
-                                   # leaf_shape="typical_leaf_shape",
-                                   # leaf_shape="drop_shape",
-                                   width=1200, height=900,
-                                   x_center=0, y_center=0, z_center=0.03,
-                                   # x_cam=0.18, y_cam=0.18, z_cam=0.03,
-                                   x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                                   grid=False,
-                                   # background_color=[0, 0, 0],
-                                   single_color=[100,150,50],
-                                   # property_name='labile_C', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
-                                   property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
-                                   # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
-                                   # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-                                   recording_plot=True,
-                                   plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
-
-        # Option 1B - With Pyvista:
-        #--------------------------
-        # plotting_shoots_with_pyvista(g)
-
-        # # PLOTTING A POPULATION OF PLANTS:
-        # # Option 2A - With PlantGL:
-        # #--------------------------
-        # plotting_shoot_MTG_population(g,
-        #                               number_of_plants_per_square_meter=plant_density_in_square_meter,
-        #                               inter_row_distance=inter_row_distance,
-        #                               scene_length=row_length,
-        #                               scene_width=scene_width,
-        #                               leaf_shape="oval",
-        #                               # leaf_shape="typical_leaf_shape",
-        #                               width=800, height=800,
-        #                               x_center=0., y_center=-0., z_center=0.,
-        #                               x_cam=3., y_cam=3., z_cam=1.,
-        #                               grid=False,
-        #                               background_color=[0, 0, 0],
-        #                               single_color=None,
-        #                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-        #                               recording_plot=True,
-        #                               plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
-
-        # RECORDING THE PROPERTIES:
-        # We can record the main properties of the plant:
-        dataframe = recording_MTG_properties(g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
-
-        print("   > The shoot system now contains", g.nb_vertices(),"elements!")
-
-    print("")
-    print("Simulation is done!")
+    print("Simulation done!")
+    # TODO: There is an error generated by the Caribu run that is displayed at the end of the simulation, but is not blocking.
 

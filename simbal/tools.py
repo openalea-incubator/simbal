@@ -378,7 +378,7 @@ def create_a_scene_with_plants_popuplation(g,
     scene_length: length of the rows (m)
     scene_width: width of the scene (m)
     true_color: if so, ...
-    surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full trnasparency)
+    surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full transparency)
     leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
     are displayed with a typical leaf curved shape, based on their length only.
     upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
