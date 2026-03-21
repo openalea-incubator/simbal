@@ -16,7 +16,6 @@ from openalea.rhizodep.model import (volume_and_external_surface_from_radius_and
                                      initiate_mtg)
 
 import simbal_parameters as param
-import openalea.rhizodep.model as rhizodep_param
 
 from tools import temperature_modification
 
@@ -32,7 +31,6 @@ class root_system(object):
     def __init__(self, g):
         # The object 'root_system' will in particular contain an attribute corresponding to the full root MTG,
         # as well as general variables for the whole root system:
-        self.root_MTG = g
         self.root_labile_C_pool = 0. # gC per root system
         self.root_labile_C_deficit = 0. # gC per root system
         self.root_reserve_C_pool = 0. # gC per root system
@@ -42,9 +40,87 @@ class root_system(object):
         self.root_struct_mass = 0. # gDW
         self.root_external_surface = 0. # m2
         self.root_exchange_surface = 0. # m2
-        self.root_labile_C_input = 0. # gC per root system
-        self.root_N_uptake = 0. # gN per root system
+        
+        self.net_C_transfer_from_shoot_to_root_rate = 0. # gC per plant per second
+        self.net_N_transfer_from_root_to_shoot_rate = 0. # gN per plant per second
+        self.N_uptake_rate = 0. # gN per plant per second
+        self.N2_fixation_rate = 0. # gN per plant per second
+        self.C_rhizodeposition_rate = 0. # gC per plant per second
+        self.N_rhizodeposition_rate = 0. # gN per plant per second
+        self.root_maintenance_respiration_rate = 0. # gC per plant per second
+        self.net_C_immobilization_rate = 0. # gC per plant per second
+        self.net_N_immobilization_rate = 0. # gN per plant per second
+        self.actual_C_consumption_rate_by_root_growth = 0. # gC per plant per second
+        self.actual_N_consumption_rate_by_root_growth = 0. # gN per plant per second
 
+#-----------------------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for summing all individual properties (labile pools and C &N rates) of each shoot organ and computing
+# the resulting properties of the root system:
+def summing_in_root_system(root_system, root_MTG, resetting_rates=False):
+
+    """
+    The function...
+
+    Parameters
+    ----------
+    root_system: the root system object containing general properties (not the root MTG)
+    root_MTG: the MTG corresponding to the root system and detailing each organ
+    resetting_rates: if True, rates in each organ will be reset to 0
+
+    Returns
+    -------
+    [The general properties of the root system object have been updated, and if required, the rates in each organ may
+    have been reset to 0]
+    """
+
+    # We rename the shoot system as "s" and the shoot MTG as "g":
+    r = root_system
+    g = root_MTG
+
+    # We cover each organ of the shoot:
+    for vid in g.vertices_iter(scale=1):
+
+        # We define the current organ as "n":
+        n = g.node(vid)
+
+        # We add its "additive" properties (state or rate) to the general properties of the root system:
+        r.root_labile_C_pool += n.labile_C
+        r.root_labile_N_pool += n.labile_N
+        r.root_labile_C_deficit += n.labile_C_deficit
+        r.root_labile_N_deficit += n.labile_N_deficit
+        r.root_reserve_C_pool += n.reserve_C
+        r.root_reserve_N_pool += n.reserve_N
+
+        r.root_struct_mass += n.struct_mass
+        r.root_external_surface += n.external_surface
+        r.root_exchange_surface += n.exchange_surface
+
+        # TODO: The following may not be needed as the functions should have updated the rate of the whole root system as well
+        # r.N_uptake_rate += n.N_uptake_rate
+        # r.N2_fixation_rate += n.N2_fixation_rate
+        # r.C_rhizodeposition_rate += n.C_rhizodeposition_rate
+        # r.N_rhizodeposition_rate += n.N_rhizodeposition_rate
+        # r.actual_C_consumption_rate_by_root_growth = 0.  # gC per plant per second
+        # r.actual_N_consumption_rate_by_root_growth = 0.  # gN per plant per second
+
+    # If required, we can reset the rates to 0:
+    if resetting_rates:
+        r.net_C_transfer_from_shoot_to_root_rate = 0.  # gC per plant per second
+        r.net_N_transfer_from_root_to_shoot_rate = 0.  # gN per plant per second
+        r.N_uptake_rate = 0.  # gN per plant per second
+        r.N2_fixation_rate = 0.  # gN per plant per second
+        r.C_rhizodeposition_rate = 0.  # gC per plant per second
+        r.N_rhizodeposition_rate = 0.  # gN per plant per second
+        r.root_maintenance_respiration_rate = 0.  # gC per plant per second
+        r.net_C_immobilization_rate = 0.  # gC per plant per second
+        r.net_N_immobilization_rate = 0.  # gN per plant per second
+        r.actual_C_consumption_rate_by_root_growth = 0.  # gC per plant per second
+        r.actual_N_consumption_rate_by_root_growth = 0.  # gN per plant per second
+
+
+    return
 #-----------------------------------------------------------------------------------------------------------------------
 
 def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60):
@@ -154,6 +230,7 @@ def computing_N_uptake_rate(root_system, root_MTG, N_soil = 1e-6, soil_temperatu
         if n.length > 0. and N_soil > 0.:
             # Then we increase the total rate of N uptake of the root system with the N uptake by the current element:
             N_uptake_rate += n.exchange_surface * corrected_Vmax * N_soil / (param.Km_N_uptake + N_soil)
+            n.N_uptake_rate = N_uptake_rate
 
     # We assign the final result to the whole root system:
     if N_uptake_rate < 0.:
@@ -217,6 +294,7 @@ def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree
                 N2_fixation_rate += (n.struct_mass * temperature_corrected_rate
                                      * max(1, (n.thermal_time_since_emergence/param.maturation_period_for_nodulation))
                                      * N_modulator)
+                n.N2_fixation_rate = N2_fixation_rate
 
     # We finally assign the computed rate as the corresponding property of the whole root system:
     root_system.N2_fixation_rate = N2_fixation_rate
@@ -255,8 +333,9 @@ def computing_rhizodeposition_rate(root_system, root_MTG,
     [Nothing is returned, the root system and the root MTG have been updated with the new 'C_rhizodeposition_rate' and 'N_rhizodeposition_rate']
     """
 
-    # We rename the root system:
+    # We rename the root system and the root MTG:
     r = root_system
+    g = root_MTG
 
     # We compute a modifying factor based on temperature:
     temperature_modifier = temperature_modification(temperature_in_Celsius=soil_temperature_in_degree_Celsius,
@@ -284,9 +363,9 @@ def computing_rhizodeposition_rate(root_system, root_MTG,
         # 2) We now distribute the rhizodeposition along the roots, for allowing a spatialization of rhizodeposit
         # distribution in the soil.
         # We cover all the vertices in the MTG:
-        for vid in root_MTG.vertices_iter(scale=1):
+        for vid in g.vertices_iter(scale=1):
             # n represents the vertex:
-            n = root_MTG.node(vid)
+            n = g.node(vid)
             # If the root element has a positive length:
             if n.length > 0.:
                 # We allocate a part of the rate of rhizodeposition to this element, based on its contribution
@@ -445,7 +524,7 @@ def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degre
         N_mobilization_from_reserve_rate = 0.
     else:
         # We calculate the potential mobilization of N from reserve according to the Michaelis-Menten function:
-        NC_mobilization_from_reserve_rate = (corrected_max_mobilization_rate * r.root_struct_mass
+        N_mobilization_from_reserve_rate = (corrected_max_mobilization_rate * r.root_struct_mass
                                             * r.root_reserve_N_pool / (Km_mobilization + r.root_reserve_N_pool))
 
     # CALCULATIONS OF THEORETICAL IMMOBILIZATION RATE:
@@ -542,6 +621,8 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
 
     # We initialize the root biomass that will be produced from the labile pool of C & N:
     total_mass_produced = 0.
+    # We do the same for the necromass produced at this time step by root mortality:
+    total_necromass_produced = 0.
     # We select the MTG included within the root system r:
     r = root_system
     g = root_MTG
@@ -566,8 +647,12 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
         n = g.node(vid)
 
         # We make sure that the element is not dead and has not already been stopped at the previous time step:
-        if n.type == "Dead" or n.type == "Just_dead" or n.type == "Stopped":
+        if n.type == "Dead" or n.type == "Stopped": #TODO: What about the cost for growth of a root element that has stopped elongating?
             # Then we pass to the next element in the iteration:
+            continue
+        # If the root element has just died, we record its structural mass in the total necromass produced:
+        if n.type == "Just_dead":
+            total_necromass_produced += n.struct_mass
             continue
         # We make sure that the root elements at the basis that support adventitious root are not considered:
         if n.type == "Support_for_seminal_root" or n.type == "Support_for_adventitious_root":
@@ -672,9 +757,11 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
 
     # EVENTUALLY, WE UPDATE THE TOTAL MASS OF THE ROOT SYSTEM:
     r.root_struct_mass += total_mass_produced
+    r.root_struct_necromass += total_necromass_produced
+    r.root_mortality_rate = total_necromass_produced / time_step_in_seconds
     # And we compute the consumption rate of C & N to sustain this growth:
-    r.C_consumption_by_growth_rate = total_mass_produced * param.struct_mass_C_content / param.yield_growth / time_step_in_seconds
-    r.N_consumption_by_growth_rate = total_mass_produced * param.struct_mass_N_content / time_step_in_seconds
+    r.actual_C_consumption_rate_by_root_growth = total_mass_produced * param.struct_mass_C_content / param.yield_growth / time_step_in_seconds
+    r.actual_N_consumption_rate_by_root_growth = total_mass_produced * param.struct_mass_N_content / time_step_in_seconds
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -684,7 +771,7 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
 
     """
     This function computes the new amounts of labile C and labile N in the root system object, based on the initial
-    amounts and the rates of C&N  exchanges already stored in the root object.
+    amounts and the rates of C&N exchanges already stored in the root object.
 
     Parameters
     ----------
@@ -700,24 +787,24 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
     r = root_system
 
     # We update the pool of labile C, taking into account the possible deficit in C previously recorded,
-    # and all processes affecting the C pool:
-    r.root_labile_C_pool += (-r.root_labile_C_deficit
-                             + (r.net_C_transfer_from_shoot_to_root_rate
-                                - r.C_rhizodeposition_rate
-                                - r.root_maintenance_respiration_rate
-                                - r.net_C_immobilization_rate
-                                - r.C_consumption_by_growth_rate) * time_step_in_seconds)
+    # and all processes affecting the C pool EXCEPT THE SHOOT-ROOT EXCHANGE (#TODO: WATCH OUT!):
+    r.root_labile_C_pool += (-r.root_labile_C_deficit + (
+            # r.net_C_transfer_from_shoot_to_root_rate
+            - r.C_rhizodeposition_rate
+            - r.root_maintenance_respiration_rate
+            - r.net_C_immobilization_rate
+            - r.actual_C_consumption_rate_by_root_growth) * time_step_in_seconds)
     # We reset the root labile C deficit to 0:
     r.root_labile_C_deficit = 0.
 
     # We update the pool of labile N, taking into account the possible deficit in N previously recorded,
-    # and all processes affecting the N pool:
-    r.root_labile_N_pool += (- r.root_labile_N_deficit +
-                             (r.N_uptake_rate + r.N2_fixation_rate
-                              - r.N_rhizodeposition_rate
-                              - r.net_N_immobilization_rate
-                              - r.net_N_transfer_from_root_to_shoot_rate
-                              - r.N_consumption_by_growth_rate) * time_step_in_seconds)
+    # and all processes affecting the N pool EXCEPT THE SHOOT-ROOT EXCHANGE (#TODO: WATCH OUT!):
+    r.root_labile_N_pool += (- r.root_labile_N_deficit + (
+        # - r.net_N_transfer_from_root_to_shoot_rate
+        + r.N_uptake_rate + r.N2_fixation_rate
+        - r.N_rhizodeposition_rate
+        - r.net_N_immobilization_rate
+        - r.actual_N_consumption_rate_by_root_growth) * time_step_in_seconds)
     # We reset the root labile N deficit to 0:
     r.root_labile_N_deficit = 0.
 
