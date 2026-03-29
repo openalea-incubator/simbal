@@ -760,47 +760,46 @@ def run_simulation(my_path=None,
         plant.actual_C_consumption_rate_by_root_growth = 0.  # gC per second
         plant.actual_N_consumption_rate_by_root_growth = 0.  # gN per second
 
-        # # TRANSFER OF C FROM SHOOTS TO ROOTS:
-        # #####################################
-        #
-        # print("    > Computing shoot-to-root C transfer...")
-        # # At this stage, we compute the rate of net C transfer from shoots to roots:
-        # computing_shoot_root_exchange_rates(plant, computing_C_exchange=True, computing_N_exchange=False,
-        #                                     C_option="by_diffusion")
-        # print("    > The net transfer of C is",
-        #       "{:.2E}".format(Decimal(plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds)), "gC.")
-        # # Note that only the rate has been computed here, the labile C pools have not been updated yet!
-        # # We limit the transfer of C from shoots to roots (or from roots to shoots) to the maximal amount of labile C
-        # # available in the source compartment.
-        # # We first calculate the expected amount of C that should be exchanged based on the flux:
-        # expected_C_exchange = plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds
-        # # # We reset the net exchange to 0: (#TODO: WATCH OUT!):
-        # # plant.net_C_transfer_from_shoot_to_root_rate = 0.
-        # # CASE 1: The flux from shoot to root is positive, but there is not enough C in the shoot to sustain it:
-        # if expected_C_exchange > (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit):
-        #     # Then the amount of C exchanged is limited to the amount of C available in shoots:
-        #     final_C_exchange = (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
-        #     #  The amount of labile C in shoots and roots is updated according to the new computed exchange:
-        #     if SIMULATION_OPTION != "roots_only":
-        #         plant.shoot_labile_C_pool -= final_C_exchange
-        #     if SIMULATION_OPTION != "shoot_only":
-        #         plant.root_labile_C_pool += final_C_exchange
-        # # CASE 2: The flux from root to shoot is positive but there is not enough C in the root to sustain it:
-        # elif expected_C_exchange < 0. and abs(expected_C_exchange) > (
-        #         plant.root_labile_C_pool - plant.root_labile_C_deficit):
-        #     final_C_exchange = (plant.root_labile_C_pool - plant.root_labile_C_deficit)
-        #     # The amount of labile C in shoots and roots is updated according to the new computed exchange:
-        #     if SIMULATION_OPTION != "roots_only":
-        #         plant.shoot_labile_C_pool += final_C_exchange
-        #     if SIMULATION_OPTION != "shoot_only":
-        #         plant.root_labile_C_pool -= final_C_exchange
-        # # CASE 3 (EXPECTED CASE): There is enough C in the source compartment to sustain the transfer:
-        # else:
-        #     # Then the amount of labile C in shoots and roots is updated according to the initial computed exchange:
-        #     if SIMULATION_OPTION != "roots_only":
-        #         plant.shoot_labile_C_pool -= expected_C_exchange
-        #     if SIMULATION_OPTION != "shoot_only":
-        #         plant.root_labile_C_pool += expected_C_exchange
+        # TRANSFER OF C FROM SHOOTS TO ROOTS:
+        #####################################
+
+        print("    > Computing shoot-to-root C transfer...")
+        # At this stage, we compute the rate of net C transfer from shoots to roots:
+        computing_shoot_root_exchange_rates(plant, computing_C_exchange=True, computing_N_exchange=False,
+                                            C_option="by_diffusion")
+        print("    > The net transfer of C is",
+              "{:.2E}".format(Decimal(plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds)), "gC.")
+        # Note that only the rate has been computed here, the labile C pools have not been updated yet!
+        # We limit the transfer of C from shoots to roots (or from roots to shoots) to the maximal amount of labile C
+        # available in the source compartment.
+        # We first calculate the expected amount of C that should be exchanged based on the flux:
+        expected_C_exchange = plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds
+        # # We reset the net exchange to 0: (#TODO: WATCH OUT!):
+        # plant.net_C_transfer_from_shoot_to_root_rate = 0.
+        # CASE 1: The flux from shoot to root is positive, but there is not enough C in the shoot to sustain it:
+        if expected_C_exchange > (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit):
+            # Then the amount of C exchanged is limited to the amount of C available in shoots:
+            final_C_exchange = (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
+            #  The amount of labile C in shoots and roots is updated according to the new computed exchange:
+            if SIMULATION_OPTION != "roots_only":
+                plant.shoot_labile_C_pool -= final_C_exchange
+            if SIMULATION_OPTION != "shoot_only":
+                plant.root_labile_C_pool += final_C_exchange
+        # CASE 2: The flux from root to shoot is positive but there is not enough C in the root to sustain it:
+        elif expected_C_exchange < 0. and abs(expected_C_exchange) > (plant.root_labile_C_pool - plant.root_labile_C_deficit):
+            final_C_exchange = (plant.root_labile_C_pool - plant.root_labile_C_deficit)
+            # The amount of labile C in shoots and roots is updated according to the new computed exchange:
+            if SIMULATION_OPTION != "roots_only":
+                plant.shoot_labile_C_pool += final_C_exchange
+            if SIMULATION_OPTION != "shoot_only":
+                plant.root_labile_C_pool -= final_C_exchange
+        # CASE 3 (EXPECTED CASE): There is enough C in the source compartment to sustain the transfer:
+        else:
+            # Then the amount of labile C in shoots and roots is updated according to the initial computed exchange:
+            if SIMULATION_OPTION != "roots_only":
+                plant.shoot_labile_C_pool -= expected_C_exchange
+            if SIMULATION_OPTION != "shoot_only":
+                plant.root_labile_C_pool += expected_C_exchange
 
         # TRANSFER OF N FROM ROOTS TO SHOOTS:
         #####################################
@@ -1113,7 +1112,8 @@ def run_simulation(my_path=None,
                         shoot_MTG=shoot_g,
                         new_initiation=True,
                         initial_leaf_length=param.initial_leaf_length,
-                        initial_internode_length=param.initial_internode_length)
+                        initial_internode_length=param.initial_internode_length,
+                        time_step_in_seconds=time_step_in_seconds)
                     print("> A new phytomer has been formed! The C & N costs were",
                           "{:.2E}".format(Decimal(C_cost_for_new_phytomers)), "gC and",
                           "{:.2E}".format(Decimal(N_cost_for_new_phytomers)),"gN.")
@@ -1128,9 +1128,14 @@ def run_simulation(my_path=None,
 
             # And we register the total consumption rate for growth in the plant object:
             plant.actual_C_consumption_rate_by_shoot_growth \
-                = (C_consumption_rate_for_extension + C_cost_for_new_ramification + total_C_costs_for_new_phytomers) / time_step_in_seconds
+                = (C_consumption_rate_for_extension
+                   + (C_cost_for_new_ramification + total_C_costs_for_new_phytomers) / time_step_in_seconds)
             plant.actual_N_consumption_rate_by_shoot_growth \
-                = (N_consumption_rate_for_extension + N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds
+                = (N_consumption_rate_for_extension
+                   + (N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds)
+
+            if total_C_costs_for_new_phytomers > 0:
+                print("HMMM...")
 
             # # EXCHANGE WITH RESERVE:
             # # This function reallocates all the remaining C available to the different organs according to their PAR,

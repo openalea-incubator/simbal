@@ -10,7 +10,7 @@
 from openalea.mtg import *
 from openalea.mtg.traversal import pre_order, post_order
 from openalea.rhizodep.model import (volume_and_external_surface_from_radius_and_length,
-                                     summing_and_possibly_homogenizing, reinitializing_growth_variables,
+                                     summing_and_possibly_homogenizing,
                                      update_distance_from_tip, update_surfaces_and_volumes,
                                      potential_growth, segmentation_and_primordia_formation, root_hairs_dynamics,
                                      initiate_mtg)
@@ -306,7 +306,7 @@ def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree
 #--------------------------------------------------------------------------------
 def computing_rhizodeposition_rate(root_system, root_MTG,
                                    option="loss_as_input_rate_fraction",
-                                   C_rhizodeposition_fraction=0.20,
+                                   C_rhizodeposition_fraction=0.30,
                                    N_rhizodeposition_fraction=0.10,
                                    time_step_in_seconds=60*60,
                                    soil_temperature_in_degree_Celsius=10.,
@@ -588,7 +588,7 @@ def computing_growth_demand_and_satisfaction_coefficients(root_MTG, labile_C_poo
     else:
         # Otherwise, the satisfaction coefficient correspond to the ratio between the maximal mass obtained from the
         # labile C and the C demand, INCLUDING THE CARBON COST FOR GROWTH RESPIRATION:
-        C_demand = sum_struct_mass_demand * param.struct_mass_C_content / param.yield_growth
+        C_demand = sum_struct_mass_demand * param.structural_C_content / param.yield_growth
         satisf_for_C = labile_C_pool / C_demand
         # print("    > The C cost for potential growth should be", C_demand)
         # print("    > The final C cost will be", min(labile_C_pool, C_demand))
@@ -601,7 +601,7 @@ def computing_growth_demand_and_satisfaction_coefficients(root_MTG, labile_C_poo
     else:
         # Otherwise, the satisfaction coefficient correspond to the ratio between the maximal mass obtained from the
         # labile N and the N demand:
-        satisf_for_N = labile_N_pool / (sum_struct_mass_demand * param.struct_mass_N_content)
+        satisf_for_N = labile_N_pool / (sum_struct_mass_demand * param.structural_N_content)
     if satisf_for_N > 1.:
         satisf_for_N =1.
 
@@ -668,10 +668,11 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
         # NOTE: the satisfaction coefficient for C already includes growth respiration cost.
         # If C is the limiting factor:
         if limiting_coefficient == satisf_for_C:
-            # We calculate the volume by further excluding the cost for growth respiration from the amount of available C:
+            # We calculate the volume according to the amount of available C:
             final_volume = initial_volume + (potential_volume - initial_volume) * satisf_for_C
             # NOTE: this is truly the potential volume, knowing that an additional fraction of C will be used for growth respiration.
         else:
+            # Otherwise, the final volume is computed according to the availability of N:
             final_volume = initial_volume + (potential_volume - initial_volume) * satisf_for_N
 
         # We now calculate the maximal length of the element based on the final volume, while keeping the radius unchanged:
@@ -760,8 +761,43 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
     r.root_struct_necromass += total_necromass_produced
     r.root_mortality_rate = total_necromass_produced / time_step_in_seconds
     # And we compute the consumption rate of C & N to sustain this growth:
-    r.actual_C_consumption_rate_by_root_growth = total_mass_produced * param.struct_mass_C_content / param.yield_growth / time_step_in_seconds
-    r.actual_N_consumption_rate_by_root_growth = total_mass_produced * param.struct_mass_N_content / time_step_in_seconds
+    r.actual_C_consumption_rate_by_root_growth = total_mass_produced * param.structural_C_content / param.yield_growth / time_step_in_seconds
+    r.actual_N_consumption_rate_by_root_growth = total_mass_produced * param.structural_N_content / time_step_in_seconds
+
+    return
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for reinitializing all growth-related variables at the beginning or end of a time step:
+# -------------------------------------------------------------------------------------------------
+def reinitializing_growth_variables(g):
+    """
+    This function re-initializes different growth-related variables (e.g. potential growth variables).
+    :param g: the root MTG to be considered
+    :return: [the MTG has been updated with new values for the growth-related variables]
+    """
+
+    # We cover all the vertices in the MTG:
+    for vid in g.vertices_iter(scale=1):
+        # n represents the vertex:
+        n = g.node(vid)
+
+        # We set to 0 the growth-related variables:
+        n.resp_growth = 0.
+        n.struct_mass_produced = 0.
+        n.root_hairs_struct_mass_produced = 0.
+        n.actual_elongation = 0.
+        n.actual_elongation_rate = 0.
+        n.growth_demand_in_struct_mass = 0.
+
+        # We make sure that the initial values of length, radius and struct_mass are correctly initialized:
+        n.initial_length = n.length
+        n.potential_length = n.length
+        n.initial_radius = n.radius
+        n.potential_radius = n.radius
+        n.theoretical_radius = n.radius
+        n.initial_struct_mass = n.struct_mass
+        n.initial_living_root_hairs_struct_mass = n.living_root_hairs_struct_mass
+        n.initial_external_surface = n.external_surface
+        n.initial_living_root_hairs_external_surface = n.living_root_hairs_external_surface
 
     return
 #-----------------------------------------------------------------------------------------------------------------------

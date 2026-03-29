@@ -205,7 +205,8 @@ def ADDING_A_PHYTOMER(parent_element,
 def new_phytomers_initiation(shoot_system,
                              shoot_MTG, new_initiation = True,
                              initial_internode_length = 0.002,
-                             initial_leaf_length = 0.002):
+                             initial_leaf_length = 0.002,
+                             time_step_in_seconds = 60*60):
     """
     This function creates new phytomers (internode + leaf + bud) wherever neceassry in the shoot MTG.
     Parameters
@@ -255,10 +256,10 @@ def new_phytomers_initiation(shoot_system,
                 new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                                 edge_type="<",
                                                 label="Apex",
-                                                properties_identical_to_parent = True,
-                                                nil_properties=False)
+                                                properties_identical_to_parent = False,
+                                                nil_properties=True)
                 # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
-                new_apex.length = 0.
+                new_apex.radius = internode.radius
                 # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS ON THE TOP OF EACH OTHERS
                 # # Finally, we update the list of apices by adding the new apex that has been formed,
                 # # in case it could itself form a new phytomer:
@@ -268,10 +269,16 @@ def new_phytomers_initiation(shoot_system,
                 # We add the structural mass of each new element:
                 for element in [internode, leaf, bud]:
                     new_structural_mass += element.struct_mass
+                    element.actual_C_consumption_rate_by_shoot_growth\
+                        = element.struct_mass * param.structural_C_content / param.yield_growth / time_step_in_seconds
+                    element.actual_N_consumption_rate_by_shoot_growth\
+                        = element.struct_mass * param.structural_N_content / time_step_in_seconds
 
     # We calculate the corresponding C (gC) and N (gN) cost for the plant:
     C_cost = new_structural_mass * param.structural_C_content / param.yield_growth
     N_cost = new_structural_mass * param.structural_N_content
+    # # We update the structural mass of the plant:
+    # shoot_system.shoot_struct_mass += new_structural_mass
 
     return C_cost, N_cost
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1189,6 +1196,10 @@ def actual_shoot_growth(shoot_MTG,
         # We define the current organ as "n":
         n = g.node(vid)
 
+        # We reset the rates of actual growth consumption:
+        n.actual_C_consumption_rate_by_shoot_growth = 0.
+        n.actual_N_consumption_rate_by_shoot_growth = 0.
+
         # First, we increment the time since the shoot element has been formed:
         n.actual_time_since_formation +=  time_step_in_seconds
         n.thermal_time_since_formation += thermal_time_step_in_seconds
@@ -1255,8 +1266,10 @@ def actual_shoot_growth(shoot_MTG,
                     # And we increase the radius according to the remaining "volume_increment" that is left:
                     remaining_volume_increment = final_volume_increment - volume_increment_by_elongation
                     n.radius = sqrt(n.radius ** 2 + (remaining_volume_increment / (n.length * pi)))
-                    if abs(n.potential_radius - n.radius) / n.radius < 1e-16:
-                        print("!!! ERROR: the potential radius of element", vid, "was lower than the final radius!")
+                    if abs(n.potential_radius - n.radius) / n.radius < 1e-12:
+                        print("!!! WATCH OUT: the potential radius of element", vid,
+                              "was lower than the final radius by",
+                              abs(n.potential_radius - n.radius) / n.radius * 100, "%!")
 
             # Eventually, we recompute the new surface, volume and structural mass of the internode:
             n.surface = n.length * n.radius * 2 * pi
@@ -1278,8 +1291,9 @@ def actual_shoot_growth(shoot_MTG,
             n.length += length_increment
             # The radius, which is half of the width, is also calculated based on the allometric coefficient
             n.radius += length_increment * param.leaf_width_to_length_ratio / 2.
-            if abs(n.potential_radius - n.radius)/n.radius < 1e-16:
-                print("!!! ERROR: the potential radius of element", vid, "was lower than the final radius!")
+            if abs(n.potential_radius - n.radius)/n.radius < 1e-12:
+                print("!!! WATCH OUT: the potential radius of element", vid, "was lower than the final radius by",
+                      abs(n.potential_radius - n.radius)/n.radius*100,"%!")
             # We update other dimensional characteristics based on this growth:
             n.volume += final_volume_increment
             n.struct_mass += final_volume_increment * structural_mass_density
@@ -1807,13 +1821,17 @@ def shoot_CN_balance_and_CN_redistribution_within_organs(shoot_system, shoot_MTG
 
         # COMPUTING THE NEW RESULTING NET INCREASE RATE IN C & N IN THIS ORGAN:
         # We compute the net rate of C increase in the labile C pool associated to the organ (gC per node per second):
-        net_C_increase_rate = (n.photosynthesized_C_rate
-                               # TODO: should C_storage_rate be included in the balance of the structural mass or here?
-                               - n.shoot_maintenance_respiration_rate
-                               - n.actual_C_consumption_rate_by_shoot_growth)
+        net_C_increase_rate = (
+                n.photosynthesized_C_rate
+                # TODO: should C_storage_rate be included in the balance of the structural mass or here?
+                - n.shoot_maintenance_respiration_rate
+                - n.actual_C_consumption_rate_by_shoot_growth
+        )
         # We compute the net rate of N increase in the labile N pool associated to the organ:
-        net_N_increase_rate = (- n.actual_N_consumption_rate_by_shoot_growth
-                               - n.shoot_N_mobilization_rate)
+        net_N_increase_rate = (
+            - n.shoot_N_mobilization_rate
+            - n.actual_N_consumption_rate_by_shoot_growth
+        )
 
         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE C:
         n.labile_C += net_C_increase_rate * time_step_in_seconds
@@ -1889,8 +1907,9 @@ def shoot_CN_balance_and_CN_redistribution_within_organs(shoot_system, shoot_MTG
     # We also record the summed rates:
     s.photosynthesized_C_rate = total_photosynthesized_C_rate
     s.shoot_maintenance_respiration_rate = total_shoot_maintenance_respiration_rate
-    s.actual_C_consumption_rate_by_shoot_growth = total_actual_C_consumption_rate_by_shoot_growth
-    s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
+    #TODO: WATCH OUT
+    # s.actual_C_consumption_rate_by_shoot_growth = total_actual_C_consumption_rate_by_shoot_growth
+    # s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
 
     # # COMPUTING THE DISTRIBUTION OF LIGHT:
     # ######################################
@@ -2264,10 +2283,11 @@ def calling_the_different_shoot_modules(shoot_MTG,
 
     # We initiate the structure of new phytomers (if any):
     C_cost, N_cost = new_phytomers_initiation(shoot_system = plant,
-                             shoot_MTG = g,
-                             new_initiation=phytomers_initiation,
-                             initial_internode_length=param.initial_internode_length,
-                             initial_leaf_length=param.initial_leaf_length)
+                                              shoot_MTG = g,
+                                              new_initiation=phytomers_initiation,
+                                              initial_internode_length=param.initial_internode_length,
+                                              initial_leaf_length=param.initial_leaf_length,
+                                              time_step_in_seconds=time_step_in_days/(60.*60.*24.))
     plant.actual_C_consumption_rate_by_shoot_growth += C_cost
     plant.actual_N_consumption_rate_by_shoot_growth += N_cost
  \
