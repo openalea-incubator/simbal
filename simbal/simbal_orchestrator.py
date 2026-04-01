@@ -844,69 +844,6 @@ def run_simulation(my_path=None,
             if SIMULATION_OPTION != "shoot_only":
                 plant.root_labile_N_pool -= expected_N_exchange
 
-        # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
-        #########################################
-
-        # COMPUTING THE DISTRIBUTION OF LIGHT:
-        # We initialize the total amount of light intercepted by the whole plant:
-        intercepted_light_by_the_plant = 0.
-        sum_of_mean_surfacic_PAR = 0.
-        sum_of_available_C = 0.
-        # Then we cover each organ n of the shoot:
-        for vid in shoot_g.vertices_iter(scale=1):
-            n = shoot_g.node(vid)
-            if n.surface <= 0.:
-                continue
-            # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
-            intercepted_light_by_the_plant += n.PAR_intercepted
-            n.mean_surfacic_PAR = n.PAR_intercepted / n.surface
-            sum_of_mean_surfacic_PAR += n.mean_surfacic_PAR
-            sum_of_available_C += n.labile_C - n.labile_C_deficit
-        if sum_of_mean_surfacic_PAR == 0.:
-            print("!!! ERROR: the sum of intercepted PAR could not be assessed!")
-
-        # REALLOCATING N INTO EACH SHOOT ORGAN:
-        # The total amount of labile N to redistribute into the shoot organs is defined as:
-        shoot_available_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
-        if shoot_available_N <= 0.:
-            print("WATCH OUT: there is no labile N left in the shoot to be redistributed!")
-        else:
-            # We cover each organ of the shoot:
-            for vid in shoot_g.vertices_iter(scale=1):
-                # We access the current organ "n":
-                n = shoot_g.node(vid)
-                if n.surface <= 0.:
-                    continue
-                # The new target for labile_N in this organ is calculated according to the relative intercepted light:
-                fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
-                labile_N_target = shoot_available_N * fraction
-                # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                n.shoot_N_distribution_rate = (labile_N_target - n.labile_N - n.labile_N_deficit) / time_step_in_seconds
-                # We now redefine the local pool of labile N according to this target level:
-                n.labile_N = labile_N_target
-                n.labile_N_deficit = 0.
-
-        # REDISTRIBUTING C INTO EACH SHOOT ORGAN:
-        # The total amount of labile C to redistribute into the shoot organs is defined as:
-        shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
-        if shoot_available_C <= 0.:
-            print("WATCH OUT: there is no labile C left in the shoot to be redistributed!")
-        else:
-            # We cover each organ n of the shoot:
-            for vid in shoot_g.vertices_iter(scale=1):
-                # We access the current organ "n":
-                n = shoot_g.node(vid)
-                if n.surface <= 0.:
-                    continue
-                # The new target for labile_C in this organ is calculated according to the relative intercepted light:
-                fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
-                labile_C_target = shoot_available_C * fraction
-                # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                n.shoot_C_distribution_rate = (labile_C_target - (n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
-                # We now redefine the local pool of labile C according to this target level:
-                n.labile_C = labile_C_target
-                n.labile_C_deficit = 0.
-
         # CALLING SUCCESSIVELY THE DIFFERENT ROOT MODULES:
         ##################################################
 
@@ -990,10 +927,72 @@ def run_simulation(my_path=None,
         # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
         ###################################################
 
-        if SIMULATION_OPTION != "roots_only":
+        # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
+        #////////////////////////////////////////
 
-            # OPTION WITH NO PRIORITY OF CONSUMPTION:
-            #########################################
+        # COMPUTING THE DISTRIBUTION OF LIGHT:
+        # We initialize the total amount of light intercepted by the whole plant:
+        intercepted_light_by_the_plant = 0.
+        sum_of_mean_surfacic_PAR = 0.
+        sum_of_available_C = 0.
+        # Then we cover each organ n of the shoot:
+        for vid in shoot_g.vertices_iter(scale=1):
+            n = shoot_g.node(vid)
+            if n.surface <= 0.:
+                continue
+            # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
+            intercepted_light_by_the_plant += n.PAR_intercepted
+            n.mean_surfacic_PAR = n.PAR_intercepted / n.surface
+            sum_of_mean_surfacic_PAR += n.mean_surfacic_PAR
+            sum_of_available_C += n.labile_C - n.labile_C_deficit
+        if sum_of_mean_surfacic_PAR == 0.:
+            print("!!! ERROR: the sum of intercepted PAR could not be assessed!")
+
+        # REALLOCATING N INTO EACH SHOOT ORGAN:
+        # The total amount of labile N to redistribute into the shoot organs is defined as:
+        shoot_available_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
+        if shoot_available_N <= 0.:
+            print("WATCH OUT: there is no labile N left in the shoot to be redistributed!")
+        else:
+            # We cover each organ of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_N in this organ is calculated according to the relative intercepted light:
+                fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
+                labile_N_target = shoot_available_N * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_N_distribution_rate = (labile_N_target - (
+                            n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile N according to this target level:
+                n.labile_N = labile_N_target
+                n.labile_N_deficit = 0.
+
+        # REDISTRIBUTING C INTO EACH SHOOT ORGAN:
+        # The total amount of labile C to redistribute into the shoot organs is defined as:
+        shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
+        if shoot_available_C <= 0.:
+            print("WATCH OUT: there is no labile C left in the shoot to be redistributed!")
+        else:
+            # We cover each organ n of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_C in this organ is calculated according to the relative intercepted light:
+                fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
+                labile_C_target = shoot_available_C * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_C_distribution_rate = (labile_C_target - (
+                            n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile C according to this target level:
+                n.labile_C = labile_C_target
+                n.labile_C_deficit = 0.
+
+        if SIMULATION_OPTION != "roots_only":
 
             # We register the initial state of the labile C & N pools in the shoot:
             initial_shoot_labile_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
@@ -1051,16 +1050,6 @@ def run_simulation(my_path=None,
             # GROWTH IN THE SHOOT ORGANS:
             #############################
 
-            # RAMIFICATION - We start considering the possibility of ramification:
-            C_cost_for_new_ramification, N_cost_for_new_ramification \
-                = AllocF.computing_ramification(shoot_MTG=shoot_g,
-                                                initial_internode_length=param.initial_internode_length,
-                                                initial_leaf_length=param.initial_leaf_length)
-            if C_cost_for_new_ramification > 0. or N_cost_for_new_ramification > 0.:
-                print("> The costs to sustain ramification were",
-                      "{:.2E}".format(Decimal(C_cost_for_new_ramification)), "gC and",
-                      "{:.2E}".format(Decimal(N_cost_for_new_ramification)), "gN.")
-
             # ORGAN EXTENSION; We calculate the possible increase in volume of each organ:
             AllocF.potential_shoot_growth(shoot_g,
                                           SFQN=param.SFQN,
@@ -1089,7 +1078,7 @@ def run_simulation(my_path=None,
                   "{:.2E}".format(Decimal(N_consumption_rate_for_extension * time_step_in_seconds)),
                   "gN over the shoot system...")
 
-            # NEW PHYTOMERS: We now consider the initiation of the structure of new phytomers (if any).
+            # NEW PHYTOMERS: We now consider the initiation of the structure of new phytomers, based on the phyllochrone.
             # We increment the time since the last phytomer was formed at the top of the main stem:
             thermal_time_since_last_phytomer_formation \
                 = shoot_g.node(0).thermal_time_since_last_phytomer_formation + thermal_time_step_in_seconds_shoots
@@ -1123,9 +1112,20 @@ def run_simulation(my_path=None,
             # Once all phytomers have been added, we update the time since the last one was formed,
             # which is stored at the base of the shoot system:
             shoot_g.node(0).thermal_time_since_last_phytomer_formation = thermal_time_since_last_phytomer_formation
+
+            # RAMIFICATION - We consider the possibility of ramification:
+            C_cost_for_new_ramification, N_cost_for_new_ramification \
+                = AllocF.computing_ramification(shoot_MTG=shoot_g,
+                                                initial_internode_length=param.initial_internode_length,
+                                                initial_leaf_length=param.initial_leaf_length,
+                                                time_step_in_seconds=time_step_in_seconds)
+            if C_cost_for_new_ramification > 0. or N_cost_for_new_ramification > 0.:
+                print("> The costs to sustain ramification with the creation of new phytomers were",
+                      "{:.2E}".format(Decimal(C_cost_for_new_ramification)), "gC and",
+                      "{:.2E}".format(Decimal(N_cost_for_new_ramification)), "gN.")
+
             # We finally update the coordinates of the new organs:
             updating_coordinates(shoot_g)
-
             # And we register the total consumption rate for growth in the plant object:
             plant.actual_C_consumption_rate_by_shoot_growth \
                 = (C_consumption_rate_for_extension
@@ -1133,9 +1133,6 @@ def run_simulation(my_path=None,
             plant.actual_N_consumption_rate_by_shoot_growth \
                 = (N_consumption_rate_for_extension
                    + (N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds)
-
-            if total_C_costs_for_new_phytomers > 0:
-                print("HMMM...")
 
             # # EXCHANGE WITH RESERVE:
             # # This function reallocates all the remaining C available to the different organs according to their PAR,
@@ -1213,11 +1210,15 @@ def run_simulation(my_path=None,
             y_cam = param.y_camera
             z_cam = param.z_camera
 
+        zoom_factor = 100.
         # We display the MTG in its new state:
         plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
                              width=1200, height=1200,
-                             x_center=param.x_center, y_center=param.y_center, z_center=param.z_center,
-                             x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+                             upscaling_factor=zoom_factor,
+                             x_center=param.x_center*zoom_factor,
+                             y_center=param.y_center*zoom_factor,
+                             z_center=param.z_center*zoom_factor,
+                             x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
                              grid=False,
                              leaf_shape=param.leaf_shape,
                              background_color=[94, 76, 64],
@@ -1228,7 +1229,8 @@ def run_simulation(my_path=None,
                              # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
                              # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
                              recording_plot=True,
-                             plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step))
+                             plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
+                             shoots_overlapping_roots=True)
 
         # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
         # We can record the main properties of the plant:

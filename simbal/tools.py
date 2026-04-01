@@ -191,7 +191,7 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
     return shoot_visitor
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def get_root_visitor():
+def get_root_visitor(upscaling_factor=1.):
     """
     This function describes the movement of the 'turtle' along the root MTG for creating a 3D graph of roots on PlantGL.
     :return: root_visitor
@@ -201,7 +201,7 @@ def get_root_visitor():
         n = g.node(v)
 
         # For displaying the radius or length X times larger than in reality, we can define a zoom factor:
-        zoom_factor = 1.
+        zoom_factor = upscaling_factor
         # We look at the geometrical properties already defined within the root element:
         radius = n.radius * zoom_factor
         length = n.length * zoom_factor
@@ -877,6 +877,7 @@ def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True
 # This function enables to plot a shoot MTG with PlantGL:
 def plotting_whole_plant(shoot_MTG, root_MTG,
                          width=1200, height=900,
+                         upscaling_factor=1.,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
                          grid=True,
@@ -887,7 +888,8 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                          property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2, lognorm_shoot=True,
                          property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
                          recording_plot=True,
-                         plot_name='plot.png'):
+                         plot_name='plot.png',
+                         shoots_overlapping_roots=True):
 
     # CREATING THE PLOT:
     #-------------------
@@ -907,7 +909,10 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     # We initialize a turtle in PlantGL:
     shoot_turtle = turt.PglTurtle()
     # We create the scene by moving the turtle along the current MTG:
-    shoot_scene = turt.TurtleFrame(shoot_MTG, visitor=get_shoot_visitor(leaf_shape=leaf_shape), turtle=shoot_turtle, gc=False)
+    shoot_scene = turt.TurtleFrame(shoot_MTG,
+                                   visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor),
+                                   turtle=shoot_turtle,
+                                   gc=False)
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in shoot_scene)
     # We cover each node of the MTG:
@@ -933,7 +938,10 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     root_turtle = turt.PglTurtle()
     root_turtle.down(180)
     # We create the scene by moving the turtle along the current MTG:
-    root_scene = turt.TurtleFrame(root_MTG, visitor=get_root_visitor(), turtle=root_turtle, gc=False)
+    root_scene = turt.TurtleFrame(root_MTG,
+                                  visitor=get_root_visitor(upscaling_factor=upscaling_factor),
+                                  turtle=root_turtle,
+                                  gc=False)
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in root_scene)
     # We cover each node of the MTG:
@@ -951,7 +959,10 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
         new_scene_for_root += shape
 
     # DEFINING THE FINAL SCENE:
-    final_scene = new_scene_for_shoot + new_scene_for_root
+    if shoots_overlapping_roots:
+        final_scene = new_scene_for_root + new_scene_for_shoot
+    else:
+        final_scene = new_scene_for_shoot + new_scene_for_root
 
     # SETTING THE VIEWER OPTIONS:
 
@@ -968,7 +979,8 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     if recording_plot:
 
         print("    Saving the PlantGL plot...")
-        pgl.Viewer.saveSnapshot(plot_name)
+        pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha = True)
+        # pgl.Viewer.frameGL.saveImage(plot_name)
         print("    The plot has been saved!")
 
     return

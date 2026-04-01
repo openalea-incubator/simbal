@@ -84,7 +84,6 @@ def ADDING_A_PHYTOMER(parent_element,
                       struct_mass_density=1e5, minimal_leaf_thickness=1e-3,
                       internode_radius=0.,
                       internode_length=0.,
-                      leaf_width=0.,
                       leaf_length=0.,
                       bud_length=0.,
                       properties_identical_to_parent = True,
@@ -146,8 +145,8 @@ def ADDING_A_PHYTOMER(parent_element,
                                 properties_identical_to_parent=properties_identical_to_parent,
                                 nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
-    leaf.radius = leaf_width / 2.
     leaf.length = leaf_length
+    leaf.radius = leaf_length * param.leaf_width_to_length_ratio / 2.
     leaf.angle_down = param.leaf_insertion_angle
     leaf.angle_roll = 0.
     # We calculate the surface, assuming the leaf is an ellipse characterized by its length and width:
@@ -244,7 +243,6 @@ def new_phytomers_initiation(shoot_system,
                 [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                            internode_radius=apex.radius,
                                                            internode_length=initial_internode_length,
-                                                           leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio,
                                                            leaf_length=initial_leaf_length,
                                                            bud_length=0.,
                                                            properties_identical_to_parent=False,
@@ -266,9 +264,11 @@ def new_phytomers_initiation(shoot_system,
                 # list_of_apices.append(new_apex)
 
                 # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
-                # We add the structural mass of each new element:
+                # For each new element of the new phytomer:
                 for element in [internode, leaf, bud]:
+                    # We add the structural mass of each new element:
                     new_structural_mass += element.struct_mass
+                    # We register locally the costs of C&N for their construction:
                     element.actual_C_consumption_rate_by_shoot_growth\
                         = element.struct_mass * param.structural_C_content / param.yield_growth / time_step_in_seconds
                     element.actual_N_consumption_rate_by_shoot_growth\
@@ -377,7 +377,6 @@ def create_shoot_MTG(number_of_phytomers=3,
                                                                minimal_leaf_thickness=minimal_leaf_thickness,
                                                                internode_radius=new_internode.radius * 0.9,
                                                                internode_length=initial_internode_height,
-                                                               leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio,
                                                                leaf_length=initial_leaf_length,
                                                                bud_length=0.,
                                                                properties_identical_to_parent = True)
@@ -1221,18 +1220,6 @@ def actual_shoot_growth(shoot_MTG,
         # and the maximal volumes that can be created from the available C and N:
         final_volume_increment = min(n.potential_volume_increment, max_volume_increment_by_C, max_volume_increment_by_N)
 
-        # The new volume of the organ and the C and N used for creating the corresponding structural mass is calculated:
-        n.volume += final_volume_increment
-        n.actual_C_consumption_rate_by_shoot_growth = (final_volume_increment * structural_mass_density
-                                                       * structural_C_content / yield_growth / time_step_in_seconds)
-        n.actual_N_consumption_rate_by_shoot_growth = (final_volume_increment * structural_mass_density
-                                                       * structural_N_content / time_step_in_seconds)
-        # The C respired because of growth is also calculated:
-        n.shoot_growth_respiration_rate = n.actual_C_consumption_rate_by_shoot_growth * (1 - yield_growth)
-        # And we increase the total consumption rates with the contribution from this element:
-        total_actual_C_consumption_rate_by_shoot_growth += n.actual_C_consumption_rate_by_shoot_growth
-        total_actual_N_consumption_rate_by_shoot_growth += n.actual_N_consumption_rate_by_shoot_growth
-
         # COMPUTING THE FINAL DIMENSIONS OF THE SHOOT ELEMENT
         #####################################################
 
@@ -1241,7 +1228,7 @@ def actual_shoot_growth(shoot_MTG,
         if n.label == "Internode":
             # We compute the maximal length increment and radius increment based on the final volume increment:
             possible_length_increment = final_volume_increment / (n.radius ** 2 * pi)
-            possible_radius_increment = sqrt(n.radius ** 2 + (final_volume_increment / (n.length * pi))) - n.radius
+            possible_radius_increment = sqrt( (n.volume + final_volume_increment) / (n.length * pi) ) - n.radius
             # If there is no expected radial increase:
             if n.potential_radius == n.radius:
                 # Then we simply elongated the internode according to the final volume increment:
@@ -1265,11 +1252,17 @@ def actual_shoot_growth(shoot_MTG,
                     n.length =  n.potential_length
                     # And we increase the radius according to the remaining "volume_increment" that is left:
                     remaining_volume_increment = final_volume_increment - volume_increment_by_elongation
-                    n.radius = sqrt(n.radius ** 2 + (remaining_volume_increment / (n.length * pi)))
-                    if abs(n.potential_radius - n.radius) / n.radius < 1e-12:
-                        print("!!! WATCH OUT: the potential radius of element", vid,
+                    new_radius = sqrt((n.volume + remaining_volume_increment) / (n.length * pi))
+                    # We make sure that the new radius is not lower than the previous one:
+                    if (new_radius - n.radius) / n.radius < - 1e-12:
+                        # In such case, we don't modify the radius and we reduce the final volume increment
+                        # to the volume increment by elongation only:
+                        final_volume_increment = volume_increment_by_elongation
+                        print("!!! WATCH OUT: the new computed radius of the internode", vid,
                               "was lower than the final radius by",
                               abs(n.potential_radius - n.radius) / n.radius * 100, "%!")
+                    else:
+                        n.radius = new_radius
 
             # Eventually, we recompute the new surface, volume and structural mass of the internode:
             n.surface = n.length * n.radius * 2 * pi
@@ -1290,13 +1283,31 @@ def actual_shoot_growth(shoot_MTG,
             # The length is incremented with the corresponding result:
             n.length += length_increment
             # The radius, which is half of the width, is also calculated based on the allometric coefficient
-            n.radius += length_increment * param.leaf_width_to_length_ratio / 2.
-            if abs(n.potential_radius - n.radius)/n.radius < 1e-12:
-                print("!!! WATCH OUT: the potential radius of element", vid, "was lower than the final radius by",
-                      abs(n.potential_radius - n.radius)/n.radius*100,"%!")
+            new_radius = n.length * param.leaf_width_to_length_ratio / 2.
+            # We make sure that the new radius is not lower than the previous one:
+            if (new_radius - n.radius) / n.radius < - 1e-12:
+                print("!!! WATCH OUT: the new radius of the leaf", vid,
+                      "was lower than the final radius by",
+                      abs(n.potential_radius - n.radius) / n.radius * 100, "%!")
+                print("!!! We therefore did not modify the radius of this leaf !")
+            else:
+                # If the new radius is correct, we record it:
+                n.radius = new_radius
             # We update other dimensional characteristics based on this growth:
+            n.surface = n.length / 2. * n.radius * pi
             n.volume += final_volume_increment
             n.struct_mass += final_volume_increment * structural_mass_density
+
+        # In any case, the C and N used for creating the corresponding structural mass is calculated:
+        n.actual_C_consumption_rate_by_shoot_growth = (final_volume_increment * structural_mass_density
+                                                       * structural_C_content / yield_growth / time_step_in_seconds)
+        n.actual_N_consumption_rate_by_shoot_growth = (final_volume_increment * structural_mass_density
+                                                       * structural_N_content / time_step_in_seconds)
+        # The C respired because of growth is also calculated:
+        n.shoot_growth_respiration_rate = n.actual_C_consumption_rate_by_shoot_growth * (1 - yield_growth)
+        # And we increase the total consumption rates with the contribution from this element:
+        total_actual_C_consumption_rate_by_shoot_growth += n.actual_C_consumption_rate_by_shoot_growth
+        total_actual_N_consumption_rate_by_shoot_growth += n.actual_N_consumption_rate_by_shoot_growth
 
     return total_actual_C_consumption_rate_by_shoot_growth, total_actual_N_consumption_rate_by_shoot_growth
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1371,7 +1382,8 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
 # Pourquoi les ramif du haut s’allongeraient plus lentement ? Dominance apicale à coder en dur par rapport à la distance
 # à l’inflorescence de l’axe principal ?
 
-def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_leaf_length=0.001):
+def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_leaf_length=0.001,
+                           time_step_in_seconds=60.*60.):
     """
 
     Parameters
@@ -1415,12 +1427,11 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     while list_of_apices != []:
         # We cover each bud present in the list:
         for apex in list_of_apices:
-            print("For the bud", apex.index(),"the initial angle down is", apex.angle_down)
+            # print("For the bud", apex.index(),"the initial angle down is", apex.angle_down)
             # We add a new phytomer at the top of the current apex:
             [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                        internode_radius=apex.radius,
                                                        internode_length=initial_internode_length,
-                                                       leaf_width=initial_leaf_length * param.leaf_width_to_length_ratio / 2.,
                                                        leaf_length=initial_leaf_length,
                                                        bud_length=0.,
                                                        properties_identical_to_parent=False,
@@ -1428,7 +1439,7 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                                        )
             # We correct the angle down of the new internode, so that its direction corresponds to the one from the initial bud:
             internode.angle_down = apex.angle_down
-            print("For the new internode created from the bud", apex.index(), "the angle down is", internode.angle_down)
+            # print("For the new internode created from the bud", apex.index(), "the angle down is", internode.angle_down)
             # By default, we set the bud as dormant:
             bud.emergence_possibility = False
             # We remove the previous apex, as a new one will now be formed on the top of the new phytomer:
@@ -1437,10 +1448,9 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
             new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                             edge_type="<",
                                             label="Apex",
-                                            properties_identical_to_parent=True,
-                                            nil_properties=False)
-            new_apex.length = 0.
-            new_apex.angle_down = 0.
+                                            properties_identical_to_parent=False,
+                                            nil_properties=True)
+            new_apex.radius = internode.radius
             # We remove the former apex from the list, so that it is not considered next time:
             list_of_apices.remove(apex)
             # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
@@ -1451,9 +1461,15 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
             # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
             # We (re)initialize the structural mass produced:
             new_structural_mass = 0.
-            # We add the structural mass of each new element:
+            # For each new element:
             for element in [internode, leaf, bud]:
+                # We add the structural mass of each new element:
                 new_structural_mass += element.struct_mass
+                # We register the cost of C and N consumption within each new element:
+                element.actual_C_consumption_rate_by_shoot_growth \
+                    = element.struct_mass * param.structural_C_content / param.yield_growth / time_step_in_seconds
+                element.actual_N_consumption_rate_by_shoot_growth \
+                    = element.struct_mass * param.structural_N_content / time_step_in_seconds
             # We calculate the corresponding C (gC) and N (gN) cost for the plant:
             C_cost = new_structural_mass * param.structural_C_content / param.yield_growth
             N_cost = new_structural_mass * param.structural_N_content
@@ -2320,7 +2336,8 @@ def calling_the_different_shoot_modules(shoot_MTG,
     #-----------------
     computing_ramification(g,
                            initial_internode_length=param.initial_internode_length,
-                           initial_leaf_length=param.initial_leaf_length)
+                           initial_leaf_length=param.initial_leaf_length,
+                           time_step_in_seconds=time_step_in_days/(60.*60.*24.))
 
     # 7) Senescence and leaf fall:
     #-----------------------------
