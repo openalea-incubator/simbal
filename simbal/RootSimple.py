@@ -45,6 +45,7 @@ class root_system(object):
         self.net_N_transfer_from_root_to_shoot_rate = 0. # gN per plant per second
         self.N_uptake_rate = 0. # gN per plant per second
         self.N2_fixation_rate = 0. # gN per plant per second
+        self.N2_fixation_rate_C_cost = 0. # gC per plant per second
         self.C_rhizodeposition_rate = 0. # gC per plant per second
         self.N_rhizodeposition_rate = 0. # gN per plant per second
         self.root_maintenance_respiration_rate = 0. # gC per plant per second
@@ -226,10 +227,13 @@ def computing_N_uptake_rate(root_system, root_MTG, N_soil = 1e-6, soil_temperatu
     for vid in root_MTG.vertices_iter(scale=1):
         # n represents the vertex:
         n = root_MTG.node(vid)
+        # We reset the local rate of N uptake:
+        n.N_uptake_rate = 0.
         # If the root element can take up N:
         if n.length > 0. and N_soil > 0.:
             # Then we increase the total rate of N uptake of the root system with the N uptake by the current element:
             N_uptake_rate += n.exchange_surface * corrected_Vmax * N_soil / (param.Km_N_uptake + N_soil)
+            # And we record locally the N uptake by this element:
             n.N_uptake_rate = N_uptake_rate
 
     # We assign the final result to the whole root system:
@@ -263,21 +267,23 @@ def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree
     [Nothing is returned, the root system has been updated with the new 'N2_fixation_rate']
     """
 
-    # We initialize the total N2 fixation rate of the whole root system:
-    N2_fixation_rate = 0.
-
-    # We correct the maximal rate of N uptake according to soil temperature:
-    temperature_corrected_rate = param.N2_fixation_rate_max * temperature_modification(
-        temperature_in_Celsius=soil_temperature_in_degree_Celsius,
-        process_at_T_ref=1,
-        T_ref=param.N2_fixation_T_ref,
-        A=param.N2_fixation_A,
-        B=param.N2_fixation_B,
-        C=param.N2_fixation_C)
+    # We initialize the total N2 fixation rate of the whole root system (gN per plant per second) and the corresponding
+    # C cost (gC per plant per second):
+    total_N2_fixation_rate = 0.
+    total_N2_fixation_rate_C_cost = 0.
 
     # We make sure that there is enough C to sustain the fixation, and not too much labile N already in the root:
     if (root_system.root_labile_C_pool > param.minimal_labile_C_concentration_for_N2_fixation
             and root_system.root_labile_N_pool <= param.maximal_labile_N_concentration_for_N2_fixation):
+
+        # We correct the maximal rate of N uptake according to soil temperature:
+        temperature_corrected_rate = param.N2_fixation_rate_max * temperature_modification(
+            temperature_in_Celsius=soil_temperature_in_degree_Celsius,
+            process_at_T_ref=1,
+            T_ref=param.N2_fixation_T_ref,
+            A=param.N2_fixation_A,
+            B=param.N2_fixation_B,
+            C=param.N2_fixation_C)
 
         # We calculate a factor of modification based on the level of root labile N
         # (i.e., the more the labile N, the less fixation there will be):
@@ -287,17 +293,28 @@ def computing_N2_fixation_rate(root_system, root_MTG, soil_temperature_in_degree
         for vid in root_MTG.vertices_iter(scale=1):
             # n represents the vertex:
             n = root_MTG.node(vid)
+            # We reset the local rate of N2 fixation and the corresponding cost:
+            n.N2_fixation_rate = 0.
+            n.N2_fixation_rate_C_cost = 0.
             # If the root element has emerged and is old enough to sustain N2 fixation:
             if n.thermal_time_since_emergence > param.minimal_age_for_nodulation:
-                # Then we increase the total N2 fixation of the root system with the contribution of the current element,
-                # knowing that a young root element will contribute less than a more mature one:
-                N2_fixation_rate += (n.struct_mass * temperature_corrected_rate
+                # Then we calculate the contribution of the current element, knowing that a young root element will
+                # contribute less than a more mature one:
+                N2_fixation_rate = (n.struct_mass * temperature_corrected_rate
                                      * max(1, (n.thermal_time_since_emergence/param.maturation_period_for_nodulation))
                                      * N_modulator)
+                # We calculate the corresponding cost in C (gC per plant per second):
+                N2_fixation_rate_C_cost = N2_fixation_rate * param.N2_fixation_cost
+                # We increment the total fixation rate and cost:
+                total_N2_fixation_rate += N2_fixation_rate
+                total_N2_fixation_rate_C_cost += N2_fixation_rate_C_cost
+                # We record locally the rate of N2 fixation and the corresponding cost:
                 n.N2_fixation_rate = N2_fixation_rate
+                n.N2_fixation_rate_C_cost = N2_fixation_rate_C_cost
 
     # We finally assign the computed rate as the corresponding property of the whole root system:
-    root_system.N2_fixation_rate = N2_fixation_rate
+    root_system.N2_fixation_rate = total_N2_fixation_rate
+    root_system.N2_fixation_rate_C_cost = total_N2_fixation_rate_C_cost
     # print("N2 fixation rate is", N2_fixation_rate, "gN per plant per second.")
 
     return
@@ -828,6 +845,7 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
             # r.net_C_transfer_from_shoot_to_root_rate
             - r.C_rhizodeposition_rate
             - r.root_maintenance_respiration_rate
+            - r.N2_fixation_rate_C_cost
             - r.net_C_immobilization_rate
             - r.actual_C_consumption_rate_by_root_growth) * time_step_in_seconds)
     # We reset the root labile C deficit to 0:

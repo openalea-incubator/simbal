@@ -71,6 +71,7 @@ class whole_plant(object):
         self.photosynthesized_C_rate = 0. # gC per second
         self.N_uptake_rate = 0. # gN per second
         self.N2_fixation_rate = 0.  # gN per second
+        self.N2_fixation_rate_C_cost = 0.  # gC per second
 
         self.shoot_maintenance_respiration_rate = 0. # gC per second
         self.root_maintenance_respiration_rate = 0. # gC per second
@@ -356,6 +357,8 @@ def recording_main_plant_properties(plant, time_in_days):
                         plant.N_uptake_rate,
                     "Rate of N2 fixation by roots (gN per plant per second)":
                         plant.N2_fixation_rate,
+                    "Rate of C consumption by N2 fixation by roots (gC per plant per second)":
+                        plant.N2_fixation_rate_C_cost,
                     "Rate of root maintenance respiration (gC per plant per second)":
                         plant.root_maintenance_respiration_rate,
                     "Rate of C rhizodeposition (gC per plant per second)":

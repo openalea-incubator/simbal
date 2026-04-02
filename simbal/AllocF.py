@@ -1254,13 +1254,13 @@ def actual_shoot_growth(shoot_MTG,
                     remaining_volume_increment = final_volume_increment - volume_increment_by_elongation
                     new_radius = sqrt((n.volume + remaining_volume_increment) / (n.length * pi))
                     # We make sure that the new radius is not lower than the previous one:
-                    if (new_radius - n.radius) / n.radius < - 1e-12:
+                    if (new_radius - n.radius) < 0.:
+                        # print("!!! WATCH OUT: the new computed radius of the internode", vid,
+                        #       "was lower than the final radius by",
+                        #       abs(new_radius - n.radius) / n.radius * 100, "%!")
                         # In such case, we don't modify the radius and we reduce the final volume increment
                         # to the volume increment by elongation only:
                         final_volume_increment = volume_increment_by_elongation
-                        print("!!! WATCH OUT: the new computed radius of the internode", vid,
-                              "was lower than the final radius by",
-                              abs(n.potential_radius - n.radius) / n.radius * 100, "%!")
                     else:
                         n.radius = new_radius
 
