@@ -14,8 +14,6 @@ from openalea.mtg.traversal import pre_order, post_order
 from openalea.mtg.plantframe import color
 import openalea.plantgl.all as pgl
 
-from alinea.caribu.plantgl_adaptor import scene_to_cscene, pgl_to_triangles
-
 import AllocF as AllocF
 import RootSimple as RootSimple
 import simbal_parameters as param
@@ -24,7 +22,7 @@ import openalea.rhizodep.parameters as rhizodep_param
 from tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
                    recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant,
                    get_shoot_visitor, get_root_visitor)
-                   # create_a_scene_with_plants_popuplation)
+                   # create_a_scene_with_plants_population)
 
 import os
 import numpy as np
@@ -949,14 +947,14 @@ def run_simulation(my_path=None,
             # LIGHT INTERCEPTION:
             #####################
             # We calculate light interception based on the shoot architecture, for each organ:
-            total_PAR_intercepted, sum_of_surfacic_PAR =\
+            total_PAR_intercepted, sum_of_surfacic_PAR = \
                 AllocF.computing_light_interception(shoot_g,
-                                                incoming_light_density=light_input,
-                                                number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                                inter_row_distance=inter_row_distance,
-                                                scene_length=row_length,
-                                                scene_width=scene_width,
-                                                leaf_shape=param.leaf_shape)
+                                                    incoming_light_density=light_input,
+                                                    number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                                    inter_row_distance=inter_row_distance,
+                                                    scene_length=row_length,
+                                                    scene_width=scene_width,
+                                                    leaf_shape=param.leaf_shape)
             # We record the PAR intercepted in the properties of the plant:
             plant.total_PAR_intercepted = total_PAR_intercepted
 

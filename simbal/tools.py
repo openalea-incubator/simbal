@@ -585,6 +585,7 @@ def plotting_shoot_MTG(g,
                        # leaf_shape="oval",
                        leaf_shape="typical_leaf_shape",
                        width=1200, height=900,
+                       upscaling_factor=1.,
                        x_center=0, y_center=-0, z_center=0.,
                        x_cam=5., y_cam=5., z_cam=-1,
                        grid=True,
@@ -608,7 +609,7 @@ def plotting_shoot_MTG(g,
 
     # SETTING THE NEW SCENE WITH THE TURTLE:
     # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape), turtle=turtle, gc=False)
+    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor), turtle=turtle, gc=False)
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in scene)
     # We cover each node of the MTG:
@@ -656,6 +657,7 @@ def plotting_shoot_MTG_population(g,
                                   scene_width=1.,
                                   leaf_shape="oval",
                                   width=1200, height=900,
+                                  upscaling_factor=1.,
                                   x_center=0, y_center=-0, z_center=0.,
                                   x_cam=5., y_cam=5., z_cam=-1,
                                   grid=True,
@@ -668,6 +670,7 @@ def plotting_shoot_MTG_population(g,
     my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
     complete_scene = create_a_scene_with_plants_popuplation(g,
                                                             number_of_plants_per_square_meter=number_of_plants_per_square_meter,
+                                                            upscaling_factor=upscaling_factor,
                                                             inter_row_distance=inter_row_distance,
                                                             scene_length=scene_length,
                                                             scene_width=scene_width,
@@ -979,7 +982,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     if recording_plot:
 
         print("    Saving the PlantGL plot...")
-        pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha = True)
+        pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha=True)
         # pgl.Viewer.frameGL.saveImage(plot_name)
         print("    The plot has been saved!")
 

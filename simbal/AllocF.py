@@ -14,8 +14,8 @@ from openalea.mtg.traversal import pre_order, post_order
 from openalea.mtg.plantframe import color
 import openalea.plantgl.all as pgl
 
-from alinea.caribu.CaribuScene import CaribuScene
-from alinea.caribu.data_samples import data_path
+from openalea.caribu.CaribuScene import CaribuScene
+from openalea.caribu.data_samples import data_path
 
 import simbal_parameters as param
 from tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
@@ -23,9 +23,11 @@ from tools import (loading_parameters_from_file, temperature_modification, recor
                    plotting_shoot_MTG, plotting_shoots_with_pyvista)
 
 import os
+import warnings
 import numpy as np
 import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
+from decimal import Decimal
 
 ########################################################################################################################
 ########################################################################################################################
@@ -457,6 +459,11 @@ def computing_light_interception(shoot_MTG,
     # We rename the shoot MTG as 'g':
     g = shoot_MTG
 
+    # We initialize the total PAR intercepted by the shoot (umol of photons per second)
+    # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
+    total_PAR_intercepted = 0.
+    sum_of_surfacic_PAR = 0.
+
     # can = scene3d(g)
     # zenith = [(100, (0, 0, -1))]
     # (xmin,ymin,xmax,ymax)=(0,0,1,1)
@@ -498,7 +505,13 @@ def computing_light_interception(shoot_MTG,
     else:
         # We open the standard light input file as a dataframe:
         sky = str(data_path('Turtle16soc.light'))
-        reference_light_file = pd.read_csv(sky, delim_whitespace=True, header=None)
+
+        # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
+        warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
+        reference_light_file = pd.read_csv(sky,
+                                           delim_whitespace=True,
+                                           header=None)
+
         # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
         # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
         # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
@@ -524,22 +537,25 @@ def computing_light_interception(shoot_MTG,
         pattern = None
 
     # Finally, we create the Caribu scene and run the light interception:
-    cs = CaribuScene(scene=my_scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
-    raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
-    # The resulting dictionnary "agg" contains three dictionnaries for each "active" vertex if the MTG:
-    #   area (float): the individual areas (m2)
-    #   Eabs (float): the surfacic density of energy absorbed (m-2)
-    #   Ei (float): the surfacic density of energy incoming (m-2)
-    # We update the properties of the MTG with these dictionnaries:
-    g.properties()["Caribu_area"].update(agg['area'])
-    g.properties()["Caribu_Eabs"].update(agg['Eabs'])
-    g.properties()["Caribu_Ei"].update(agg['Ei'])
+    #TODO: WATCH OUT!!!
+    try:
+        cs = CaribuScene(scene=my_scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
+        raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
+        # The resulting dictionnary "agg" contains three dictionnaries for each "active" vertex if the MTG:
+        #   area (float): the individual areas (m2)
+        #   Eabs (float): the surfacic density of energy absorbed (m-2)
+        #   Ei (float): the surfacic density of energy incoming (m-2)
+        # We update the properties of the MTG with these dictionnaries:
+        g.properties()["Caribu_area"].update(agg['area'])
+        g.properties()["Caribu_Eabs"].update(agg['Eabs'])
+        g.properties()["Caribu_Ei"].update(agg['Ei'])
+    except Exception as e:
+        print("!!! ERROR: Caribu could not be run! Here is the error:")
+        print(e)
+        total_PAR_intercepted = 400
+        sum_of_surfacic_PAR = 400
 
     # COMPUTING THE TOTAL LIGHT INTERCEPTION:
-    # We initialize the total PAR intercepted by the shoot (umol of photons per second)
-    # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
-    total_PAR_intercepted = 0.
-    sum_of_surfacic_PAR = 0.
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
         n = g.node(vid)
@@ -549,7 +565,9 @@ def computing_light_interception(shoot_MTG,
             n.surfacic_PAR_intercepted = n.Caribu_Eabs
             sum_of_surfacic_PAR += n.Caribu_Eabs
         except:
-            print("WATCH OUT: the surfacic PAR of the shoot element", vid, "could not be calculated!")
+            print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
+            n.PAR_intercepted = 20.
+            n.surfacic_PAR_intercepted = 20.
 
     return total_PAR_intercepted, sum_of_surfacic_PAR
 #-----------------------------------------------------------------------------------------------------------------------
@@ -673,250 +691,250 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
 
     return total_maintenance_rate
 #-----------------------------------------------------------------------------------------------------------------------
+# #-----------------------------------------------------------------------------------------------------------------------
+# # Function for redistributing the C among shoot organs, with a C allocation. Different possibilities can be considered:
+# # - proportionnal to PARi for each organ compared to the total PAR intercepted by the plant
+# # - proportionnal to PARi/surface for each organ compared to the sum of PARi/surface of all organs
+# # - proportionnal to PARi/surface of the leaf of the phytomer for each organ compared to the sum of PARi/surface of all leaves
+# def computing_shoot_C_redistribution(shoot_MTG,
+#                                      shoot_available_C = None,
+#                                      intercepted_light = None,
+#                                      time_step_in_seconds=60*60,
+#                                      option="classic_PAR"):
+#
+#     """
+#     This function computes the rate of labile C reallocation (positive = source, negative = sink) for each aerial organ,
+#     based on its intercepted light. It does not however updates the amount of labile C in each organ (this is done in
+#     another function).
+#
+#     Parameters
+#     ----------
+#     shoot_MTG: the MTG corresponding to the aerial parts of the plant
+#     shoot_available_C: the amount of available C to be spread (gC per plant) (if None, it will be recalculated based
+#                        on the labile C available in each organ)
+#     intercepted_light: the total PAR intercepted by the plant (micromoles of photons per second per plant)
+#                       (if None, it will be recalculated based on the intercepted PAR defined for each organ)
+#     time_step_in_seconds: the time step of the simulation (seconds)
+#     option: either "classic_PAR" (we compare micromol of photons per second per organ vs per plant)
+#             or "surfacic_PAR" (we compared micromol of photons per m2 of organ per second per organ vs per plant)
+#
+#     Returns
+#     -------
+#     available_C: the total amount of C available in the plant that will be (re)allocated (gC per plant)
+#     [The MTG has been updated with the property "shoot_C_distribution_rate" in each organ]
+#     """
+#
+#     # 1) We calculate the amount of shoot C available and the total intercepted light:
+#     #---------------------------------------------------------------------------------
+#     if shoot_available_C is None:
+#         # We initialize the available C in the shoot system to 0:
+#         available_C = 0.
+#     else:
+#         # Otherwise, the available C is directly the provided shoot available C:
+#         available_C = shoot_available_C
+#
+#     if intercepted_light is None:
+#         # We initialize the intercepted light by the shoot system to 0:
+#         intercepted_light_by_the_plant = 0.
+#     else:
+#         # Otherwise, the intercepted light is directly the light that has been provided:
+#         intercepted_light_by_the_plant = intercepted_light
+#
+#     # We initialize the sum of surfacic PAR, if needed:
+#     if option == "surfacic_PAR":
+#         sum_of_surfacic_PAR = 0.
+#
+#     # If either shoot_available_C or intercepted_light have not been provided:
+#     if shoot_available_C is None or intercepted_light is None:
+#         # Then we cover each organ n of the shoot:
+#         for vid in shoot_MTG.vertices_iter(scale=1):
+#             n = shoot_MTG.node(vid)
+#             # We add the initial amount of labile_C and the net gain in C of the current organ:
+#             available_C += n.labile_C
+#             # We add the light (or light density) intercepted by the organ:
+#             if option == "classic_PAR":
+#                 intercepted_light_by_the_plant += n.PAR_intercepted
+#             elif option == "surfacic_PAR" and n.surface > 0.:
+#                 sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
+#
+#     # 2) We redistribute the C according to specific rules:
+#     #------------------------------------------------------
+#
+#     # We cover each organ n of the shoot:
+#     for vid in shoot_MTG.vertices_iter(scale=1):
+#         n = shoot_MTG.node(vid)
+#         # The corresponding rate of C redistribution for this organ is calculated:
+#         # (NOTE: if positive, it corresponds to a C gain; if negative, it corresponds to a C source)
+#         if option == "classic_PAR":
+#             n.shoot_C_distribution_rate = (available_C * n.PAR_intercepted / intercepted_light_by_the_plant
+#                                              / time_step_in_seconds)
+#         elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
+#             n.shoot_C_distribution_rate = (available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
+#                                              / time_step_in_seconds)
+#         else:
+#             n.shoot_C_distribution_rate = 0.
+#
+#     return available_C
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for redistributing the C among shoot organs, with a C allocation. Different possibilities can be considered:
-# - proportionnal to PARi for each organ compared to the total PAR intercepted by the plant
-# - proportionnal to PARi/surface for each organ compared to the sum of PARi/surface of all organs
-# - proportionnal to PARi/surface of the leaf of the phytomer for each organ compared to the sum of PARi/surface of all leaves
-def computing_shoot_C_redistribution(shoot_MTG,
-                                     shoot_available_C = None,
-                                     intercepted_light = None,
-                                     time_step_in_seconds=60*60,
-                                     option="classic_PAR"):
-
-    """
-    This function computes the rate of labile C reallocation (positive = source, negative = sink) for each aerial organ,
-    based on its intercepted light. It does not however updates the amount of labile C in each organ (this is done in
-    another function).
-
-    Parameters
-    ----------
-    shoot_MTG: the MTG corresponding to the aerial parts of the plant
-    shoot_available_C: the amount of available C to be spread (gC per plant) (if None, it will be recalculated based
-                       on the labile C available in each organ)
-    intercepted_light: the total PAR intercepted by the plant (micromoles of photons per second per plant)
-                      (if None, it will be recalculated based on the intercepted PAR defined for each organ)
-    time_step_in_seconds: the time step of the simulation (seconds)
-    option: either "classic_PAR" (we compare micromol of photons per second per organ vs per plant)
-            or "surfacic_PAR" (we compared micromol of photons per m2 of organ per second per organ vs per plant)
-
-    Returns
-    -------
-    available_C: the total amount of C available in the plant that will be (re)allocated (gC per plant)
-    [The MTG has been updated with the property "shoot_C_distribution_rate" in each organ]
-    """
-
-    # 1) We calculate the amount of shoot C available and the total intercepted light:
-    #---------------------------------------------------------------------------------
-    if shoot_available_C is None:
-        # We initialize the available C in the shoot system to 0:
-        available_C = 0.
-    else:
-        # Otherwise, the available C is directly the provided shoot available C:
-        available_C = shoot_available_C
-
-    if intercepted_light is None:
-        # We initialize the intercepted light by the shoot system to 0:
-        intercepted_light_by_the_plant = 0.
-    else:
-        # Otherwise, the intercepted light is directly the light that has been provided:
-        intercepted_light_by_the_plant = intercepted_light
-
-    # We initialize the sum of surfacic PAR, if needed:
-    if option == "surfacic_PAR":
-        sum_of_surfacic_PAR = 0.
-
-    # If either shoot_available_C or intercepted_light have not been provided:
-    if shoot_available_C is None or intercepted_light is None:
-        # Then we cover each organ n of the shoot:
-        for vid in shoot_MTG.vertices_iter(scale=1):
-            n = shoot_MTG.node(vid)
-            # We add the initial amount of labile_C and the net gain in C of the current organ:
-            available_C += n.labile_C
-            # We add the light (or light density) intercepted by the organ:
-            if option == "classic_PAR":
-                intercepted_light_by_the_plant += n.PAR_intercepted
-            elif option == "surfacic_PAR" and n.surface > 0.:
-                sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
-
-    # 2) We redistribute the C according to specific rules:
-    #------------------------------------------------------
-
-    # We cover each organ n of the shoot:
-    for vid in shoot_MTG.vertices_iter(scale=1):
-        n = shoot_MTG.node(vid)
-        # The corresponding rate of C redistribution for this organ is calculated:
-        # (NOTE: if positive, it corresponds to a C gain; if negative, it corresponds to a C source)
-        if option == "classic_PAR":
-            n.shoot_C_distribution_rate = (available_C * n.PAR_intercepted / intercepted_light_by_the_plant
-                                             / time_step_in_seconds)
-        elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
-            n.shoot_C_distribution_rate = (available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
-                                             / time_step_in_seconds)
-        else:
-            n.shoot_C_distribution_rate = 0.
-
-    return available_C
+# # Function for distributing the N coming from the roots into each shoot organ:
+# def computing_shoot_N_distribution(shoot_MTG, shoot_available_N=None, time_step_in_seconds=60.*60.*24.):
+#     """
+#         This function distributes the whole amount of labile N available to the whole plant to each organ which has a
+#         positive surface, proportionnaly to the mean surfacic PAR intercepted by the organ compared to the sum of all
+#         surfacic PARs of shoot elements.
+#
+#         Parameters
+#         ----------
+#         shoot_MTG: the MTG corresponding to the shoot system
+#         shoot_available_N: the amount of available N to be allocated (gN per plant) (if None, it will be recalculated based
+#                            on the labile N available in each organ)
+#         time_step_in_seconds: the time step of the simulation (in seconds)
+#
+#         Returns
+#         -------
+#         available_N: the total amount of N that will be allocated to the shoot organs (gC per plant)
+#         [The MTG has been updated with the property 'shoot_N_distribution_rate' in each organ (gN per second per organ)]
+#         """
+#
+#     # 1) Computing the intercepted light (and possibly the available N to distribute):
+#     #---------------------------------------------------------------------------------
+#
+#     # We initialize the total amount of light intercepted by the whole plant:
+#     intercepted_light_by_the_plant = 0.
+#     sum_of_mean_surfacic_PAR = 0.
+#
+#     # If the amount of N available in the shoot system has not been provided yet:
+#     if shoot_available_N is None:
+#         # We initialize the available N in the shoot system to 0:
+#         available_N = 0.
+#     else:
+#         #-----------------------------------------------------------------------------------------------------------------------
+#         # Otherwise, the available N is initialized with the provided shoot available N:
+#         available_N = shoot_available_N
+#
+#     # Then we cover each organ n of the shoot:
+#     for vid in shoot_MTG.vertices_iter(scale=1):
+#         n = shoot_MTG.node(vid)
+#         if n.surface <= 0.:
+#             continue
+#         # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
+#         intercepted_light_by_the_plant += n.PAR_intercepted
+#         n.mean_surfacic_PAR = n.PAR_intercepted / n.surface
+#         sum_of_mean_surfacic_PAR +=  n.mean_surfacic_PAR
+#         # If the amount of shoot available N has not been provided, we add the amount of available N of the current element:
+#         if shoot_available_N is None:
+#             available_N += n.labile_N - n.labile_N_deficit
+#
+#     # print("Before N redistribution among the shoot organs, the total amount of labile N was", available_N)
+#
+#     # 2) Computing the rate of N distribution in each shoot organ
+#     # -----------------------------------------------------------
+#
+#     # We cover each organ of the shoot:
+#     for vid in shoot_MTG.vertices_iter(scale=1):
+#         # We access the current organ"n":
+#         n = shoot_MTG.node(vid)
+#         if n.surface <= 0.:
+#             continue
+#         # The new target for labile_C in this organ is calculated according to the relative intercepted light:
+#         # labile_N_target = plant_available_N * n.PAR_intercepted / intercepted_light_by_the_plant
+#         fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
+#         # print("   xxx For element", vid, "the fraction of light was", fraction)
+#         labile_N_target = available_N * fraction
+#         n.shoot_N_distribution_rate = labile_N_target / time_step_in_seconds
+#
+#     return available_N
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for distributing the N coming from the roots into each shoot organ:
-def computing_shoot_N_distribution(shoot_MTG, shoot_available_N=None, time_step_in_seconds=60.*60.*24.):
-    """
-    This function distributes the whole amount of labile N available to the whole plant to each organ which has a
-    positive surface, proportionnaly to the mean surfacic PAR intercepted by the organ compared to the sum of all
-    surfacic PARs of shoot elements.
-
-    Parameters
-    ----------
-    shoot_MTG: the MTG corresponding to the shoot system
-    shoot_available_N: the amount of available N to be allocated (gN per plant) (if None, it will be recalculated based
-                       on the labile N available in each organ)
-    time_step_in_seconds: the time step of the simulation (in seconds)
-
-    Returns
-    -------
-    available_N: the total amount of N that will be allocated to the shoot organs (gC per plant)
-    [The MTG has been updated with the property 'shoot_N_distribution_rate' in each organ (gN per second per organ)]
-    """
-
-    # 1) Computing the intercepted light (and possibly the available N to distribute):
-    #---------------------------------------------------------------------------------
-
-    # We initialize the total amount of light intercepted by the whole plant:
-    intercepted_light_by_the_plant = 0.
-    sum_of_mean_surfacic_PAR = 0.
-
-    # If the amount of N available in the shoot system has not been provided yet:
-    if shoot_available_N is None:
-        # We initialize the available N in the shoot system to 0:
-        available_N = 0.
-    else:
-        # Otherwise, the available N is initialized with the provided shoot available N:
-        available_N = shoot_available_N
-
-    # Then we cover each organ n of the shoot:
-    for vid in shoot_MTG.vertices_iter(scale=1):
-        n = shoot_MTG.node(vid)
-        if n.surface <= 0.:
-            continue
-        # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
-        intercepted_light_by_the_plant += n.PAR_intercepted
-        n.mean_surfacic_PAR = n.PAR_intercepted / n.surface
-        sum_of_mean_surfacic_PAR +=  n.mean_surfacic_PAR
-        # If the amount of shoot available N has not been provided, we add the amount of available N of the current element:
-        if shoot_available_N is None:
-            available_N += n.labile_N - n.labile_N_deficit
-
-    # print("Before N redistribution among the shoot organs, the total amount of labile N was", available_N)
-
-    # 2) Computing the rate of N distribution in each shoot organ
-    # -----------------------------------------------------------
-
-    # We cover each organ of the shoot:
-    for vid in shoot_MTG.vertices_iter(scale=1):
-        # We access the current organ"n":
-        n = shoot_MTG.node(vid)
-        if n.surface <= 0.:
-            continue
-        # The new target for labile_C in this organ is calculated according to the relative intercepted light:
-        # labile_N_target = plant_available_N * n.PAR_intercepted / intercepted_light_by_the_plant
-        fraction = n.mean_surfacic_PAR / sum_of_mean_surfacic_PAR
-        # print("   xxx For element", vid, "the fraction of light was", fraction)
-        labile_N_target = available_N * fraction
-        n.shoot_N_distribution_rate = labile_N_target / time_step_in_seconds
-
-    return available_N
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# TODO: Complete or delete this function
-def computing_shoot_N_remobilization(shoot_MTG, k_N_mobilization):
-    """
-    This function calculates the rate of N mobilization (gN per second) from the N labile pool in each shoot organ,
-    based on first-order kinetics.
-    :param g: the MTG corresponding to the shoot system
-    :param k_N_mobilization: the time constant associated to the first order decay (second-1)
-    :return: [no return - the MTG g has been updated with the property 'N_mobilization_rate']
-    """
-
-    # We cover each organ of the shoot:
-    for vid in shoot_MTG.vertices_iter(scale=1):
-        # We access the current organ"n":
-        n = shoot_MTG.node(vid)
-
-        # We exclude elements where a deficit of labile N has been previously recorded:
-        if n.labile_N_deficit >= 0.:
-            n.shoot_N_mobilization_rate = 0.
-            continue
-
-        # We compute the rate of N mobilization:
-        n.shoot_N_mobilization_rate = k_N_mobilization * n.labile_N
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# TODO: Complete or delete this function - only relevant if labile N is disintguished from reserve N...
-def computing_shoot_N_immobilization(shoot_MTG):
-    """
-    This function calculates the rate of N immobilization (gN per second) in each shoot organ.
-    :param shoot_MTG: the MTG corresponding to the shoot system
-    :return: [no return - the MTG g has been updated with the property 'shoot_N_immobilization_rate']
-    """
-
-    # We cover each organ of the shoot:
-    for vid in shoot_MTG.vertices_iter(scale=1):
-        # We access the current organ"n":
-        n = shoot_MTG.node(vid)
-        # We compute the rate N mobilization:
-        n.net_shoot_N_immobilization_rate = 0.
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-def computing_shoot_C_storage(shoot_system, shoot_MTG, time_step_in_seconds=60.*60.*24.):
-    """
-    This function calculates the rate of labile C immobilization into C storage.
-    :param shoot_system: the object corresponding to the whole shoot system (not the MTG!)
-    :param shoot_MTG: the MTG corresponding to the shoot system
-    :param time_step_in_seconds: the time step of the simulation (seconds)
-    :return: [no return - the MTG g has been updated with the property 'C_storage_rate' (gC per second)
-              and the C available in the shoot system has been reset to 0]
-    #TODO: Convert the additional C storage into an increase in organ thickness?
-    """
-
-    # We rename the shoot MTG for simplification:
-    g=shoot_MTG
-
-    # 1) Computing the total intercepted light (if not calculated elsewhere)
-    #-----------------------------------------------------------------------
-    # OPTION 1: if it has not been calculated yet
-    # We initialize the total amount of light intercepted by the whole plant:
-    intercepted_light_by_the_plant = 0.
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
-        intercepted_light_by_the_plant += n.PAR_intercepted
-
-    # # OPTION 2: if it has already been calculated and stored in the base of the shoot system:
-    # intercepted_light_by_the_plant = plant.total_PAR_intercepted_by_the_plant
-
-    # 2) Computing the rate of C distribution in each shoot organ
-    # -----------------------------------------------------------
-
-    # We access the value of the total amount of available C, stored in the base of the shoot system:
-    plant_available_C = shoot_system.shoot_labile_C_pool - shoot_system.shoot_labile_C_deficit
-
-    # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        # We access the current organ"n":
-        n = g.node(vid)
-        # The new C storage rate in this organ is calculated according to the relative intercepted light:
-        n.shoot_C_storage_rate = plant_available_C * n.PAR_intercepted / intercepted_light_by_the_plant / time_step_in_seconds
-
-    # We reset the value of the plant available C:
-    shoot_system.shoot_labile_C_pool = 0.
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
+# # TODO: Complete or delete this function
+# def computing_shoot_N_remobilization(shoot_MTG, k_N_mobilization):
+#     """
+#     This function calculates the rate of N mobilization (gN per second) from the N labile pool in each shoot organ,
+#     based on first-order kinetics.
+#     :param g: the MTG corresponding to the shoot system
+#     :param k_N_mobilization: the time constant associated to the first order decay (second-1)
+#     :return: [no return - the MTG g has been updated with the property 'N_mobilization_rate']
+#     """
+#
+#     # We cover each organ of the shoot:
+#     for vid in shoot_MTG.vertices_iter(scale=1):
+#         # We access the current organ"n":
+#         n = shoot_MTG.node(vid)
+#
+#         # We exclude elements where a deficit of labile N has been previously recorded:
+#         if n.labile_N_deficit >= 0.:
+#             n.shoot_N_mobilization_rate = 0.
+#             continue
+#
+#         # We compute the rate of N mobilization:
+#         n.shoot_N_mobilization_rate = k_N_mobilization * n.labile_N
+#
+#     return
+# #-----------------------------------------------------------------------------------------------------------------------
+# #-----------------------------------------------------------------------------------------------------------------------
+# # TODO: Complete or delete this function - only relevant if labile N is disintguished from reserve N...
+# def computing_shoot_N_immobilization(shoot_MTG):
+#     """
+#     This function calculates the rate of N immobilization (gN per second) in each shoot organ.
+#     :param shoot_MTG: the MTG corresponding to the shoot system
+#     :return: [no return - the MTG g has been updated with the property 'shoot_N_immobilization_rate']
+#     """
+#
+#     # We cover each organ of the shoot:
+#     for vid in shoot_MTG.vertices_iter(scale=1):
+#         # We access the current organ"n":
+#         n = shoot_MTG.node(vid)
+#         # We compute the rate N mobilization:
+#         n.net_shoot_N_immobilization_rate = 0.
+#
+#     return
+# #-----------------------------------------------------------------------------------------------------------------------
+# #-----------------------------------------------------------------------------------------------------------------------
+# def computing_shoot_C_storage(shoot_system, shoot_MTG, time_step_in_seconds=60.*60.*24.):
+#     """
+#     This function calculates the rate of labile C immobilization into C storage.
+#     :param shoot_system: the object corresponding to the whole shoot system (not the MTG!)
+#     :param shoot_MTG: the MTG corresponding to the shoot system
+#     :param time_step_in_seconds: the time step of the simulation (seconds)
+#     :return: [no return - the MTG g has been updated with the property 'C_storage_rate' (gC per second)
+#               and the C available in the shoot system has been reset to 0]
+#     #TODO: Convert the additional C storage into an increase in organ thickness?
+#     """
+#
+#     # We rename the shoot MTG for simplification:
+#     g=shoot_MTG
+#
+#     # 1) Computing the total intercepted light (if not calculated elsewhere)
+#     #-----------------------------------------------------------------------
+#     # OPTION 1: if it has not been calculated yet
+#     # We initialize the total amount of light intercepted by the whole plant:
+#     intercepted_light_by_the_plant = 0.
+#     # We cover each organ n of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#         n = g.node(vid)
+#         intercepted_light_by_the_plant += n.PAR_intercepted
+#
+#     # # OPTION 2: if it has already been calculated and stored in the base of the shoot system:
+#     # intercepted_light_by_the_plant = plant.total_PAR_intercepted_by_the_plant
+#
+#     # 2) Computing the rate of C distribution in each shoot organ
+#     # -----------------------------------------------------------
+#
+#     # We access the value of the total amount of available C, stored in the base of the shoot system:
+#     plant_available_C = shoot_system.shoot_labile_C_pool - shoot_system.shoot_labile_C_deficit
+#
+#     # We cover each organ of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#         # We access the current organ"n":
+#         n = g.node(vid)
+#         # The new C storage rate in this organ is calculated according to the relative intercepted light:
+#         n.shoot_C_storage_rate = plant_available_C * n.PAR_intercepted / intercepted_light_by_the_plant / time_step_in_seconds
+#
+#     # We reset the value of the plant available C:
+#     shoot_system.shoot_labile_C_pool = 0.
+#
+#     return
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def potential_shoot_growth(shoot_MTG,
                            SFQN = 1,
@@ -1062,108 +1080,108 @@ def potential_shoot_growth(shoot_MTG,
             n.potential_volume_increment = 0.
 
     return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for computing labile C reallocation within shoot organs, based on intercepted PAR:
-def computing_C_redistribution_for_shoot_growth(shoot_system,
-                                                shoot_MTG,
-                                                yield_growth=0.8,
-                                                structural_mass_density=1e5,
-                                                structural_C_content=0.44,
-                                                time_step_in_seconds = 60.*60.*24.,
-                                                option="classic_PAR"
-                                                ):
-    """
-    This function evalates whether shoot organs should get or give labile C to other organs, based on their intercepted
-    PAR, and computes the rate of exchange between each organ and a general, shared pool of labile C, which is updated.
-    
-    Parameters
-    ----------
-    shoot_system: the object corresponding the general shoot system (not the MTG)
-    shoot_MTG: the MTG containing all shoot organs
-    yield_growth: growth yield as defined by Thornley and Cannell (2000), which corresponds to the fraction of C consumed 
-                  by growth that is actually used for biomass production (gC per gC)
-    structural_mass_density: density of the structural mass of shoot tissue (gram of dry structural mass per cubic meter)
-    structural_C_content: carbon content of the dry structural mass (gC per gram of dry structural mass)
-    time_step_in_seconds: the time step of the simulation (seconds)
-    option: either "classic_PAR" (we compare micromol of photons per second per organ vs per plant)
-            or "surfacic_PAR" (we compared micromol of photons per m2 of organ per second per organ vs per plant)
-
-    Returns
-    -------
-    [The MTG has been updated with the property "C_input_rate_for_sink", without modifying the labile C content of each organ]
-    [The pool of labile C in the shoot system object has been updated to account for the next exchange with all shoot organs]
-    """
-
-    # We rename the shoot MTG for simplification:
-    g=shoot_MTG
-
-    # We initialize the stock of C that can be redistributed to sink leaves and the one that will be eventually used:
-    total_available_C = shoot_system.shoot_labile_C_pool
-    C_used_by_sink_organs = 0.
-    # We initialize the total intercepted light:
-    if option == "classic_PAR":
-        intercepted_light = 0.
-    elif option == "surfacic_PAR":
-        sum_of_surfacic_PAR = 0.
-    # We initialize a list that will contain the indices of the leaves that will need additional C:
-    list_of_sink_organs = []
-
-    # 1) DEFINING THE AMOUNT OF AVAILABLE C:
-    ########################################
-
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        # We define the current organ as "n":
-        n = g.node(vid)
-
-        # We add the light intercepted by the organ:
-        if option == "classic_PAR":
-            intercepted_light += n.PAR_intercepted
-        elif option == "surfacic_PAR" and n.surface > 0.:
-            sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
-
-        # We calculate the C that may be consumed by the potential growth, and the C that may remain in a "source" leaf:
-        C_consumption_by_growth = (n.potential_volume_increment * structural_mass_density
-                                                 * structural_C_content / yield_growth)
-        remaining_labile_C = n.labile_C - C_consumption_by_growth
-
-        # If there is some C left after the potential growth:
-        if remaining_labile_C > 0.:
-            # The leaf is a source, and it increases the total amount of available C:
-            n.C_sink_status = False
-            total_available_C += remaining_labile_C
-        else:
-            # The leaf is a sink, and may receive additional C for its growth:
-            n.C_sink_status = True
-            list_of_sink_organs.append(vid)
-
-    # 2) RE-ALLOCATING C TO SINK ORGANS:
-    ###################################
-
-    # We cover each organ n of the shoot:
-    for vid in list_of_sink_organs:
-        # We define the current organ as "n":
-        n = g.node(vid)
-        # The new amount of labile_C in this organ is calculated, after its initialization:
-        additional_C_for_sink_organ = 0.
-        if option == "classic_PAR":
-            additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / intercepted_light
-        elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
-            additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
-        # TODO: Note that in either case, only the fraction of C corresponding to (light_intercepted_by_sink_organs)
-        #  / (total_light_intercepted_by all_organs) is used...
-        # We adjust the properties of the organ:
-        # n.labile_C += additional_C_for_sink_organ
-        n.C_input_rate_for_sink = additional_C_for_sink_organ / time_step_in_seconds
-        C_used_by_sink_organs += additional_C_for_sink_organ
-
-    # Eventually, we store the remaining available C:
-    shoot_system.shoot_labile_C_pool += total_available_C - C_used_by_sink_organs 
-    # The remaining amount of C here may be allocated to roots!
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
+# #-----------------------------------------------------------------------------------------------------------------------
+# # Function for computing labile C reallocation within shoot organs, based on intercepted PAR:
+# def computing_C_redistribution_for_shoot_growth(shoot_system,
+#                                                 shoot_MTG,
+#                                                 yield_growth=0.8,
+#                                                 structural_mass_density=1e5,
+#                                                 structural_C_content=0.44,
+#                                                 time_step_in_seconds = 60.*60.*24.,
+#                                                 option="classic_PAR"
+#                                                 ):
+#     """
+#         This function evalates whether shoot organs should get or give labile C to other organs, based on their intercepted
+#         PAR, and computes the rate of exchange between each organ and a general, shared pool of labile C, which is updated.
+#
+#         Parameters
+#         ----------
+#         shoot_system: the object corresponding the general shoot system (not the MTG)
+#         shoot_MTG: the MTG containing all shoot organs
+#         yield_growth: growth yield as defined by Thornley and Cannell (2000), which corresponds to the fraction of C consumed
+#                       by growth that is actually used for biomass production (gC per gC)
+#         structural_mass_density: density of the structural mass of shoot tissue (gram of dry structural mass per cubic meter)
+#         structural_C_content: carbon content of the dry structural mass (gC per gram of dry structural mass)
+#         time_step_in_seconds: the time step of the simulation (seconds)
+#         option: either "classic_PAR" (we compare micromol of photons per second per organ vs per plant)
+#                 or "surfacic_PAR" (we compared micromol of photons per m2 of organ per second per organ vs per plant)
+#
+#         Returns
+#         -------
+#         [The MTG has been updated with the property "C_input_rate_for_sink", without modifying the labile C content of each organ]
+#         [The pool of labile C in the shoot system object has been updated to account for the next exchange with all shoot organs]
+#         """
+#
+#     # We rename the shoot MTG for simplification:
+#     g=shoot_MTG
+#
+#     # We initialize the stock of C that can be redistributed to sink leaves and the one that will be eventually used:
+#     total_available_C = shoot_system.shoot_labile_C_pool
+#     C_used_by_sink_organs = 0.
+#     # We initialize the total intercepted light:
+#     if option == "classic_PAR":
+#         intercepted_light = 0.
+#     elif option == "surfacic_PAR":
+#         sum_of_surfacic_PAR = 0.
+#         #-----------------------------------------------------------------------------------------------------------------------
+#     # We initialize a list that will contain the indices of the leaves that will need additional C:
+#     list_of_sink_organs = []
+#
+#     # 1) DEFINING THE AMOUNT OF AVAILABLE C:
+#     ########################################
+#
+#     # We cover each organ n of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#         # We define the current organ as "n":
+#         n = g.node(vid)
+#
+#         # We add the light intercepted by the organ:
+#         if option == "classic_PAR":
+#             intercepted_light += n.PAR_intercepted
+#         elif option == "surfacic_PAR" and n.surface > 0.:
+#             sum_of_surfacic_PAR += n.PAR_intercepted / n.surface
+#
+#         # We calculate the C that may be consumed by the potential growth, and the C that may remain in a "source" leaf:
+#         C_consumption_by_growth = (n.potential_volume_increment * structural_mass_density
+#                                    * structural_C_content / yield_growth)
+#         remaining_labile_C = n.labile_C - C_consumption_by_growth
+#
+#         # If there is some C left after the potential growth:
+#         if remaining_labile_C > 0.:
+#             # The leaf is a source, and it increases the total amount of available C:
+#             n.C_sink_status = False
+#             total_available_C += remaining_labile_C
+#         else:
+#             # The leaf is a sink, and may receive additional C for its growth:
+#             n.C_sink_status = True
+#             list_of_sink_organs.append(vid)
+#
+#     # 2) RE-ALLOCATING C TO SINK ORGANS:
+#     ###################################
+#
+#     # We cover each organ n of the shoot:
+#     for vid in list_of_sink_organs:
+#         # We define the current organ as "n":
+#         n = g.node(vid)
+#         # The new amount of labile_C in this organ is calculated, after its initialization:
+#         additional_C_for_sink_organ = 0.
+#         if option == "classic_PAR":
+#             additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / intercepted_light
+#         elif option == "surfacic_PAR" and n.surface > 0. and sum_of_surfacic_PAR > 0.:
+#             additional_C_for_sink_organ = total_available_C * n.PAR_intercepted / n.surface / sum_of_surfacic_PAR
+#         # TODO: Note that in either case, only the fraction of C corresponding to (light_intercepted_by_sink_organs)
+#         #  / (total_light_intercepted_by all_organs) is used...
+#         # We adjust the properties of the organ:
+#         # n.labile_C += additional_C_for_sink_organ
+#         n.C_input_rate_for_sink = additional_C_for_sink_organ / time_step_in_seconds
+#         C_used_by_sink_organs += additional_C_for_sink_organ
+#
+#     # Eventually, we store the remaining available C:
+#     shoot_system.shoot_labile_C_pool += total_available_C - C_used_by_sink_organs
+#     # The remaining amount of C here may be allocated to roots!
+#
+#     return
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def actual_shoot_growth(shoot_MTG,
                         yield_growth = 0.8,
@@ -1596,165 +1614,104 @@ def computing_leaf_fall(shoot_system,
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for computing the local C & N balance in each shoot organ:
-def shoot_organ_CN_balance(shoot_MTG,
-                           time_step_in_seconds = 60.*60.*24.,
-                           resetting_rates=False,
-                           resetting_local_amounts=False):
-    """
-    The function performs the C and N balance in each shoot organ, and updates their labile C and N content from this.
-    It also computes the final amount of available C and N in the shoot system based on this balance. Finally, it can
-    reset rates and labile C and N pool in each organ, if required.
-
-    Parameters
-    ----------
-    shoot_MTG: the MTG corresponding to the shoot system
-    time_step_in_seconds: the time step of the simulation (seconds)
-    resetting_rates: if True, all rates affecting C and N in each organ will be reset to 0 at the end
-    resetting_local_amounts: if True, labile C and N in each organ will be reset to 0 at the end
-
-    Returns
-    -------
-    shoot_available_C: the resulting amount of C available in the whole shoot system when taking into account
-                       the balance in each organ (gC per plant)
-    shoot_available_N: the resulting amount of N available in the whole shoot system when taking into account
-                       the balance in each organ (gN per plant)
-    """
-
-    # We rename the MTG for simplification:
-    g = shoot_MTG
-
-    # We initialize the amount of available C & N in the shoot:
-    shoot_available_C = 0.
-    shoot_available_N = 0.
-
-    # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
-
-        # We define the current element as n:
-        n = g.node(vid)
-        # We make sure that the current element has a positive length:
-        if n.length<=0.:
-            continue
-
-        # COMPUTING THE NEW RESULTING NET INCREASE RATES IN C & N:
-        # We compute the net rate of C increase in the labile C pool associated to the organ (gC per node per second):
-        net_C_increase_rate = (n.photosynthesized_C_rate
-                               + n.shoot_C_distribution_rate
-                               + n.C_input_rate_for_sink
-                               # TODO: should C_storage_rate be included in the balance of the structural mass or here?
-                               - n.shoot_maintenance_respiration_rate
-                               - n.actual_C_consumption_rate_by_shoot_growth)
-        # We compute the net rate of N increase in the labile N pool associated to the organ:
-        net_N_increase_rate = (n.shoot_N_distribution_rate
-                               - n.actual_N_consumption_rate_by_shoot_growth
-                               - n.shoot_N_mobilization_rate)
-
-        # COMPUTING THE NEW RESULTING NET GAIN IN LABILE C:
-        n.labile_C += net_C_increase_rate * time_step_in_seconds - n.labile_C_deficit
-        if n.labile_C < 0.:
-            print("    !!! Warning: for the shoot element", n.index(), "a deficit in labile C was obtained! We therefore set this pool to 0 gC and will record its deficit for the next time!")
-            n.labile_C_deficit = - n.labile_C
-            n.labile_C = 0.
-        else:
-            n.labile_C_deficit = 0.
-
-        # COMPUTING THE NEW RESULTING NET GAIN IN LABILE N:
-        n.labile_N += net_N_increase_rate * time_step_in_seconds - n.labile_N_deficit
-        if n.labile_N < 0.:
-            print("    !!! Warning: for the shoot element", n.index(), "a deficit in labile N was obtained! We therefore set this pool to 0 gN and will record its deficit for the next time!")
-            n.labile_N_deficit = - n.labile_N
-            n.labile_N = 0.
-        else:
-            n.labile_N_deficit = 0.
-
-        # # TODO: Check whether the C storage increases the biomass without changing the leaf thickness and without C:N stoechiometry!
-        # n.struct_mass += n.shoot_C_storage_rate / param.struct_mass_C_content * time_step_in_seconds
-
-        # We add the local amounts (or deficits) of labile C & N to the total amount of available C & N in the shoot:
-        shoot_available_C += (n.labile_C - n.labile_C_deficit)
-        shoot_available_N += (n.labile_N - n.labile_N_deficit)
-
-        # If necessary, we reset the local amounts to 0:
-        if resetting_local_amounts:
-            n.labile_C = 0.
-            n.labile_C_deficit = 0.
-            n.labile_N = 0.
-            n.labile_N_deficit = 0.
-
-        # If necessary, we reset the local exchange rates to 0:
-        if resetting_rates:
-            n.photosynthesized_C_rate = 0.
-            n.C_input_rate= 0.
-            n.shoot_maintenance_respiration_rate = 0.
-            n.actual_C_consumption_rate_by_shoot_growth = 0.
-            n.N_input_rate = 0.
-            n.actual_N_consumption_rate_by_shoot_growth = 0.
-            n.shoot_N_mobilization_rate = 0.
-
-    return shoot_available_C, shoot_available_N
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for summing all individual properties (labile pools and C &N rates) of each shoot organ and computing
-# the resulting property of the shoot system:
-def summing_in_shoot_system(shoot_system, shoot_MTG, resetting_rates=False):
-
-    """
-    The function
-
-    Parameters
-    ----------
-    shoot_system: the shoot system object containing general properties (not the shoot MTG)
-    shoot_MTG: the MTG corresponding to the shoot system and detailing each organ
-    resetting_rates: if True, rates in each organ will be reset to 0
-
-    Returns
-    -------
-    [The general properties of the shoot system object have been updated, and if required, the rates in each organ may
-    have been reset to 0]
-    """
-
-    # We rename the shoot system as "s" and the shoot MTG as "g":
-    s = shoot_system
-    g = shoot_MTG
-
-    # TODO: WATCH OUT !!!!!!!!
-    s.shoot_labile_C_pool = 0.
-    s.shoot_labile_N_pool = 0.
-
-    # print("Before summing, the shoot labile N pool is", s.shoot_labile_N_pool)
-
-    # We cover each organ of the shoot:
-    for vid in g.vertices_iter(scale=1):
-
-        # We define the current organ as "n":
-        n = g.node(vid)
-
-        # We add its "additive" properties (state or rate) to the general properties of the shoot system:
-        s.shoot_labile_C_pool += n.labile_C
-        s.shoot_labile_N_pool += n.labile_N
-        s.shoot_labile_C_deficit += n.labile_C_deficit
-        s.shoot_labile_N_deficit += n.labile_N_deficit
-
-        if n.label=="Leaf":
-            s.shoot_leaf_surface += n.surface
-
-        s.photosynthesized_C_rate += n.photosynthesized_C_rate
-        s.shoot_maintenance_respiration_rate += n.shoot_maintenance_respiration_rate
-        s.actual_C_consumption_rate_by_shoot_growth += n.actual_C_consumption_rate_by_shoot_growth
-        s.net_shoot_N_immobilization_rate += n.net_shoot_N_immobilization_rate
-        s.actual_N_consumption_rate_by_shoot_growth += n.actual_N_consumption_rate_by_shoot_growth
-
-        # If required, we can reset the rates to 0:
-        if resetting_rates:
-            n.photosynthesized_C_rate = 0.
-            n.shoot_maintenance_respiration_rate = 0.
-            n.actual_C_consumption_rate_by_shoot_growth = 0.
-            n.net_shoot_N_immobilization_rate = 0.
-            n.actual_N_consumption_rate_by_shoot_growth = 0.
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
+# # Function for computing the local C & N balance in each shoot organ:
+# def shoot_organ_CN_balance(shoot_MTG,
+#                            time_step_in_seconds = 60.*60.*24.,
+#                            resetting_rates=False,
+#                            resetting_local_amounts=False):
+#     """
+#     The function performs the C and N balance in each shoot organ, and updates their labile C and N content from this.
+#     It also computes the final amount of available C and N in the shoot system based on this balance. Finally, it can
+#     reset rates and labile C and N pool in each organ, if required.
+#
+#     Parameters
+#     ----------
+#     shoot_MTG: the MTG corresponding to the shoot system
+#     time_step_in_seconds: the time step of the simulation (seconds)
+#     resetting_rates: if True, all rates affecting C and N in each organ will be reset to 0 at the end
+#     resetting_local_amounts: if True, labile C and N in each organ will be reset to 0 at the end
+#
+#     Returns
+#     -------
+#     shoot_available_C: the resulting amount of C available in the whole shoot system when taking into account
+#                        the balance in each organ (gC per plant)
+#     shoot_available_N: the resulting amount of N available in the whole shoot system when taking into account
+#                        the balance in each organ (gN per plant)
+#     """
+#
+#     # We rename the MTG for simplification:
+#     g = shoot_MTG
+#
+#     # We initialize the amount of available C & N in the shoot:
+#     shoot_available_C = 0.
+#     shoot_available_N = 0.
+#
+#     # We cover each organ of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#
+#         # We define the current element as n:
+#         n = g.node(vid)
+#         # We make sure that the current element has a positive length:
+#         if n.length<=0.:
+#             continue
+#
+#         # COMPUTING THE NEW RESULTING NET INCREASE RATES IN C & N:
+#         # We compute the net rate of C increase in the labile C pool associated to the organ (gC per node per second):
+#         net_C_increase_rate = (n.photosynthesized_C_rate
+#                                + n.shoot_C_distribution_rate
+#                                + n.C_input_rate_for_sink
+#                                # TODO: should C_storage_rate be included in the balance of the structural mass or here?
+#                                - n.shoot_maintenance_respiration_rate
+#                                - n.actual_C_consumption_rate_by_shoot_growth)
+#         # We compute the net rate of N increase in the labile N pool associated to the organ:
+#         net_N_increase_rate = (n.shoot_N_distribution_rate
+#                                - n.actual_N_consumption_rate_by_shoot_growth
+#                                - n.shoot_N_mobilization_rate)
+#
+#         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE C:
+#         n.labile_C += net_C_increase_rate * time_step_in_seconds - n.labile_C_deficit
+#         if n.labile_C < 0.:
+#             print("    !!! Warning: for the shoot element", n.index(), "a deficit in labile C was obtained! We therefore set this pool to 0 gC and will record its deficit for the next time!")
+#             n.labile_C_deficit = - n.labile_C
+#             n.labile_C = 0.
+#         else:
+#             n.labile_C_deficit = 0.
+#
+#         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE N:
+#         n.labile_N += net_N_increase_rate * time_step_in_seconds - n.labile_N_deficit
+#         if n.labile_N < 0.:
+#             print("    !!! Warning: for the shoot element", n.index(), "a deficit in labile N was obtained! We therefore set this pool to 0 gN and will record its deficit for the next time!")
+#             n.labile_N_deficit = - n.labile_N
+#             n.labile_N = 0.
+#         else:
+#             n.labile_N_deficit = 0.
+#
+#         # # TODO: Check whether the C storage increases the biomass without changing the leaf thickness and without C:N stoechiometry!
+#         # n.struct_mass += n.shoot_C_storage_rate / param.struct_mass_C_content * time_step_in_seconds
+#
+#         # We add the local amounts (or deficits) of labile C & N to the total amount of available C & N in the shoot:
+#         shoot_available_C += (n.labile_C - n.labile_C_deficit)
+#         shoot_available_N += (n.labile_N - n.labile_N_deficit)
+#
+#         # If necessary, we reset the local amounts to 0:
+#         if resetting_local_amounts:
+#             n.labile_C = 0.
+#             n.labile_C_deficit = 0.
+#             n.labile_N = 0.
+#             n.labile_N_deficit = 0.
+#
+#         # If necessary, we reset the local exchange rates to 0:
+#         if resetting_rates:
+#             n.photosynthesized_C_rate = 0.
+#             n.C_input_rate= 0.
+#             n.shoot_maintenance_respiration_rate = 0.
+#             n.actual_C_consumption_rate_by_shoot_growth = 0.
+#             n.N_input_rate = 0.
+#             n.actual_N_consumption_rate_by_shoot_growth = 0.
+#             n.shoot_N_mobilization_rate = 0.
+#
+#     return shoot_available_C, shoot_available_N
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing C&N balance both at the shoot organ and at the shoot system scale:
 def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_step_in_seconds = 60.*60,
@@ -2114,135 +2071,6 @@ def create_plants_population_scene(scene_information,
         final_scene += square
 
     return final_scene, scene_information, list_of_MTG
-
-########################################################################################################################
-########################################################################################################################
-
-def calling_the_different_shoot_modules(shoot_MTG,
-                                        time_step_in_days=1,
-                                        phytomers_initiation = True,
-                                        number_of_plants_per_square_meter=33,
-                                        inter_row_distance=0.45,
-                                        scene_length=1.,
-                                        scene_width=1.,
-                                        C_allocation_option="Full_priority_to_leaves"
-                                        ):
-
-    # DIFFERENT POSSIBILITES OF C ALLOCATION CAN BE TESTED:
-    # -"Full_priority_to_leaves": Labile C is used by all leaves before C allocation to roots
-    # -"No_priority_to_leaves": We get a pool of labile C available after photosynthesis and before growth,
-    # and we allocate a fraction to roots, then to all leaves according to PAR intercepted
-    # -"C_allocation_to_roots_before_C_storage": We first achieve the actual growth of source leaves and of the sink
-    # leaves before C reallocation, then we allocate C to roots, and the remaining is used for reallocating C to sink leaves.
-
-    # We rename the MTG for simplification:
-    g = shoot_MTG
-
-    # WE SUCCESSIVELY CALL THE DIFFERENT MODULES:
-
-    # 1) Inputs of C & N in each organ, and maintenance:
-    #---------------------------------------------------
-    # We calculate light interception based on the architecture:
-    computing_light_interception(g,
-                                 number_of_plants_per_square_meter=number_of_plants_per_square_meter,
-                                 inter_row_distance=inter_row_distance,
-                                 scene_length=scene_length,
-                                 scene_width=scene_width
-                                 )
-
-    # We calculate the C production based on PAR:
-    computing_photosynthesis_rate(g)
-
-    # We calculate the C respiration cost associated to maintenance:
-    computing_maintenance_rate(g)
-
-    # We allocate the N available from the base of the shoot up to each leaf, based on PAR:
-    computing_shoot_N_distribution(g,
-                                   time_step_in_seconds=time_step_in_days*60.*60.*24.)
-
-    # TODO: Is this step necessary or not?
-    # This calculates the total amount of available C, and distributes it in each organ according to PAR:
-    computing_shoot_C_redistribution(g)
-
-    # 2) Growth of organs:
-    #---------------------
-    # We calculate the possible increase in volume of each organ:
-    potential_shoot_growth(g,
-                           SFQN=param.SFQN, #TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
-                           LA_max=param.LA_max,
-                           leaf_minimal_thickness=param.leaf_minimal_thickness,
-                           elong_internode=param.elong_internode,
-                           time_step_in_seconds=time_step_in_days*60.*60.*24.
-                           )
-
-    # We calculate the fraction of C that can be redistributed by source leaves, and distribute a fraction of it in sink leaves:
-    computing_C_redistribution_for_shoot_growth(shoot_system=plant,
-                                                shoot_MTG=g,
-                                                yield_growth=param.yield_growth,
-                                                structural_mass_density=param.struct_mass_density,
-                                                structural_C_content=param.structural_C_content,
-                                                time_step_in_seconds=time_step_in_days*60.*60.*24.
-                                                )
-
-    # We calculate the actual increase in size and the corresponding C & N costs:
-    plant. actual_C_consumption_rate_by_shoot_growth, plant.actual_N_consumption_rate_by_shoot_growth \
-        = actual_shoot_growth(g,
-                              yield_growth=param.yield_growth,
-                              structural_mass_density=param.struct_mass_density,
-                              structural_C_content=param.structural_C_content,
-                              structural_N_content=param.structural_N_content,
-                              leaf_minimal_thickness=param.leaf_minimal_thickness,
-                              time_step_in_seconds=time_step_in_days*60.*60.*24.
-                              )
-
-    # We initiate the structure of new phytomers (if any):
-    C_cost, N_cost = new_phytomers_initiation(shoot_system = plant,
-                                              shoot_MTG = g,
-                                              new_initiation=phytomers_initiation,
-                                              initial_internode_length=param.initial_internode_length,
-                                              initial_leaf_length=param.initial_leaf_length,
-                                              time_step_in_seconds=time_step_in_days/(60.*60.*24.))
-    plant.actual_C_consumption_rate_by_shoot_growth += C_cost
-    plant.actual_N_consumption_rate_by_shoot_growth += N_cost
- \
-        # We update all dimensions of the organs:
-    updating_coordinates(g)
-
-    # 3) Mobilization/immobilization:
-    #--------------------------------
-
-    # This function reallocates all the remaining C available to the different organs according to their PAR,
-    # and stores it as additional structural mass:
-    computing_shoot_C_storage(shoot_system=plant, shoot_MTG=g, time_step_in_seconds=time_step_in_days*60.*60.*24.)
-
-    # This function mobilizes N from the organs and stores it at the base of the shoot system:
-    computing_shoot_N_remobilization(g, k_N_mobilization=param.k_N_mobilization)
-
-    # This function immobilizes N in each shoot organ:
-    computing_shoot_N_immobilization(g)
-
-    # 4) C&N mass balance:
-    #---------------------
-    # This function performs the actual C & N balance and updates the labile pools of C & N in each organ:
-    shoot_organ_CN_balance(g)
-
-    # 5) Ageing of the plant:
-    # -----------------------
-    ageing(g, time_step_in_seconds=time_step_in_days*24*60.*60., air_temperature_in_degree_Celsius=10.)
-
-    # 6) Ramification:
-    #-----------------
-    computing_ramification(g,
-                           initial_internode_length=param.initial_internode_length,
-                           initial_leaf_length=param.initial_leaf_length,
-                           time_step_in_seconds=time_step_in_days/(60.*60.*24.))
-
-    # 7) Senescence and leaf fall:
-    #-----------------------------
-    computing_senescence(g)
-    computing_leaf_fall(shoot_system=plant, shoot_MTG=g)
-
-    return
 #-----------------------------------------------------------------------------------------------------------------------
 ########################################################################################################################
 ########################################################################################################################
@@ -2258,16 +2086,21 @@ if __name__ == '__main__':
     # 1) INITIAL CONDITIONS
     #----------------------
     # We create an initial MTG corresponding to the shoot (stem and leaves):
-    g = create_shoot_MTG(number_of_phytomers=3,
+    shoot_g = create_shoot_MTG(number_of_phytomers=3,
                          initial_internode_height=0.002,
                          initial_internode_radius=0.0008,
                          initial_leaf_length=0.02)
+    # We add an extra-property to the base of the shoot system, corresponding to the time since the last phytomer
+    # was formed (used together with the phyllochron later on):
+    shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
 
     # By default, we consider the object "shoot_system" representing the whole shoots as the first node of the MTG:
-    plant = g.node(1)
+    plant = shoot_g.node(1)
     # We initialize the labile content of C and N:
     plant.shoot_labile_C_pool = 1e-2
+    plant.shoot_labile_C_deficit = 0.
     plant.shoot_labile_N_pool = 1e-3
+    plant.shoot_labile_N_deficit = 0.
 
     # We delete the previous files containing plots or MTG properties:
     plot_directory = os.path.join(my_path, "simulation", "outputs","plots")
@@ -2296,12 +2129,13 @@ if __name__ == '__main__':
                                  outputs_path = os.path.join(my_path, "simulation", "outputs"))
 
     # We record the properties in its initial state:
-    recording_MTG_properties(g, os.path.join(MTG_directory, 'MTG_00000.csv'))
+    recording_MTG_properties(shoot_g, os.path.join(MTG_directory, 'MTG_00000.csv'))
 
     # We define an initial and final step for covering a certain period:
     initial_time = 0.
     simulation_period_in_days = 50.
-    time_step_in_days = 1.
+    time_step_in_days = 1./24.
+    time_step_in_seconds = time_step_in_days*60.*60.*24.
     n_steps = trunc(simulation_period_in_days / time_step_in_days)
     elapsed_time_in_days_since_last_leaf_emergence = 0.
 
@@ -2309,6 +2143,9 @@ if __name__ == '__main__':
     inter_row_distance = 0.45
     row_length = 1.
     scene_width = 1.
+
+    light_intensity = 400.
+    air_temperature = 20.
 
     # PREPARING THE COORDINATES OF CAMERA ROTATION:
     # We calculate the x,y,z coordinates of the different positions of the camera:
@@ -2330,7 +2167,7 @@ if __name__ == '__main__':
         initial_time_in_days = initial_time + (step-1) * time_step_in_days
         final_time_in_days = initial_time + step * time_step_in_days
         print("")
-        print("From", initial_time_in_days,"to", final_time_in_days,"days:")
+        print("From", round(initial_time_in_days,2),"to", round(final_time_in_days, 2),"days:")
         print("-----------------------")
 
         # CALLING THE EXCHANGE WITH ROOTS:
@@ -2352,13 +2189,221 @@ if __name__ == '__main__':
             elapsed_time_in_days_since_last_leaf_emergence = (elapsed_time_in_days_since_last_leaf_emergence
                                                               - (param.phyllochron / (60.*60.*24.)))
 
-        # We call the different modules:
-        calling_the_different_shoot_modules(shoot_MTG = g,
-                                            phytomers_initiation=phytomer_formation,
-                                            number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                            inter_row_distance=inter_row_distance,
-                                            scene_length=row_length,
-                                            scene_width=scene_width)
+        # LIGHT INTERCEPTION:
+        #####################
+        # We calculate light interception based on the shoot architecture, for each organ:
+        total_PAR_intercepted, sum_of_surfacic_PAR = \
+            computing_light_interception(shoot_g,
+                                         incoming_light_density=light_intensity,
+                                         zenithal_light=False,
+                                         number_of_plants_per_square_meter=plant_density_in_square_meter,
+                                         inter_row_distance=inter_row_distance,
+                                         scene_length=row_length,
+                                         scene_width=scene_width,
+                                         leaf_shape=param.leaf_shape)
+        # We record the PAR intercepted in the properties of the plant:
+        plant.total_PAR_intercepted = total_PAR_intercepted
+
+        # Reallocating labile N within each shoot organ:
+        # -----------------------------------------------
+        # The total amount of labile N to redistribute into the shoot organs is defined as:
+        shoot_available_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
+        if shoot_available_N <= 0.:
+            print("WATCH OUT: there is no labile N left in the shoot to be redistributed!")
+            # We cover each organ of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_N in this organ is calculated according to the relative intercepted light:
+                fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                labile_N_target = shoot_available_N * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_N_distribution_rate = (labile_N_target - (
+                        n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile N according to this target level:
+                n.labile_N = 0.
+                n.labile_N_deficit = -labile_N_target
+        else:
+            # We cover each organ of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_N in this organ is calculated according to the relative intercepted light:
+                fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                labile_N_target = shoot_available_N * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_N_distribution_rate = (labile_N_target - (
+                        n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile N according to this target level:
+                n.labile_N = labile_N_target
+                n.labile_N_deficit = 0.
+
+        # Redistributing labile C into each shoot organ:
+        # -----------------------------------------------
+        # The total amount of labile C to redistribute into the shoot organs is defined as:
+        shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
+        if shoot_available_C <= 0.:
+            print("WATCH OUT: there is no labile C left in the shoot to be redistributed!")
+            # We cover each organ n of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_C in this organ is calculated according to the relative intercepted light:
+                fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                labile_C_target = shoot_available_C * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_C_distribution_rate = (labile_C_target - (
+                        n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile C according to this target level:
+                n.labile_C_deficit = -labile_C_target
+                n.labile_C = 0.
+        else:
+            # We cover each organ n of the shoot:
+            for vid in shoot_g.vertices_iter(scale=1):
+                # We access the current organ "n":
+                n = shoot_g.node(vid)
+                if n.surface <= 0.:
+                    continue
+                # The new target for labile_C in this organ is calculated according to the relative intercepted light:
+                fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                labile_C_target = shoot_available_C * fraction
+                # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                n.shoot_C_distribution_rate = (labile_C_target - (
+                        n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                # We now redefine the local pool of labile C according to this target level:
+                n.labile_C = labile_C_target
+                n.labile_C_deficit = 0.
+
+        # PHOTOSYNTHESIS:
+        # We calculate the rate of C production of each organ based on the PAR intercepted by the plant:
+        total_PAR_intercepted, total_photosynthesis_rate = \
+            computing_photosynthesis_rate(shoot_g,
+                                                 air_temperature_in_degree_Celsius=air_temperature)
+        # We record this total photosynthesis rate into the plant object:
+        plant.photosynthesized_C_rate = total_photosynthesis_rate
+        print("    Photosynthesis will generate",
+              "{:.2E}".format(Decimal(total_photosynthesis_rate * time_step_in_seconds)),
+              "gC over this time step...")
+        # Note: at this stage, the labile C amounts have not been updated in the organs or at the scale of the plant!
+
+        # POSSIBILE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
+        # If time is lower than the prescribed duration of supply from the seed:
+        if final_time_in_days * (60. * 60. * 24.) <= param.seed_supply_duration * air_temperature/20.:
+            # Then we allow to compute the supply of C and N resources from the germinating seed to the new seedling:
+            computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius=air_temperature)
+
+        # MAINTENANCE IN THE SHOOT ORGANS:
+        # We calculate the C respiration cost associated to maintenance in each organ:
+        total_maintenance_rate = computing_maintenance_rate(shoot_g,
+                                                                   air_temperature_in_degree_Celsius=air_temperature)
+        plant.shoot_maintenance_respiration_rate = total_maintenance_rate
+        # print("    The maintenance will consume",
+        #       "{:.2E}".format(Decimal(total_maintenance_rate*time_step_in_seconds)),
+        #       "gC over the shoot system...")
+
+        # GROWTH IN THE SHOOT ORGANS:
+        #############################
+
+        # ORGAN EXTENSION; We calculate the possible increase in volume of each organ:
+        potential_shoot_growth(shoot_g,
+                                      SFQN=param.SFQN,
+                                      # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
+                                      LA_max=param.LA_max,
+                                      leaf_minimal_thickness=param.leaf_minimal_thickness,
+                                      elong_internode=param.elong_internode,
+                                      time_step_in_seconds=time_step_in_seconds,
+                                      air_temperature_in_degree_Celsius=air_temperature)
+        # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
+        # organ, based on the local amounts of labile C:
+        C_consumption_rate_for_extension, N_consumption_rate_for_extension = \
+            actual_shoot_growth(shoot_g,
+                                       yield_growth=param.yield_growth,
+                                       structural_mass_density=param.struct_mass_density,
+                                       structural_C_content=param.structural_C_content,
+                                       structural_N_content=param.structural_N_content,
+                                       leaf_minimal_thickness=param.leaf_minimal_thickness,
+                                       time_step_in_seconds=time_step_in_seconds,
+                                       air_temperature_in_degree_Celsius=air_temperature)
+        # At this stage, the shoot structure has been updated and the consumption rates have been calculated
+        # for each organ, but no actual consumption of labile C&N at the scale of organ or shoot system has occured yet.
+        print("    The extension of organs will consume",
+              "{:.2E}".format(Decimal(C_consumption_rate_for_extension * time_step_in_seconds)),
+              "gC and",
+              "{:.2E}".format(Decimal(N_consumption_rate_for_extension * time_step_in_seconds)),
+              "gN over the shoot system...")
+
+        # NEW PHYTOMERS: We now consider the initiation of the structure of new phytomers, based on the phyllochrone.
+        # We increment the time since the last phytomer was formed at the top of the main stem:
+        thermal_time_since_last_phytomer_formation \
+            = shoot_g.node(0).thermal_time_since_last_phytomer_formation + time_step_in_seconds
+        # We get the value of the prescribed phyllochron (in seconds equivalent to the reference temperature):
+        phyllochron = param.phyllochron
+        # We initialize the total costs of phytomers initiation:
+        total_C_costs_for_new_phytomers = 0.
+        total_N_costs_for_new_phytomers = 0.
+        # If the period since the last phytomer was formed is higher than the phyllochron:
+        if thermal_time_since_last_phytomer_formation > phyllochron:
+            print("A new phytomer should be formed!")
+            # Then at least one phytomer should be formed on the main stem.
+            # We keep looping until all phytomers have been formed:
+            while thermal_time_since_last_phytomer_formation - phyllochron > 0:
+                # We subtract the value of the phyllochron to the time since last phytomer was formed:
+                thermal_time_since_last_phytomer_formation -= phyllochron
+                # We add a set of new phytomers in the shoot system:
+                C_cost_for_new_phytomers, N_cost_for_new_phytomers = new_phytomers_initiation(
+                    shoot_system=plant,
+                    shoot_MTG=shoot_g,
+                    new_initiation=True,
+                    initial_leaf_length=param.initial_leaf_length,
+                    initial_internode_length=param.initial_internode_length,
+                    time_step_in_seconds=time_step_in_seconds)
+                print("> A new phytomer has been formed! The C & N costs were",
+                      "{:.2E}".format(Decimal(C_cost_for_new_phytomers)), "gC and",
+                      "{:.2E}".format(Decimal(N_cost_for_new_phytomers)), "gN.")
+                # We increase the total costs with the cost of this new phytomer:
+                total_C_costs_for_new_phytomers += C_cost_for_new_phytomers
+                total_N_costs_for_new_phytomers += total_N_costs_for_new_phytomers
+        # Once all phytomers have been added, we update the time since the last one was formed,
+        # which is stored at the base of the shoot system:
+        shoot_g.node(0).thermal_time_since_last_phytomer_formation = thermal_time_since_last_phytomer_formation
+
+        # RAMIFICATION - We consider the possibility of ramification:
+        C_cost_for_new_ramification, N_cost_for_new_ramification \
+            = computing_ramification(shoot_MTG=shoot_g,
+                                            initial_internode_length=param.initial_internode_length,
+                                            initial_leaf_length=param.initial_leaf_length,
+                                            time_step_in_seconds=time_step_in_seconds)
+        if C_cost_for_new_ramification > 0. or N_cost_for_new_ramification > 0.:
+            print("> The costs to sustain ramification with the creation of new phytomers were",
+                  "{:.2E}".format(Decimal(C_cost_for_new_ramification)), "gC and",
+                  "{:.2E}".format(Decimal(N_cost_for_new_ramification)), "gN.")
+
+        # We finally update the coordinates of the new organs:
+        updating_coordinates(shoot_g)
+        # And we register the total consumption rate for growth in the plant object:
+        plant.actual_C_consumption_rate_by_shoot_growth \
+            = (C_consumption_rate_for_extension
+               + (C_cost_for_new_ramification + total_C_costs_for_new_phytomers) / time_step_in_seconds)
+        plant.actual_N_consumption_rate_by_shoot_growth \
+            = (N_consumption_rate_for_extension
+               + (N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds)
+
+        # We perform the C&N balance both within each organ and at the shoot system scale:
+        shoot_CN_balance_at_organ_and_system_scales(shoot_system=plant,
+                                                           shoot_MTG=shoot_g,
+                                                           time_step_in_seconds=time_step_in_seconds)
+
+        print("    The shoot system now contains", shoot_g.nb_vertices(), "different shoot elements.")
+        print("    Shoot labile C pool is now",
+              "{:.2E}".format(Decimal(plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)),
+              "gC and labile N pool is",
+              "{:.2E}".format(Decimal(plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)), "gN.")
 
         # PLOTTING ONE SINGLE PLANT OVER TIME:
         # We display the MTG in its new state:
@@ -2373,14 +2418,17 @@ if __name__ == '__main__':
         if index_camera >= param.camera_rotation_n_points:
             # Then we reset the index to 0:
             index_camera = 0
-        graph = plotting_shoot_MTG(g,
+        zoom_factor = 100.
+        graph = plotting_shoot_MTG(shoot_g,
                                    leaf_shape="oval",
                                    # leaf_shape="typical_leaf_shape",
                                    # leaf_shape="drop_shape",
                                    width=1200, height=900,
-                                   x_center=0, y_center=0, z_center=0.03,
-                                   # x_cam=0.18, y_cam=0.18, z_cam=0.03,
-                                   x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+                                   upscaling_factor=zoom_factor,
+                                   x_center=param.x_center * zoom_factor,
+                                   y_center=param.y_center * zoom_factor,
+                                   z_center=param.z_center * zoom_factor,
+                                   x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
                                    grid=False,
                                    # background_color=[0, 0, 0],
                                    single_color=[100,150,50],
@@ -2391,35 +2439,11 @@ if __name__ == '__main__':
                                    recording_plot=True,
                                    plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step))
 
-        # Option 1B - With Pyvista:
-        #--------------------------
-        # plotting_shoots_with_pyvista(g)
-
-        # # PLOTTING A POPULATION OF PLANTS:
-        # # Option 2A - With PlantGL:
-        # #--------------------------
-        # plotting_shoot_MTG_population(g,
-        #                               number_of_plants_per_square_meter=plant_density_in_square_meter,
-        #                               inter_row_distance=inter_row_distance,
-        #                               scene_length=row_length,
-        #                               scene_width=scene_width,
-        #                               leaf_shape="oval",
-        #                               # leaf_shape="typical_leaf_shape",
-        #                               width=800, height=800,
-        #                               x_center=0., y_center=-0., z_center=0.,
-        #                               x_cam=3., y_cam=3., z_cam=1.,
-        #                               grid=False,
-        #                               background_color=[0, 0, 0],
-        #                               single_color=None,
-        #                               property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-        #                               recording_plot=True,
-        #                               plot_filepath=os.path.join(plot_directory, 'plot_%.5d.png' % step))
-
         # RECORDING THE PROPERTIES:
         # We can record the main properties of the plant:
-        dataframe = recording_MTG_properties(g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
+        dataframe = recording_MTG_properties(shoot_g, file_name = os.path.join(MTG_directory, 'MTG_%.5d.csv' % step))
 
-        print("   > The shoot system now contains", g.nb_vertices(),"elements!")
+        print("   > The shoot system now contains", shoot_g.nb_vertices(),"elements!")
 
     print("")
     print("Simulation is done!")
