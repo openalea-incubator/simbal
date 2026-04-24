@@ -172,7 +172,7 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
         if expected_C_exchange > net_shoot_C:
             # Then the amount of C exchanged is limited to the amount of C available in shoots:
             net_final_C_exchange = net_shoot_C
-            print("WATCH OUT: all the C from shoots has been allocated to roots!")
+            print("WATCH OUT: all the C from shoots has been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_final_C_exchange)), "gC!")
         # CASE 2: The flow from root to shoot is positive but there is not enough C in the root to sustain it:
         elif expected_C_exchange < 0. and abs(expected_C_exchange) > net_root_C:
             # Then the amount of C exchanged is limited to the amount of C available in roots:
@@ -197,6 +197,7 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
             net_shoot_N = 0.
         if net_root_N < 0.:
             net_root_N = 0.
+            print("WATCH OUT: we cannot allow the net root N to become negative!")
 
         # If N is to be exchanged by diffusion based on the labile pools in shoots and roots:
         if N_option == "by_diffusion":
@@ -230,14 +231,14 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
                 print("ERROR - the transpiration flux was negative or nil! The flow rate of N from root to shoot was set to 0.")
                 net_N_transfer_from_root_to_shoot_rate = 0.
         # Otherwise, if the N present in the root is meant to be transfered in totality to the shoot system:
-        elif C_option == "full_transfer_from_root_to_shoot":
+        elif N_option == "full_transfer_from_root_to_shoot":
             net_N_transfer_from_root_to_shoot_rate = net_root_N / time_step_in_seconds
         else:
             print("WATCH OUT: the option for computing the transfer of N from root to shoot is not recognized! "
                   "The transfer will correspond to the full amount of labile N in the source.")
             net_N_transfer_from_root_to_shoot_rate = net_root_N / time_step_in_seconds
 
-        # We now verify that the net amount transfered would not be higher than the available amount in the source:
+        # We now verify that the net amount transferred would not be higher than the available amount in the source:
         expected_N_exchange = net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds
 
         # CASE 1: The expected N transfered from root to shoot is positive, but there is not enough N in the root:
@@ -381,6 +382,102 @@ def recording_main_plant_properties(plant, time_in_days):
     return results_dict
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
+def balance_check(plant, time_step_in_seconds = 60.*60.,
+                  previous_shoot_C=0., previous_root_C=0., previous_shoot_N=0., previous_root_N=0.):
+    """
+    This function controls whether the information stored in the plant object are coherent in terms of C and N balance,
+    by comparing the current amounts of C or N in the shoots and the roots with the amounts expected given the previous
+    recorded state and the new inputs and outputs for each compartment.
+
+    Parameters
+    ----------
+    plant: the plant object where the information is stored.
+    time_step_in_seconds: the time step of the simulation (seconds)
+    previous_shoot_C: the total amount of C in the shoots determined at the previous time step (gC per plant)
+    previous_root_C: the total amount of C in the roots determined at the previous time step (gC per plant)
+    previous_shoot_N: the total amount of N in the shoots determined at the previous time step (gN per plant)
+    previous_root_N: the total amount of N in the roots determined at the previous time step (gN per plant)
+
+    Returns
+    -------
+    current_C_and_N_levels: a list containing the current amounts of shoot C, root C, shoot N and root N
+
+    """
+
+    # CHECKING C BALANCE:
+    #--------------------
+    # We calculate the current amount of C present in the shoots and in the roots:
+    shoot_total_C = (plant.shoot_struct_mass * param.structural_C_content
+                    + (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
+                    + plant.shoot_reserve_C_pool)
+    root_total_C = (plant.root_struct_mass * param.structural_C_content
+                    + (plant.root_labile_C_pool - plant.root_labile_C_deficit)
+                    + plant.root_reserve_C_pool)
+    # We calculate all inputs and outputs of C within the shoot system and the root system:
+    shoot_C_inputs = (plant.photosynthesized_C_rate
+                      + plant.C_supply_from_seed_rate) * time_step_in_seconds
+    shoot_C_outputs = (plant.shoot_maintenance_respiration_rate
+                       + plant.actual_C_consumption_rate_by_shoot_growth * (1 - param.yield_growth)
+                       + plant.struct_C_loss_rate_by_leaf_fall
+                       + plant.labile_C_loss_rate_by_leaf_fall
+                       + plant.net_C_transfer_from_shoot_to_root_rate) * time_step_in_seconds
+    root_C_inputs = (plant.net_C_transfer_from_shoot_to_root_rate) * time_step_in_seconds
+    root_C_outputs = (plant.N2_fixation_rate_C_cost
+                      + plant.root_maintenance_respiration_rate
+                      + plant.actual_C_consumption_rate_by_root_growth * (1 - param.yield_growth)
+                      + plant.C_rhizodeposition_rate) * time_step_in_seconds
+
+    # We finally compare the current amount of C with the previous state and the new inputs and outputs:
+    difference = ((shoot_total_C + root_total_C)
+                  - ((previous_shoot_C + previous_root_C)
+                     + (shoot_C_inputs + root_C_inputs)
+                     - (shoot_C_outputs + root_C_outputs)))
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the C balance in the whole plant is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+    difference = shoot_total_C - (previous_shoot_C + shoot_C_inputs - shoot_C_outputs)
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+    difference = root_total_C - (previous_root_C + root_C_inputs - root_C_outputs)
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+
+    # CHECKING N BALANCE:
+    #--------------------
+    # We calculate the current amount of N present in the shoots and in the roots:
+    shoot_total_N = (plant.shoot_struct_mass * param.structural_N_content
+                    + (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
+                    + plant.shoot_reserve_N_pool)
+    root_total_N = (plant.root_struct_mass * param.structural_N_content
+                    + (plant.root_labile_N_pool - plant.root_labile_N_deficit)
+                    + plant.root_reserve_N_pool)
+    # We calculate all inputs and outputs of N within the shoot system and the root system:
+    shoot_N_inputs = (plant.N_supply_from_seed_rate
+                      + plant.net_N_transfer_from_root_to_shoot_rate) * time_step_in_seconds
+    shoot_N_outputs = (plant.struct_N_loss_rate_by_leaf_fall
+                       + plant.labile_N_loss_rate_by_leaf_fall) * time_step_in_seconds
+    root_N_inputs = (plant.N_uptake_rate + plant.N2_fixation_rate) * time_step_in_seconds
+    root_N_outputs = (plant.N_rhizodeposition_rate
+                      + plant.net_N_transfer_from_root_to_shoot_rate) * time_step_in_seconds
+
+    # We finally compare the current amount of N with the previous state and the new inputs and outputs:
+    difference = ((shoot_total_N + root_total_N)
+                  - ((previous_shoot_N + previous_root_N)
+                     + (shoot_N_inputs + root_N_inputs)
+                     - (shoot_N_outputs + root_N_outputs)))
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the N balance in the whole plant is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+    difference = shoot_total_N - (previous_shoot_N + shoot_N_inputs - shoot_N_outputs)
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the N balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+    difference = root_total_N - (previous_root_N + root_N_inputs - root_N_outputs)
+    if abs(difference) > 1e-16:
+        print("!!! ERROR: the N balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+
+    # We finally return the current amounts of C and N in the shoots and the roots:
+    return shoot_total_C, root_total_C, shoot_total_N, root_total_N
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+
 # Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation(my_path=None,
                    simulation_period_in_days=20., time_step_in_days=1/24., starting_time_in_days=0.,
@@ -539,17 +636,6 @@ def run_simulation(my_path=None,
     # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
     plant = whole_plant()
 
-    # # INITIALIZING PLANT'S RESOURCES:
-    # # We initialize the pools of labile and reserve C (gC per plant) and N (gN per plant) in the whole plant object:
-    # plant.shoot_labile_C_pool = initial_shoot_labile_C_concentration * plant.shoot_struct_mass
-    # plant.shoot_labile_N_pool = initial_shoot_labile_N_concentration * plant.shoot_struct_mass
-    # plant.shoot_reserve_C_pool = 0.
-    # plant.shoot_reserve_N_pool = 0.
-    # plant.root_labile_C_pool = initial_root_labile_C_concentration * plant.root_struct_mass
-    # plant.root_labile_N_pool = initial_root_labile_N_concentration * plant.root_struct_mass
-    # plant.root_reserve_C_pool = 0.
-    # plant.root_reserve_N_pool = 0.
-    
     # INITIALIZING SHOOT STRUCTURE:
     # In case we only want to simulate the behavior of the roots, keeping the shoot properties constant over time:
     if SIMULATION_OPTION == "roots_only":
@@ -621,6 +707,20 @@ def run_simulation(my_path=None,
     # We also initialize the dictionnary containing the general properties of the plant:
     results_dict = recording_main_plant_properties(plant, time_in_days=0.)
     plant_data_frame = pd.DataFrame(results_dict, index=[0])
+
+    # And we initialize the C and N balance by computing the initial amounts of C and N in the shoots and roots:
+    shoot_total_C = (plant.shoot_struct_mass * param.structural_C_content
+                     + (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
+                     + plant.shoot_reserve_C_pool)
+    root_total_C = (plant.root_struct_mass * param.structural_C_content
+                    + (plant.root_labile_C_pool - plant.root_labile_C_deficit)
+                    + plant.root_reserve_C_pool)
+    shoot_total_N = (plant.shoot_struct_mass * param.structural_N_content
+                     + (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
+                     + plant.shoot_reserve_N_pool)
+    root_total_N = (plant.root_struct_mass * param.structural_N_content
+                    + (plant.root_labile_N_pool - plant.root_labile_N_deficit)
+                    + plant.root_reserve_N_pool)
 
     # DEFINING THE PERIOD OF SIMULATION:
     # ---------------------------------
@@ -869,9 +969,12 @@ def run_simulation(my_path=None,
             RootSimple.computing_N2_fixation_rate(root_system=plant, root_MTG=root_g,
                                                   soil_temperature_in_degree_Celsius=soil_temperature)
 
-            # NET C LOSSES FROM THE ROOT SYSTEM (WITHOUT GROWTH):
-            # We compute the rate of rhizodeposition (gC per plant per second):
+            # NET C & N LOSSES FROM THE ROOT SYSTEM (WITHOUT GROWTH):
+            # We compute the rate of rhizodeposition (gC or gN per plant per second):
             RootSimple.computing_rhizodeposition_rate(root_system=plant, root_MTG=root_g,
+                                                      option="loss_as_input_rate_fraction",
+                                                      C_rhizodeposition_fraction=0.30,
+                                                      N_rhizodeposition_fraction=0.10,
                                                       time_step_in_seconds=time_step_in_seconds,
                                                       soil_temperature_in_degree_Celsius=soil_temperature)
             # We compute the rate of maintenance respiration (gC per plant per second):
@@ -927,7 +1030,7 @@ def run_simulation(my_path=None,
                   "{:.2E}".format(Decimal(plant.root_labile_C_pool - plant.root_labile_C_deficit)),
                   "gC and root labile N pool is",
                   "{:.2E}".format(Decimal(plant.root_labile_N_pool - plant.root_labile_N_deficit)), "gN.")
-            print("    The root system now contains", root_g.nb_vertices(), "different root elements.")
+            print("    The root system now contains", root_g.nb_vertices()-1, "different root elements.")
 
         # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
         ###################################################
@@ -938,7 +1041,7 @@ def run_simulation(my_path=None,
             initial_shoot_labile_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
             initial_shoot_labile_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
 
-            print("    The shoot system initially contains", shoot_g.nb_vertices(), "elements.")
+            print("    The shoot system initially contains", shoot_g.nb_vertices()-1, "elements.")
             print("\n    Shoot labile C pool is initially",
                   "{:.2E}".format(Decimal(initial_shoot_labile_C)),
                   "gC and shoot labile N pool is",
@@ -1175,23 +1278,24 @@ def run_simulation(my_path=None,
                                                                shoot_MTG=shoot_g,
                                                                time_step_in_seconds=time_step_in_seconds)
 
-            print("    The shoot system now contains", shoot_g.nb_vertices(), "different shoot elements.")
+            print("    The shoot system now contains", shoot_g.nb_vertices()-1, "different shoot elements.")
             print("    Shoot labile C pool is now",
                   "{:.2E}".format(Decimal(plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)),
                   "gC and labile N pool is",
                   "{:.2E}".format(Decimal(plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)), "gN.")
 
-        # CHECKING C & N BALANCE AND RECORDING:
-        #######################################
+        # CHECKING C & N BALANCE:
+        #########################
 
-        net_shoot_C_variation_rate = (total_photosynthesis_rate
-                                      - total_maintenance_rate
-                                      - C_consumption_rate_for_extension
-                                      - total_C_costs_for_new_phytomers / time_step_in_seconds
-                                      - C_cost_for_new_ramification / time_step_in_seconds)
-        expected_shoot_labile_C_pool = initial_shoot_labile_C + net_shoot_C_variation_rate * time_step_in_seconds
-        print("    The expected shoot labile C pool is",
-              "{:.2E}".format(Decimal(expected_shoot_labile_C_pool)), "gC per plant.")
+        # We compute the current amounts of total C and N in the shoots and roots, and compare it with the previous ones
+        # when altered by the new inputs and outputs computed at this time step:
+        shoot_total_C, root_total_C, shoot_total_N, root_total_N \
+            = balance_check(plant,
+                            time_step_in_seconds = time_step_in_seconds,
+                            previous_shoot_C = shoot_total_C,
+                            previous_root_C = root_total_C,
+                            previous_shoot_N = shoot_total_N,
+                            previous_root_N = root_total_N)
         print("")
 
         # PLOTTING ONE SINGLE PLANT OVER TIME:

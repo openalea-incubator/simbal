@@ -98,14 +98,6 @@ def summing_in_root_system(root_system, root_MTG, resetting_rates=False):
         r.root_external_surface += n.external_surface
         r.root_exchange_surface += n.exchange_surface
 
-        # TODO: The following may not be needed as the functions should have updated the rate of the whole root system as well
-        # r.N_uptake_rate += n.N_uptake_rate
-        # r.N2_fixation_rate += n.N2_fixation_rate
-        # r.C_rhizodeposition_rate += n.C_rhizodeposition_rate
-        # r.N_rhizodeposition_rate += n.N_rhizodeposition_rate
-        # r.actual_C_consumption_rate_by_root_growth = 0.  # gC per plant per second
-        # r.actual_N_consumption_rate_by_root_growth = 0.  # gN per plant per second
-
     # If required, we can reset the rates to 0:
     if resetting_rates:
         r.net_C_transfer_from_shoot_to_root_rate = 0.  # gC per plant per second
@@ -123,30 +115,30 @@ def summing_in_root_system(root_system, root_MTG, resetting_rates=False):
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
-
-def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60):
-    """
-    This simple function updates the pool of labile C in the root system (gC) with the rate of net C exchange
-    from shoots to roots.
-    Parameters
-    ----------
-    root_system: the object containing the general properties of the root system
-    time_step_in_seconds: the time step to be used, in seconds
-
-    Returns
-    -------
-    [Nothing is returned, the root system has been updated with the new labile C pool]
-
-    """
-
-    # We update the labile pool:
-    root_system.root_labile_C_pool += root_system.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds # gC per root system
-    if root_system.root_labile_C_pool < 0.:
-        print("    WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
-        root_system.root_labile_C_deficit = - root_system.root_labile_C_pool
-        root_system.root_labile_C_pool = 0.
-
-    return
+#
+# def updating_root_labile_C_with_input(root_system, time_step_in_seconds = 60*60):
+#     """
+#     This simple function updates the pool of labile C in the root system (gC) with the rate of net C exchange
+#     from shoots to roots.
+#     Parameters
+#     ----------
+#     root_system: the object containing the general properties of the root system
+#     time_step_in_seconds: the time step to be used, in seconds
+#
+#     Returns
+#     -------
+#     [Nothing is returned, the root system has been updated with the new labile C pool]
+#
+#     """
+#
+#     # We update the labile pool:
+#     root_system.root_labile_C_pool += root_system.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds # gC per root system
+#     if root_system.root_labile_C_pool < 0.:
+#         print("    WATCH OUT: after exchange with shoots, the labile C pool is negative - we reset it to 0!")
+#         root_system.root_labile_C_deficit = - root_system.root_labile_C_pool
+#         root_system.root_labile_C_pool = 0.
+#
+#     return
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calculating root exchange surface in each root segment and at the scale of the whole root system:

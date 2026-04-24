@@ -10,3 +10,4 @@ scipy
 
 # Data utilities
 pyvista
+imageio

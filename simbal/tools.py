@@ -92,6 +92,30 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         leaf_shape = pgl.Scaled(leaf_scale, shape)
         return leaf_shape
 
+    def rapeseed_leafshape(length=1., width=1.):
+        sc_factor = 3.
+        pts = lambda x, y, z: pgl.Vector4(x / sc_factor, y / sc_factor, z / sc_factor, 1.0)
+        r1 = [pts(0, 0, 0), pts(7, -0.5, 1), pts(3, -3, 2), pts(1.5, -5, 2.75), pts(-1, 0, 3)]
+        r2 = [pts(0, 0, 0), pts(7, 0.5, 1), pts(3, 3, 2), pts(1.5, 5, 2.75), pts(-1, 0, 3)]
+        m = pgl.Point4Matrix([r1, r2])
+        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
+        # We scale the shape according to the specified width and length:
+        leaf_scale = pgl.Vector3(length*param.leaf_width_to_length_ratio, length*param.leaf_width_to_length_ratio, length)
+        leaf_shape = pgl.Scaled(leaf_scale, shape)
+        return (leaf_shape)
+
+    def fababean_leafletshape(length=1., width=1.):
+        sc_factor = 3.173
+        pts = lambda x, y, z: pgl.Vector4(x / sc_factor, y / sc_factor, z / sc_factor, 1.0)
+        r1 = [pts(0, 0, 0), pts(0, -1, 0.1), pts(0, -2, 1), pts(0, -3, 2), pts(0, -1, 3), pts(0, -1, 3.9), pts(0, 0, 4)]
+        r2 = [pts(0, 0, 0), pts(0, 1, 0.1), pts(0, 2, 1), pts(0, 3, 2), pts(0, 1, 3), pts(0, 1, 3.9), pts(0, 0, 4)]
+        m = pgl.Point4Matrix([r1, r2])
+        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
+        # We scale the shape according to the specified width and length:
+        leaf_scale = pgl.Vector3(1, width, length)
+        leaf_shape = pgl.Scaled(leaf_scale, shape)
+        return (leaf_shape)
+
     def shoot_visitor(g, v, turtle):
 
         # We access the node corresponding to the vertex ID "v" of the MTG "g":
@@ -162,6 +186,12 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
             # D. OPTION WITH DROP SHAPE:
             elif leaf_shape == "drop_shape":
                 turtle.customGeometry(drop_shape(length=length, width=2 * radius))
+            # E. OPTION WITH RAPESEED LEAF SHAPE:
+            elif leaf_shape == "rapeseed_shape":
+                turtle.customGeometry(rapeseed_leafshape(length=length, width=length*param.leaf_width_to_length_ratio))
+            # F. OPTION WITH FABA BEAN LEAFLET SHAPE:
+            elif leaf_shape == "fababean_shape":
+                turtle.customGeometry(fababean_leafletshape(length=length, width=2 * radius))
             # E. OPTION WITH CLASSICAL CYLINDERS:
             else:
                 # We define the radius of the cylinder to be displayed:
