@@ -9,6 +9,10 @@
             "type": "python",
             "request": "launch",
             "module": "enter-your-module-name",
+<<<<<<< HEAD
+=======
+            "console": "internalConsole",
+>>>>>>> frederic
             "justMyCode": true
         }
     ]
