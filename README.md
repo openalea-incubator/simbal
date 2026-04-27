@@ -33,22 +33,32 @@ openalea.plantgl
 openalea.caribu
 openalea.rhizodep
 
-## Install
+### Installation
 
-- First create an environment
+Conda must be installed, please follow the instructions and recommendations [here](https://openalea.readthedocs.io/en/latest/install.html).
 
-mamba create -n simbal -c openalea3 -c conda-forge pyvista openalea.mtg openalea.plantgl alinea.caribu numpy scipy pandas
+#### for user
+Creating a new conda environment with simbal and its dependencies installed
+```bash
+mamba create -n simbal -c openalea3/label/dev -c openalea3 -c conda-forge openalea.simbal
+```
 
-- Activate the env
-
+activate the environment
+```bash
 mamba activate simbal
+```
 
-- Install rhizodep
+#### for developer
+```bash
+mamba env create -f ./conda/environment.yml
+```
 
-git clone https://github.com/openalea/rhizodep
+activate the environment
+```bash
+mamba activate simbal_dev
+```
 
-cd rhizodep
-python setup.py develop
+This will create a conda environment with dependencies installed and install simbal in editable state.
 
 ## Test
 - To run a simulation
