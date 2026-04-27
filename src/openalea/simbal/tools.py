@@ -1151,7 +1151,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
     else:
 
         # We first define the path and the file to read as a .csv:
-        PATH1 = os.path.join('..', original_input_file)
+        PATH1 = os.path.join('../../..', original_input_file)
         # Then we read the file and copy it in a dataframe "df":
         df = pd.read_csv(PATH1, sep=',', header=0)
         # We calculate the number of steps in the final input table to be created:
@@ -1161,7 +1161,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
         # We consider not modifying the current table if it has already the same number of lines as expected
         # with the required time step:
         if do_not_execute_if_file_with_suitable_size_exists:
-            PATH2 = os.path.join('..', 'input_file.csv')
+            PATH2 = os.path.join('../../..', 'input_file.csv')
             previous_file = pd.read_csv(PATH2, sep=',', header=0)
             if len(previous_file['step_number']) == n_steps:
                 print("There is already an 'input_file.csv' of proper length for this tutorial, "
