@@ -67,5 +67,5 @@ This will create a conda environment with dependencies installed and install sim
     * launch ipython
         ipython
         %gui qt
-        %run simbal/simbal_orchestrator.py 
+        %run src/openalea/simbal/simbal_orchestrator.py 
 
