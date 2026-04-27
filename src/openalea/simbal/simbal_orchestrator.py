@@ -9,10 +9,10 @@
 
 import AllocF as AllocF
 import RootSimple as RootSimple
-import simbal_parameters as param
+import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.parameters as rhizodep_param
 
-from tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
+from openalea.simbal.tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
                    recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant)
                    # create_a_scene_with_plants_population)
 

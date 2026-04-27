@@ -12,7 +12,7 @@ from openalea.mtg.plantframe import color
 from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
 
-import simbal_parameters as param
+import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.model as rhizodep_param
 
 import os

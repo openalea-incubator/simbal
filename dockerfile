@@ -14,7 +14,7 @@ RUN mamba install -y  -c conda-forge python==3.9.15
 # Specifying the install packages in specific order instead of .yml file
 RUN mamba install -y -c openalea3 -c conda-forge openalea.plantgl openalea.mtg
 
-RUN mamba install -y -c openalea3 -c conda-forge alinea.caribu
+RUN mamba install -y -c openalea3 -c conda-forge openalea.caribu
 
 #RUN mamba install -y -c conda-forge xarray==2023.3.0 dask==2023.3.2 bottleneck==1.3.7
 
