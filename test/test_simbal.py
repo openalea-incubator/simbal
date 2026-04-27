@@ -1,3 +1,3 @@
 import pytest
 
-from simbal import simbal
+from openalea.simbal.tools import get_shoot_visitor
