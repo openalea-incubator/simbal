@@ -1,4 +1,9 @@
-<<<<<<< HEAD
+[![Docs](https://readthedocs.org/projects/simbal/badge/?version=latest)](https://simbal.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://github.com/openalea-incubator/simbal/actions/workflows/openalea_ci.yml/badge.svg)](https://github.com/openalea-incubator/simbal/actions/workflows/openalea_ci.yml)
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
+[![Anaconda-Server Badge](https://anaconda.org/openalea3/openalea.simbal/badges/version.svg)](https://anaconda.org/openalea3/openalea.simbal)
+[![License](https://img.shields.io/badge/License--CeCILL-C-blue)](https://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html)
+
 # Simbal
 FSPM model for crop mixture with root and shoot, integrating C & N cycle
 
@@ -25,8 +30,8 @@ openpyxl
 pyvista
 openalea.mtg
 openalea.plantgl
-alinea.caribu
-rhizodep
+openalea.caribu
+openalea.rhizodep
 
 ## Install
 
@@ -53,4 +58,4 @@ python setup.py develop
         ipython
         %gui qt
         %run simbal/simbal_orchestrator.py 
->>>>>>> frederic
+

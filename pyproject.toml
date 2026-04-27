@@ -84,9 +84,10 @@ channels = [
   "conda-forge"
 ]
 dependencies = [
-  " openalea.plantgl",
-  " openalea.mtg",
-  " openalea.caribu",
+  "openalea.plantgl",
+  "openalea.mtg",
+  "openalea.caribu",
+  "openalea.rhizodep",
 ]
 
 [project.urls]

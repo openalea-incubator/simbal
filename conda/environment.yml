@@ -5,8 +5,9 @@ channels:
 dependencies:
   - python
   - pip
-  -  openalea.plantgl
-  -  openalea.mtg
-  -  openalea.caribu
+  - openalea.plantgl
+  - openalea.mtg
+  - openalea.caribu
+  - openalea.rhizodep
   - pip:
       - -e '..[test,dev,doc]'
