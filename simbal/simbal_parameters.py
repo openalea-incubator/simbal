@@ -64,6 +64,9 @@ bud_light_threshold = 350
 # Maximal area of a leaf (square meter):
 LA_max = 0.1
 
+# Maximal area of a cotyledon (square meter):
+cotyledon_surface_max = 0.0002
+
 # Maximal rate of relative increase in leaf surface area (m2 per m2 per day):
 LA_max_relative_increase_per_day = 0.5
 

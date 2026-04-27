@@ -97,6 +97,10 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         pts = lambda x, y, z: pgl.Vector4(x / sc_factor, y / sc_factor, z / sc_factor, 1.0)
         r1 = [pts(0, 0, 0), pts(7, -0.5, 1), pts(3, -3, 2), pts(1.5, -5, 2.75), pts(-1, 0, 3)]
         r2 = [pts(0, 0, 0), pts(7, 0.5, 1), pts(3, 3, 2), pts(1.5, 5, 2.75), pts(-1, 0, 3)]
+
+        r1 = [pts(0, 0, 0), pts(3, -0.5, 1), pts(3, -3, 2), pts(1.5, -5, 2.75), pts(-1, 0, 3)]
+        r2 = [pts(0, 0, 0), pts(3, 0.5, 1), pts(3, 3, 2), pts(1.5, 5, 2.75), pts(0, 0, 3)]
+
         m = pgl.Point4Matrix([r1, r2])
         shape = pgl.BezierPatch(m, ustride=9, vstride=2)
         # We scale the shape according to the specified width and length:
@@ -140,10 +144,27 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
 
         # 1) CASE OF A LEAF:
         # -------------------
-        # In the current element corresponds to a leaf:
+        # In the current element corresponds to a leaf or a cotyledon:
         if n.label == 'Leaf' or n.label == "Fallen_leaf":
+            # COTYLEDON:
+            if n.type == "Cotyledon":
+                # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
+                # to be displayed:
+                turtle.f(length / 2.)
+                # We also need to rotate the turtle so that the oval is correctly oriented:
+                turtle.down(90)
+                # Finally, we print the oval shape according to the length and radius of the leaf:
+                turtle.customGeometry(oval_shape(length=length, width=length))
+                # We reposition the turtle at the base of the leaf:
+                # We first revert the angle:
+                turtle.down(-90)
+                # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
+                turtle.down(180)
+                turtle.f(length / 2.)
+                # And finally, we reorientate the turtle:
+                turtle.down(180)
             # A. OPTION WITH OVAL SHAPE:
-            if leaf_shape == "oval":
+            elif leaf_shape == "oval":
                 # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
                 # to be displayed:
                 turtle.f(length / 2.)
@@ -959,8 +980,11 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                 if n.label=="Fallen_leaf":
                     # If the leaf has fallen, we print in grey, semi-transparent:
                     shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
+                elif n.type=="Hypocotyle":
+                    # If the leaf has fallen, we print in grey, semi-transparent:
+                    shapes[vid].appearance = pgl.Material([200,220,200], transparency=0.2)
                 else:
-                    shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.3)
+                    shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
 
     # We add each shape of the current MTG to the final scene:
     for shape in shoot_scene:

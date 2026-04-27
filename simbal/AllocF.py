@@ -153,6 +153,8 @@ def ADDING_A_PHYTOMER(parent_element,
     leaf.angle_roll = 0.
     # We calculate the surface, assuming the leaf is an ellipse characterized by its length and width:
     leaf.surface = leaf.length / 2. * leaf.radius * pi
+    # We define the maximal surface of the new leaf:
+    leaf.surface_max = param.LA_max
     # We calculate the volume, taking into account a minimal thickness:
     leaf.volume = leaf.surface * minimal_leaf_thickness
     leaf.struct_mass = leaf.volume * struct_mass_density
@@ -286,9 +288,11 @@ def new_phytomers_initiation(shoot_system,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to generate an initial MTG with a certain number of leaves and corresponding internodes:
-def create_shoot_MTG(number_of_phytomers=3,
+def create_shoot_MTG(number_of_cotyledons=2,
+                     number_of_phytomers=3,
                      initial_leaf_length=0.003,
-                     initial_internode_radius=0.001,
+                     initial_internode_radius = 0.001,
+                     initial_hypocotyle_length = 0.01,
                      initial_internode_height = 0.0005,
                      initial_labile_C_content = 0.001,
                      initial_labile_N_content = 0.0001,
@@ -298,8 +302,10 @@ def create_shoot_MTG(number_of_phytomers=3,
 
     Parameters
     ----------
+    number_of_phytomers: the number of cotyledons to be created
     number_of_phytomers: the number of successive phytomers to be created
     initial_leaf_length: the length of the leaves to be created (meters)
+    leaf_surface_max: the maximal surface that the leaves will be allowed to reach (useful for cotyledons)
     initial_internode_radius: the radius of the internodes to be created (meters)
     initial_internode_height: the height of the internodes to be created (meters)
     struct_mass_density: the density of the structural mass (gDW per cubic meter)
@@ -316,11 +322,12 @@ def create_shoot_MTG(number_of_phytomers=3,
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
                               label='Base_of_the_root_system',
+                              type="Hypocotyle",
                               # Geometry:
                               radius=initial_internode_radius,
                               potential_radius=initial_internode_radius,
-                              length=0.001,
-                              potential_length=0.001,
+                              length=initial_hypocotyle_length,
+                              potential_length=initial_hypocotyle_length,
                               angle_down=0.,
                               angle_roll=0.,
                               x1=0.,
@@ -371,6 +378,27 @@ def create_shoot_MTG(number_of_phytomers=3,
     new_internode.actual_time_since_formation = 0.
     new_internode.thermal_time_since_formation = 0.
 
+    # For each new cotyledon to be created:
+    for i in range(0, number_of_cotyledons):
+        # We first create a very small internode, and then a connected cotyledon and a bud: # TODO: Should we remove the bud
+        [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
+                                                               struct_mass_density=struct_mass_density,
+                                                               minimal_leaf_thickness=minimal_leaf_thickness,
+                                                               internode_radius=new_internode.radius * 0.9,
+                                                               internode_length=0.0001,
+                                                               leaf_length=initial_leaf_length,
+                                                               bud_length=0.,
+                                                               properties_identical_to_parent = True)
+        # We set the thermal time since the phytomer formed according to the phyllochron:
+        new_internode.thermal_time_since_formation = 0.
+        new_leaf.thermal_time_since_formation = 0.
+        new_bud.thermal_time_since_formation = 0.
+        # We define the type of the internode:
+        new_internode.type = "Cotyledon_supporting_segment"
+        # We define the leaf as a cotyledon:
+        new_leaf.type = "Cotyledon"
+        new_leaf.surface_max = param.cotyledon_surface_max
+
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
         # We first create an internode, and then a connected leaf and a bud:
@@ -386,6 +414,10 @@ def create_shoot_MTG(number_of_phytomers=3,
         new_internode.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
         new_leaf.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
         new_bud.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
+        # We set the type of the elements of this phytomer as normal:
+        new_internode.type= "Normal"
+        new_leaf.type = "Normal"
+        new_bud.type = "Normal"
 
     # Finally, on the last internode, we add a new apex that may continue to form new phytomers over the simulation:
     new_apex = ADDING_A_CHILD_ORGAN(parent_element=new_internode,
@@ -938,7 +970,6 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
 #-----------------------------------------------------------------------------------------------------------------------
 def potential_shoot_growth(shoot_MTG,
                            SFQN = 1,
-                           LA_max = 10,
                            leaf_minimal_thickness = 1e-3,
                            elong_internode = 5e-7,
                            plant_age = 0.,
@@ -948,8 +979,6 @@ def potential_shoot_growth(shoot_MTG,
     This function computes the potential increase in volume of each organ in the shoot system.
     :param shoot_MTG: the MTG corresponding to the shoot system
     :param SFQN: the slope of the relationship of Leaf area = f(labile_N) (m2 per gN)
-    :param LA_max: the maximal area for a leaf (m2)
-    #TODO: should the leaf stop growing after a predetermined duration, instead of after reaching the LA_max?
     :param leaf_minimal_thickness: the minimal thickness of a leaf (meter)
     :param elong_internode: a potential rate of elongation (meter per second)
     :param time_step_in_seconds: the time step of the simulation (seconds)
@@ -984,8 +1013,8 @@ def potential_shoot_growth(shoot_MTG,
         if n.label == "Leaf":
             # We calculate the potential surface based on the available N in the leaf:
             potential_leaf_surface = SFQN * n.labile_N
-            # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than LA_max:
-            potential_surface_increase = min(potential_leaf_surface - n.surface, LA_max - n.surface)
+            # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
+            potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
             # We calculate the maximal surface increase (m2), knowing that the surface increase cannot become higher
             # than the maximal increase rate allowed:
             maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day * thermal_time_step_in_days

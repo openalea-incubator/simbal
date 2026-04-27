@@ -170,9 +170,11 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
 
         # CASE 1: The expected C transfered from shoot to root is positive, but there is not enough C in the shoot:
         if expected_C_exchange > net_shoot_C:
-            # Then the amount of C exchanged is limited to the amount of C available in shoots:
-            net_final_C_exchange = net_shoot_C
-            print("WATCH OUT: all the C from shoots has been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_final_C_exchange)), "gC!")
+            # Then the amount of C exchanged is limited to a fraction of the amount of C available in shoots:
+            fraction = 0.5
+            net_final_C_exchange = net_shoot_C * fraction
+            print("WATCH OUT: all the C from shoots should have been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_final_C_exchange)), "gC!")
+            print("We therefore allocated only", fraction*100,"% of it to the roots." )
         # CASE 2: The flow from root to shoot is positive but there is not enough C in the root to sustain it:
         elif expected_C_exchange < 0. and abs(expected_C_exchange) > net_root_C:
             # Then the amount of C exchanged is limited to the amount of C available in roots:
@@ -197,7 +199,6 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
             net_shoot_N = 0.
         if net_root_N < 0.:
             net_root_N = 0.
-            print("WATCH OUT: we cannot allow the net root N to become negative!")
 
         # If N is to be exchanged by diffusion based on the labile pools in shoots and roots:
         if N_option == "by_diffusion":
@@ -243,9 +244,11 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
 
         # CASE 1: The expected N transfered from root to shoot is positive, but there is not enough N in the root:
         if expected_N_exchange > net_root_N:
-            # Then the amount of N exchanged is limited to the amount of N available in roots:
-            net_final_N_exchange = net_root_N
-            print("WATCH OUT: all the N from roots has been allocated to shoots!")
+            # Then the amount of N exchanged is limited to a fraction of the amount of N available in roots:
+            fraction = 0.5
+            net_final_N_exchange = net_root_N * fraction
+            print("WATCH OUT: all the N from roots should have been allocated to shoots!")
+            print("We therefore allocated only", fraction*100,"% of it to the roots." )
         # CASE 2: The flow from shoot to root is positive but there is not enough N in the shoot to sustain it:
         elif expected_N_exchange < 0. and -expected_N_exchange > net_shoot_N:
             # Then the amount of N exchanged is limited to the amount of N available in shoots:
@@ -644,6 +647,7 @@ def run_simulation(my_path=None,
                                           initial_internode_height=0.,
                                           initial_internode_radius=0.,
                                           initial_leaf_length=0.,
+                                          leaf_surface_max=0.,
                                           initial_labile_C_content=0,
                                           initial_labile_N_content=0
                                           )
@@ -654,13 +658,16 @@ def run_simulation(my_path=None,
     # Otherwise, a fully functional shoot MTG is created:
     else:
         # We create a MTG "shoot_g" corresponding to the shoot (stem and leaves):
-        shoot_g = AllocF.create_shoot_MTG(number_of_phytomers=2,
+        shoot_g = AllocF.create_shoot_MTG(number_of_cotyledons=2, # We define two cotyledons
+                                          number_of_phytomers=0,
+                                          initial_internode_radius=rhizodep_param.D_ini / 2.,
+                                          initial_hypocotyle_length=0.005,
                                           initial_internode_height=0.0001,
-                                          initial_internode_radius=rhizodep_param.D_ini/2.,
                                           initial_leaf_length=0.003,
                                           initial_labile_C_content=initial_shoot_labile_C_concentration,
                                           initial_labile_N_content=initial_shoot_labile_N_concentration
                                           )
+
         # We update the shoot system general properties based on the shoot MTG:
         for vid in shoot_g.vertices_iter(scale=1):
             n = shoot_g.node(vid)
@@ -688,7 +695,8 @@ def run_simulation(my_path=None,
     # Otherwise, a fully functional root MTG is created:
     else:
         # We create another MTG corresponding to the root system:
-        root_g = RootSimple.initiate_mtg(initial_segment_length=0.003)
+        root_g = RootSimple.initiate_mtg(initial_segment_length=param.segment_length,
+                                         initial_apex_length=0.001)
         # We reinitialize the variables in the root MTG:
         RootSimple.reinitializing_growth_variables(root_g)
         # We update the distance from tip for each root element in each root axis:
@@ -1191,9 +1199,7 @@ def run_simulation(my_path=None,
 
             # ORGAN EXTENSION; We calculate the possible increase in volume of each organ:
             AllocF.potential_shoot_growth(shoot_g,
-                                          SFQN=param.SFQN,
-                                          # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
-                                          LA_max=param.LA_max,
+                                          SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                           leaf_minimal_thickness=param.leaf_minimal_thickness,
                                           elong_internode=param.elong_internode,
                                           time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
@@ -1333,7 +1339,7 @@ def run_simulation(my_path=None,
                              grid=False,
                              leaf_shape=param.leaf_shape,
                              background_color=[94, 76, 64],
-                             single_color_shoot=[100,200,100],
+                             single_color_shoot=[30,120,60],
                              single_color_root=[200,200,100],
                              # single_color_shoot=None,
                              # single_color_root=None,
