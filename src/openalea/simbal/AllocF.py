@@ -17,7 +17,7 @@ import openalea.plantgl.all as pgl
 from openalea.caribu.CaribuScene import CaribuScene
 from openalea.caribu.data_samples import data_path
 
-import openalea.simbal.simbal_parameters as param
+from openalea.simbal import simbal_parameters as param
 from openalea.simbal.tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
                    circle_coordinates, updating_coordinates, create_a_scene_with_plants_popuplation,
                    plotting_shoot_MTG, plotting_shoots_with_pyvista)
