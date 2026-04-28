@@ -17,8 +17,8 @@ import openalea.plantgl.all as pgl
 from openalea.caribu.CaribuScene import CaribuScene
 from openalea.caribu.data_samples import data_path
 
-import simbal_parameters as param
-from tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
+from openalea.simbal import simbal_parameters as param
+from openalea.simbal.tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
                    circle_coordinates, updating_coordinates, create_a_scene_with_plants_popuplation,
                    plotting_shoot_MTG, plotting_shoots_with_pyvista)
 
@@ -522,7 +522,7 @@ def computing_light_interception(shoot_MTG,
                                                           leaf_shape=leaf_shape,
                                                           upscaling_factor=100)
 
-    # # EXAMPLES FROM ALINEA:
+    # # EXAMPLES FROM openalea:
     # can = str(data_path('f331s1_100plantes.can'))
     # opts = map(str, [data_path('par.opt'), data_path('nir.opt')])
     # pattern = str(data_path('filter.8'))
@@ -2512,7 +2512,7 @@ if __name__ == '__main__':
     #
     # # We create the Caribu scene and run the light interception:
     # # from openalea.plantgl.all import Scene as pglScene, Viewer
-    # # from alinea.caribu.caributriangleset import AbstractCaribuTriangleSet, CaribuTriangleSet
+    # # from openalea.caribu.caributriangleset import AbstractCaribuTriangleSet, CaribuTriangleSet
     # # scene = CaribuTriangleSet(scene_to_cscene(scene))
     # cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #, opt=opts)
     # raw, agg = cs.run(infinite=False, simplify=False, direct=True)

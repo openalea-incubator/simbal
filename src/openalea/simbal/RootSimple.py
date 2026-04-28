@@ -15,9 +15,9 @@ from openalea.rhizodep.model import (volume_and_external_surface_from_radius_and
                                      potential_growth, segmentation_and_primordia_formation, root_hairs_dynamics,
                                      initiate_mtg)
 
-import simbal_parameters as param
+import openalea.simbal.simbal_parameters as param
 
-from tools import temperature_modification
+from openalea.simbal.tools import temperature_modification
 
 from math import sqrt, pi, floor, exp, isnan
 from decimal import Decimal

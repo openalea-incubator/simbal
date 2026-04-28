@@ -1,4 +1,9 @@
-<<<<<<< HEAD
+[![Docs](https://readthedocs.org/projects/simbal/badge/?version=latest)](https://simbal.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://github.com/openalea-incubator/simbal/actions/workflows/openalea_ci.yml/badge.svg)](https://github.com/openalea-incubator/simbal/actions/workflows/openalea_ci.yml)
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
+[![Anaconda-Server Badge](https://anaconda.org/openalea3/openalea.simbal/badges/version.svg)](https://anaconda.org/openalea3/openalea.simbal)
+[![License](https://img.shields.io/badge/License--CeCILL-C-blue)](https://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html)
+
 # Simbal
 FSPM model for crop mixture with root and shoot, integrating C & N cycle
 
@@ -25,25 +30,35 @@ openpyxl
 pyvista
 openalea.mtg
 openalea.plantgl
-alinea.caribu
-rhizodep
+openalea.caribu
+openalea.rhizodep
 
-## Install
+### Installation
 
-- First create an environment
+Conda must be installed, please follow the instructions and recommendations [here](https://openalea.readthedocs.io/en/latest/install.html).
 
-mamba create -n simbal -c openalea3 -c conda-forge pyvista openalea.mtg openalea.plantgl alinea.caribu numpy scipy pandas
+#### for user
+Creating a new conda environment with simbal and its dependencies installed
+```bash
+mamba create -n simbal -c openalea3/label/dev -c openalea3 -c conda-forge openalea.simbal
+```
 
-- Activate the env
-
+activate the environment
+```bash
 mamba activate simbal
+```
 
-- Install rhizodep
+#### for developer
+```bash
+mamba env create -f ./conda/environment.yml
+```
 
-git clone https://github.com/openalea/rhizodep
+activate the environment
+```bash
+mamba activate simbal_dev
+```
 
-cd rhizodep
-python setup.py develop
+This will create a conda environment with dependencies installed and install simbal in editable state.
 
 ## Test
 - To run a simulation
@@ -52,5 +67,4 @@ python setup.py develop
     * launch ipython
         ipython
         %gui qt
-        %run simbal/simbal_orchestrator.py 
->>>>>>> frederic
+        %run src/openalea/simbal/simbal_orchestrator.py 

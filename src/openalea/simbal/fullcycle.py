@@ -13,9 +13,9 @@ import pandas
 import math
 
 import openalea.plantgl.all as pgl
-from alinea.caribu.CaribuScene import CaribuScene
+from openalea.caribu.CaribuScene import CaribuScene
 
-from colzette_lib import *
+from openalea.simbal.colzette_lib import *
 
 def generate_centered_mesh_points(n):
     side_length = int(math.sqrt(n))

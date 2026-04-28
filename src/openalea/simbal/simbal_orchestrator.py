@@ -7,27 +7,18 @@
     :license: see LICENSE for details.
 """
 
-import openalea.mtg
-from openalea.mtg import *
-from openalea.mtg import turtle as turt
-from openalea.mtg.traversal import pre_order, post_order
-from openalea.mtg.plantframe import color
-import openalea.plantgl.all as pgl
-
 import AllocF as AllocF
 import RootSimple as RootSimple
-import simbal_parameters as param
+import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.parameters as rhizodep_param
 
-from tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
-                   recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant,
-                   get_shoot_visitor, get_root_visitor)
+from openalea.simbal.tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
+                   recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant)
                    # create_a_scene_with_plants_population)
 
 import os
-import numpy as np
 import pandas as pd
-from math import sqrt, pi, floor, trunc, ceil, exp, isnan, cos, sin, acos
+from math import sqrt, trunc, ceil
 from decimal import Decimal
 
 ########################################################################################################################
