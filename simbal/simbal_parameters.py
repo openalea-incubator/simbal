@@ -17,6 +17,10 @@ random_choice = 2
 # SHOOT SYSTEM:
 ###############
 
+# Supply of resources from seeds:
+rate_of_C_supply_from_seed = 0. # gC per plant per second
+rate_of_C_supply_from_seed = 0. # gN per plant per second
+
 # Specific Carbon Assimilation (gC per micromol of photon):
 SCA = 0.000001
 # Temperature dependence for C assimilation:
@@ -124,6 +128,24 @@ N_labile_content_treshold_for_leaf_fall = 0.
 ########################################################################################################################
 ########################################################################################################################
 
+# SHOOT-ROOT EXCHANGES:
+#######################
+
+# Coefficient of C diffusion from shoots to roots (in gram of dry structural mass per square meter per second):
+C_diffusion_coefficient = 1e-6
+
+# Fraction of the C that should remain in the shoots when all C is supposed to be allocated to the roots (gC per gC):
+fraction_of_shoot_C_leftover_remaining_in_shoots = 0.2
+
+# Coefficient of N diffusion from roots to shoots (in gram of dry structural mass per square meter per second):
+N_diffusion_coefficient = 1e-6
+
+# Fraction of the N that should remain in the roots when all N is supposed to be allocated to the shoots (gN per gN):
+fraction_of_root_N_leftover_remaining_in_roots = 0.
+
+########################################################################################################################
+########################################################################################################################
+
 # ROOTSIMPLE:
 #############
 
@@ -138,12 +160,6 @@ N_uptake_C = 0
 # Soil available nitrogen concentration, for which root nitrogen uptake is half of the maximal rate
 # (gN per gram of soil):
 Km_N_uptake	= 1e-6
-
-# Coefficient of C diffusion from shoots to roots (in gram of dry structural mass per square meter per second):
-C_diffusion_coefficient = 1e-6
-
-# Coefficient of N diffusion from roots to shoots (in gram of dry structural mass per square meter per second):
-N_diffusion_coefficient = 1e-6
 
 # Maximal mass rate of N2 fixation by roots (in gN per second per gram of root structural mass):
 N2_fixation_rate_max = 1e-9

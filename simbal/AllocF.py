@@ -74,7 +74,22 @@ def ADDING_A_CHILD_ORGAN(parent_element,
             setattr(child, attribute, parent_element.properties()[attribute])
         # Otherwise, the properties of the child are set to 0:
         elif nil_properties:
-            setattr(child, attribute, 0)
+            try:
+                # If the attribute of the parent element corresponds to a list:
+                if isinstance(getattr(parent_element, attribute), list):
+                    # Then we set the attribute of the child to an empty list:
+                    setattr(child, attribute, [])
+                # If the attribute of the parent element corresponds to a dictionnary:
+                elif isinstance(getattr(parent_element, attribute), dict):
+                    # Then we set the attribute of the child to an empty dictionnary:
+                    setattr(child, attribute, {})
+                # Otherwise, we assume that this should be a numerical value and set it to 0:
+                else:
+                    setattr(child, attribute, 0)
+            # If the above has not worked, we set the attribute to None in the child:
+            except:
+                setattr(child, attribute, None)
+        # In the worst case scenario, everything is set to NA:
         else:
             setattr(child, attribute, np.NaN)
 
@@ -135,9 +150,15 @@ def ADDING_A_PHYTOMER(parent_element,
     internode.photosynthetic_area = internode.surface
     # We specify the ramification order :
     internode.ramification_order = parent_element.ramification_order
-    # And we reset the time since formation:
+    # We reset the time since formation:
     internode.actual_time_since_formation = 0.
     internode.thermal_time_since_formation = 0.
+    # We initialize the share of light intensity perceived by this organ
+    # compared to the sum of light intensities of all other organs:
+    internode.light_intensity_share = 0.
+    # We initialize a list of previously recorded light intensity shares
+    # (used to calculate the average share over a certain period):
+    internode.previous_light_intensity_shares = []
 
     # 2) We then create a new leaf that is actually a "branch" on the previous internode:
     # ------------------------------------------------------------------------------------
@@ -164,6 +185,12 @@ def ADDING_A_PHYTOMER(parent_element,
     # And we reset the time since formation:
     leaf.actual_time_since_formation = 0.
     leaf.thermal_time_since_formation = 0.
+    # We initialize the share of light intensity perceived by this organ
+    # compared to the sum of light intensities of all other organs:
+    leaf.light_intensity_share = 0.
+    # We initialize a list of previously recorded light intensity shares
+    # (used to calculate the average share over a certain period):
+    leaf.previous_light_intensity_shares = []
 
     # 3) We finally create an axilliary bud that is actually a "branch" on the previous internode:
     # ---------------------------------------------------------------------------------------------
@@ -190,9 +217,15 @@ def ADDING_A_PHYTOMER(parent_element,
     bud.ramification_order = parent_element.ramification_order + 1
     # We set the emergence possibility to False by default:
     bud.emergence_possibility = False
-    # And we reset the time since formation:
+    # We reset the time since formation:
     bud.actual_time_since_formation = 0.
     bud.thermal_time_since_formation = 0.
+    # We initialize the share of light intensity perceived by this organ
+    # compared to the sum of light intensities of all other organs:
+    bud.light_intensity_share = 0.
+    # We initialize a list of previously recorded light intensity shares
+    # (used to calculate the average share over a certain period):
+    bud.previous_light_intensity_shares = []
 
     # Eventually, we redefine the starting coordinates of the internode, leaf and bud as the last point of the parent:
     for element in [internode, leaf, bud]:
@@ -355,6 +388,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               # Other attributes:
                               senescence_status = False,
                               PAR_intercepted=100.,
+                              light_intensity_share=1.,
+                              previous_light_intensity_shares=[],
                               Caribu_Eabs = 0.,
                               Caribu_Ei = 0.,
                               Caribu_area = 0.
@@ -465,7 +500,10 @@ def computing_light_interception(shoot_MTG,
                                  inter_row_distance=0.45,
                                  scene_length=0.3,
                                  scene_width=1.,
-                                 leaf_shape="oval"
+                                 leaf_shape="oval",
+                                 averaging_light_intensity_share=False,
+                                 period_of_light_intensity_averaging_in_days=1,
+                                 time_step_in_days=1/24.
                                  ):
     """
     This function computes the light intercepted by a plant within a specific population design defined by a scene.
@@ -482,6 +520,9 @@ def computing_light_interception(shoot_MTG,
     scene_length: the length of the scene (meters)
     scene_width: the width of the scene (meters)
     leaf_shape: option to design the shape of the leaves to be displayed ('oval', 'typical_leaf_shape', 'unileaflet', 'drop_shape')
+    averaging_light_intensity_share: if True, the property "light_intensity_share" will be computed based on this time step and the light_intensity_share computed previously
+    period_of_light_intensity_averaging_in_days: the period over which the light intensity share should be averaged (days)
+    time_step_in_days: the time step of the simulation (days)
 
     Returns
     -------
@@ -494,7 +535,11 @@ def computing_light_interception(shoot_MTG,
     # We initialize the total PAR intercepted by the shoot (umol of photons per second)
     # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
     total_PAR_intercepted = 0.
+    total_surface = 0.
     sum_of_surfacic_PAR = 0.
+
+    # LIGHT INTERCEPTION BY CARIBU:
+    ###############################
 
     # can = scene3d(g)
     # zenith = [(100, (0, 0, -1))]
@@ -587,19 +632,69 @@ def computing_light_interception(shoot_MTG,
         total_PAR_intercepted = 400
         sum_of_surfacic_PAR = 400
 
-    # COMPUTING THE TOTAL LIGHT INTERCEPTION:
+    # COMPUTING THE DISTRIBUTION OF LIGHT INTENSITY AMONG THE ORGANS:
+    #################################################################
+
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
         n = g.node(vid)
         try:
             n.PAR_intercepted = n.Caribu_Eabs * n.Caribu_area
             total_PAR_intercepted += n.Caribu_Eabs * n.Caribu_area
+            total_surface += n.Caribu_area
             n.surfacic_PAR_intercepted = n.Caribu_Eabs
             sum_of_surfacic_PAR += n.Caribu_Eabs
         except:
             print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
-            n.PAR_intercepted = 20.
-            n.surfacic_PAR_intercepted = 20.
+            print("We therefore set it to 0 umol m-2 s-1.")
+            n.PAR_intercepted = 0.
+            n.surfacic_PAR_intercepted = 0.
+
+    # COMPUTING LIGHT INTENSITY SHARE:
+    ##################################
+
+    # If we need to consider previous light intensity shares:
+    if averaging_light_intensity_share:
+        # Then we will need the number of previous actual shares to include in the calculation of the average share:
+        number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
+
+    # We cover each organ n of the shoot:
+    for vid in g.vertices_iter(scale=1):
+        n = g.node(vid)
+
+        # We first compute the actual share of light intensity for this time step, based on surfacic PAR,
+        # or else based on the share of surfaces within the plant:
+        if sum_of_surfacic_PAR > 0.:
+            new_light_intensity_share = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+        elif total_surface > 0.:
+            new_light_intensity_share = n.Caribu_area / total_surface
+        else:
+            new_light_intensity_share = 0.
+
+        # If we do not take into account previous light intensity share:
+        if not averaging_light_intensity_share:
+            # Then the light intensity share is directly the one that has just been determined
+            # based on the light intercepted at this time step:
+            n.light_intensity_share = new_light_intensity_share
+        # Otherwise, if we need to consider previous light intensity shares:
+        else:
+            # If light was intercepted at this time step, then we add the share of light intentisty for this organ
+            # to the list of previous light intensity shares:
+            if sum_of_surfacic_PAR > 0.:
+                # If the previously recorded list does not contain yet the right number of shares to be averaged:
+                if len(n.previous_light_intensity_shares) < number_of_previous_shares:
+                    # Then we just add the current actual share to the list:
+                    n.previous_light_intensity_shares.append(new_light_intensity_share)
+                else:
+                    # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
+                    n.previous_light_intensity_shares.pop(0)
+                    # And we add at the end of the list the new actual share of light intensity for this time step:
+                    n.previous_light_intensity_shares.append(new_light_intensity_share)
+            # Finally, we calculate the new average light intensity share based on previously computed shares:
+            if len(n.previous_light_intensity_shares) > 0.:
+                n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
+            else:
+                n.light_intensity_share = new_light_intensity_share
 
     return total_PAR_intercepted, sum_of_surfacic_PAR
 #-----------------------------------------------------------------------------------------------------------------------

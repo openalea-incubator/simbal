@@ -1159,7 +1159,7 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for transforming the inputs of the model based on the required time step:
-def formatted_inputs(original_input_file="None", final_input_file='updated_input_file.csv',
+def formatted_inputs(original_input_file=None, final_input_file='updated_input_file.csv',
                      original_time_step_in_days=1., final_time_step_in_days=1./24.,
                      simulation_period_in_days=60., do_not_execute_if_file_with_suitable_size_exists=False):
     """
@@ -1170,14 +1170,20 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
     """
 
     # We mae sure that there is an original input file to be read:
-    if original_input_file == "None":
+    if original_input_file is None:
         print("ERROR: no input file has been provided!")
     else:
 
         # We first define the path and the file to read as a .csv:
-        PATH1 = os.path.join('..', original_input_file)
+        PATH1 = os.path.join(original_input_file)
         # Then we read the file and copy it in a dataframe "df":
-        df = pd.read_csv(PATH1, sep=',', header=0)
+        df = pd.read_csv(PATH1,
+                         sep=',',
+                         header=0,
+                         dtype=float,
+                         low_memory=False)
+        # # We make sure that all variables are considered as float numbers:
+        # df = df.astype("float64")
         # We calculate the number of steps in the final input table to be created:
         n_steps = round(simulation_period_in_days / final_time_step_in_days)
         # print("The total number of steps is", n_steps)
@@ -1185,7 +1191,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
         # We consider not modifying the current table if it has already the same number of lines as expected
         # with the required time step:
         if do_not_execute_if_file_with_suitable_size_exists:
-            PATH2 = os.path.join('..', 'input_file.csv')
+            PATH2 = os.path.join('input_file.csv')
             previous_file = pd.read_csv(PATH2, sep=',', header=0)
             if len(previous_file['step_number']) == n_steps:
                 print("There is already an 'input_file.csv' of proper length for this tutorial, "
@@ -1204,7 +1210,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
         # We create the new, final dataframe that will be used to read the final inputs:
         input_frame = pd.DataFrame(columns=column_names_list)
         # We set the step number and the initial and final time in days:
-        initial_step_number = df["step_number"].iloc[0]
+        initial_step_number = int(df["step_number"].iloc[0])
         input_frame["step_number"] = range(initial_step_number * round(original_time_step_in_days/final_time_step_in_days),
                                            initial_step_number * round(original_time_step_in_days/final_time_step_in_days) + n_steps)
         input_frame["initial_time_in_days"] = input_frame["step_number"] * final_time_step_in_days
@@ -1253,7 +1259,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
                     # Then for each variable in the original table:
                     for variable in input_variables_list:
                         # We record the final mean value of this variable in the final table, by dividing the ponderated
-                        # sum by the total elapsed time over the time step::
+                        # sum by the total elapsed time over the time step:
                         input_frame.loc[j, variable] = dict[variable] / (cumulated_time_in_days + net_elapsed_time_in_days)
 
                     # And we move to the next row in the final table:
@@ -1328,8 +1334,8 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
                     # We reinitialize the counter with the exact time that has not been included yet:
                     cumulated_time_in_days = remaining_time
 
+                # Otherwise we simply increment the cumulated time in days before moving to the next line of the final table:
                 else:
-
                     cumulated_time_in_days += final_time_step_in_days
 
                 # If the number of total lines of the final input frame has been reached:
@@ -1337,6 +1343,7 @@ def formatted_inputs(original_input_file="None", final_input_file='updated_input
                     # Then we stop the loop here:
                     break
 
+    # FINAL RESULTS:
     input_frame.to_csv(final_input_file, na_rep='NA', index=False, header=True)
     print("The new input file adapted to the required time step has been created and saved as 'updated_input_file.csv'.")
     print("")

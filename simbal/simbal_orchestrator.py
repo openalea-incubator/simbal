@@ -97,7 +97,9 @@ class whole_plant(object):
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # We define a function that computes C & N exchanges between shoot and root systems:
-def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, computing_N_exchange=False,
+def computing_shoot_root_exchange_rates(plant,
+                                        computing_C_exchange=False,
+                                        computing_N_exchange=False,
                                         time_step_in_seconds=1*(60*60*24),
                                         C_option="by_diffusion",
                                         N_option="by_diffusion"):
@@ -165,13 +167,13 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
                   "The transfer will correspond to the full amount of labile C in the source.")
             net_C_transfer_from_shoot_to_root_rate = net_shoot_C / time_step_in_seconds
 
-        # We now verify that the net amount transfered would not be higher than the available amount in the source:
+        # We now verify that the net amount transferred would not be higher than the available amount in the source:
         expected_C_exchange = net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds
 
         # CASE 1: The expected C transfered from shoot to root is positive, but there is not enough C in the shoot:
         if expected_C_exchange > net_shoot_C:
             # Then the amount of C exchanged is limited to a fraction of the amount of C available in shoots:
-            fraction = 0.5
+            fraction = param.fraction_of_shoot_C_leftover_remaining_in_shoots
             net_final_C_exchange = net_shoot_C * fraction
             print("WATCH OUT: all the C from shoots should have been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_final_C_exchange)), "gC!")
             print("We therefore allocated only", fraction*100,"% of it to the roots." )
@@ -242,10 +244,10 @@ def computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, compu
         # We now verify that the net amount transferred would not be higher than the available amount in the source:
         expected_N_exchange = net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds
 
-        # CASE 1: The expected N transfered from root to shoot is positive, but there is not enough N in the root:
+        # CASE 1: The expected N transferred from root to shoot is positive, but there is not enough N in the root:
         if expected_N_exchange > net_root_N:
             # Then the amount of N exchanged is limited to a fraction of the amount of N available in roots:
-            fraction = 0.5
+            fraction = param.fraction_of_root_N_leftover_remaining_in_roots
             net_final_N_exchange = net_root_N * fraction
             print("WATCH OUT: all the N from roots should have been allocated to shoots!")
             print("We therefore allocated only", fraction*100,"% of it to the roots." )
@@ -615,8 +617,11 @@ def run_simulation(my_path=None,
                                                 time_step_in_days)
     STARTING_TIME_IN_DAYS = scenario_parameters.get('starting_time_in_days',
                                                 starting_time_in_days)
-    INPUT_FILE = scenario_parameters.get('input_file',
-                                         input_file)
+    if input_file is None:
+        INPUT_FILE = scenario_parameters.get('input_file',
+                                             input_file)
+    else:
+        INPUT_FILE = input_file
     INPUT_FILE_TIME_STEP_IN_DAYS = scenario_parameters.get('input_file_time_step_in_days',
                                                            input_file_time_step_in_days)
     FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT = scenario_parameters.get('forcing_constant_aboveground_environment',
@@ -661,7 +666,7 @@ def run_simulation(my_path=None,
         shoot_g = AllocF.create_shoot_MTG(number_of_cotyledons=2, # We define two cotyledons
                                           number_of_phytomers=0,
                                           initial_internode_radius=rhizodep_param.D_ini / 2.,
-                                          initial_hypocotyle_length=0.005,
+                                          initial_hypocotyle_length=0.002,
                                           initial_internode_height=0.0001,
                                           initial_leaf_length=0.003,
                                           initial_labile_C_content=initial_shoot_labile_C_concentration,
@@ -695,7 +700,7 @@ def run_simulation(my_path=None,
     # Otherwise, a fully functional root MTG is created:
     else:
         # We create another MTG corresponding to the root system:
-        root_g = RootSimple.initiate_mtg(initial_segment_length=param.segment_length,
+        root_g = RootSimple.initiate_mtg(initial_segment_length=0.,
                                          initial_apex_length=0.001)
         # We reinitialize the variables in the root MTG:
         RootSimple.reinitializing_growth_variables(root_g)
@@ -714,6 +719,10 @@ def run_simulation(my_path=None,
 
     # We also initialize the dictionnary containing the general properties of the plant:
     results_dict = recording_main_plant_properties(plant, time_in_days=0.)
+    results_dict["Air temperature (degree_Celsius)"] = "NA"
+    results_dict["Soil temperature (degree_Celsius)"] = "NA"
+    results_dict["Light irradiation (micromol of photons per m2 per second)"] = "NA"
+    results_dict["Soil available N (gN per gDW of soil)"] = "NA"
     plant_data_frame = pd.DataFrame(results_dict, index=[0])
 
     # And we initialize the C and N balance by computing the initial amounts of C and N in the shoots and roots:
@@ -731,7 +740,7 @@ def run_simulation(my_path=None,
                     + plant.root_reserve_N_pool)
 
     # DEFINING THE PERIOD OF SIMULATION:
-    # ---------------------------------
+    # ----------------------------------
 
     # We define the steps of the simulation based on the desired period:
     initial_time = STARTING_TIME_IN_DAYS
@@ -1065,31 +1074,16 @@ def run_simulation(my_path=None,
                                                     inter_row_distance=inter_row_distance,
                                                     scene_length=row_length,
                                                     scene_width=scene_width,
-                                                    leaf_shape=param.leaf_shape)
+                                                    leaf_shape=param.leaf_shape,
+                                                    averaging_light_intensity_share=True,
+                                                    period_of_light_intensity_averaging_in_days=0.5,
+                                                    time_step_in_days=time_step_in_days
+                                                    )
             # We record the PAR intercepted in the properties of the plant:
             plant.total_PAR_intercepted = total_PAR_intercepted
 
             # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
             #########################################
-
-            # # Computing the distribution of light:
-            # #-------------------------------------
-            # # We initialize the total amount of light intercepted by the whole plant:
-            # intercepted_light_by_the_plant = 0.
-            # sum_of_mean_surfacic_PAR = 0.
-            # sum_of_available_C = 0.
-            # # Then we cover each organ n of the shoot:
-            # for vid in shoot_g.vertices_iter(scale=1):
-            #     n = shoot_g.node(vid)
-            #     if n.surface <= 0.:
-            #         continue
-            #     # We compute not only the total intercepted light, but also the sum of the mean surfacic PARs:
-            #     intercepted_light_by_the_plant += n.PAR_intercepted * n.surface
-            #     n.mean_surfacic_PAR = n.PAR_intercepted
-            #     sum_of_mean_surfacic_PAR += n.mean_surfacic_PAR
-            #     sum_of_available_C += n.labile_C - n.labile_C_deficit
-            # if sum_of_mean_surfacic_PAR == 0.:
-            #     print("!!! ERROR: the sum of intercepted PAR could not be assessed!")
 
             # Reallocating labile N within each shoot organ:
             #-----------------------------------------------
@@ -1103,9 +1097,7 @@ def run_simulation(my_path=None,
                     n = shoot_g.node(vid)
                     if n.surface <= 0.:
                         continue
-                    # The new target for labile_N in this organ is calculated according to the relative intercepted light:
-                    fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
-                    labile_N_target = shoot_available_N * fraction
+                    labile_N_target = 0.
                     # We calculate the rate of net N input to this organ corresponding from this redistribution:
                     n.shoot_N_distribution_rate = (labile_N_target - (
                             n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
@@ -1119,8 +1111,9 @@ def run_simulation(my_path=None,
                     n = shoot_g.node(vid)
                     if n.surface <= 0.:
                         continue
-                    # The new target for labile_N in this organ is calculated according to the relative intercepted light:
-                    fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                    # We define the fraction of shoot available N allocated to this organ based on the previously
+                    # computed light intensity share:
+                    fraction = n.light_intensity_share
                     labile_N_target = shoot_available_N * fraction
                     # We calculate the rate of net N input to this organ corresponding from this redistribution:
                     n.shoot_N_distribution_rate = (labile_N_target - (
@@ -1141,9 +1134,7 @@ def run_simulation(my_path=None,
                     n = shoot_g.node(vid)
                     if n.surface <= 0.:
                         continue
-                    # The new target for labile_C in this organ is calculated according to the relative intercepted light:
-                    fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
-                    labile_C_target = shoot_available_C * fraction
+                    labile_C_target = 0.
                     # We calculate the rate of net N input to this organ corresponding from this redistribution:
                     n.shoot_C_distribution_rate = (labile_C_target - (
                             n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
@@ -1157,8 +1148,9 @@ def run_simulation(my_path=None,
                     n = shoot_g.node(vid)
                     if n.surface <= 0.:
                         continue
-                    # The new target for labile_C in this organ is calculated according to the relative intercepted light:
-                    fraction = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                    # We define the fraction of shoot available N allocated to this organ based on the previously
+                    # computed light intensity share:
+                    fraction = n.light_intensity_share
                     labile_C_target = shoot_available_C * fraction
                     # We calculate the rate of net N input to this organ corresponding from this redistribution:
                     n.shoot_C_distribution_rate = (labile_C_target - (
@@ -1359,6 +1351,10 @@ def run_simulation(my_path=None,
 
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
         results_dict = recording_main_plant_properties(plant, final_time_in_days)
+        results_dict["Air temperature (degree_Celsius)"] = air_temperature
+        results_dict["Soil temperature (degree_Celsius)"] = soil_temperature
+        results_dict["Light irradiation (micromol of photons per m2 per second)"] = light_input
+        results_dict["Soil available N (gN per gDW of soil)"] = soil_available_nitrogen
         new_df = pd.DataFrame([results_dict.values()], columns=results_dict.keys())
         plant_data_frame = pd.concat([plant_data_frame, new_df])
         # We record the dataframe as a csv file:
@@ -1380,6 +1376,8 @@ def run_simulation(my_path=None,
 
 if __name__ == '__main__':
 
+    my_path = os.path.dirname(os.getcwd())
     # We run the whole simulation according to the instructions and parameters defined in the 'simbal_parameters.xlsx'
     # file (otherwise, default parameters from the 'simbal_parameters.py' file or from the function will be used):
-    run_simulation()
+    run_simulation(input_file=os.path.join(my_path, "simulation", "inputs", "inputs_over_time.csv"),
+                   input_file_time_step_in_days=1/24.)

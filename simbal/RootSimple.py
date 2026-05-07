@@ -49,8 +49,8 @@ class root_system(object):
         self.C_rhizodeposition_rate = 0. # gC per plant per second
         self.N_rhizodeposition_rate = 0. # gN per plant per second
         self.root_maintenance_respiration_rate = 0. # gC per plant per second
-        self.net_C_immobilization_rate = 0. # gC per plant per second
-        self.net_N_immobilization_rate = 0. # gN per plant per second
+        self.net_root_C_immobilization_rate = 0. # gC per plant per second
+        self.net_root_N_immobilization_rate = 0. # gN per plant per second
         self.actual_C_consumption_rate_by_root_growth = 0. # gC per plant per second
         self.actual_N_consumption_rate_by_root_growth = 0. # gN per plant per second
 
@@ -107,8 +107,8 @@ def summing_in_root_system(root_system, root_MTG, resetting_rates=False):
         r.C_rhizodeposition_rate = 0.  # gC per plant per second
         r.N_rhizodeposition_rate = 0.  # gN per plant per second
         r.root_maintenance_respiration_rate = 0.  # gC per plant per second
-        r.net_C_immobilization_rate = 0.  # gC per plant per second
-        r.net_N_immobilization_rate = 0.  # gN per plant per second
+        r.net_root_C_immobilization_rate = 0.  # gC per plant per second
+        r.net_root_N_immobilization_rate = 0.  # gN per plant per second
         r.actual_C_consumption_rate_by_root_growth = 0.  # gC per plant per second
         r.actual_N_consumption_rate_by_root_growth = 0.  # gN per plant per second
 
@@ -431,7 +431,7 @@ def computing_maintenance_rate(root_system, soil_temperature_in_degree_Celsius=1
 def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degree_Celsius=10.):
     """
     This function computes the rate of net C immobilization into the reserve of the root system (negative if the balance
-     results in a net mobilization). It also computes net N immobilisation. The labile or reserve pools are not updated.
+     results in a net mobilization). It also computes net N immobilization. The labile or reserve pools are not updated.
 
     Parameters
     ----------
@@ -548,8 +548,8 @@ def computing_exchange_rates_with_reserve(root_system, soil_temperature_in_degre
 
     # RECORDING THE RESULTS:
     # -----------------------
-    root_system.net_C_immobilization_rate = C_immobilization_as_reserve_rate - C_mobilization_from_reserve_rate
-    root_system.net_N_immobilization_rate = N_immobilization_as_reserve_rate - N_mobilization_from_reserve_rate
+    root_system.net_root_C_immobilization_rate = C_immobilization_as_reserve_rate - C_mobilization_from_reserve_rate
+    root_system.net_root_N_immobilization_rate = N_immobilization_as_reserve_rate - N_mobilization_from_reserve_rate
 
     return
 
@@ -838,7 +838,7 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
             - r.C_rhizodeposition_rate
             - r.root_maintenance_respiration_rate
             - r.N2_fixation_rate_C_cost
-            - r.net_C_immobilization_rate
+            - r.net_root_C_immobilization_rate
             - r.actual_C_consumption_rate_by_root_growth) * time_step_in_seconds)
     # We reset the root labile C deficit to 0:
     r.root_labile_C_deficit = 0.
@@ -849,10 +849,16 @@ def root_CN_balance(root_system, time_step_in_seconds = 60.*60.):
         # - r.net_N_transfer_from_root_to_shoot_rate
         + r.N_uptake_rate + r.N2_fixation_rate
         - r.N_rhizodeposition_rate
-        - r.net_N_immobilization_rate
+        - r.net_root_N_immobilization_rate
         - r.actual_N_consumption_rate_by_root_growth) * time_step_in_seconds)
     # We reset the root labile N deficit to 0:
     r.root_labile_N_deficit = 0.
+
+    # We update the pool of reserve C:
+    r.root_labile_C_pool += r.net_root_C_immobilization_rate * time_step_in_seconds
+
+    # We update the pool of reserve N:
+    r.root_labile_N_pool += r.net_root_N_immobilization_rate * time_step_in_seconds
 
     # If the pools of C & N are negative, we reset them to 0 and adjust the deficits that will be taken into account
     # at the next step:
