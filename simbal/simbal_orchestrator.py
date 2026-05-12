@@ -675,8 +675,8 @@ def run_simulation(my_path=None,
                                           number_of_phytomers=0,
                                           initial_internode_radius=rhizodep_param.D_ini / 2.,
                                           initial_hypocotyle_length=0.002,
-                                          initial_internode_height=0.0001,
-                                          initial_leaf_length=0.003,
+                                          initial_internode_height=0.,
+                                          initial_leaf_length=0.0005,
                                           initial_labile_C_content=initial_shoot_labile_C_concentration,
                                           initial_labile_N_content=initial_shoot_labile_N_concentration
                                           )
@@ -1173,7 +1173,7 @@ def run_simulation(my_path=None,
             # PHOTOSYNTHESIS:
             # We calculate the rate of C production of each organ based on the PAR intercepted by the plant:
             total_PAR_intercepted, total_photosynthesis_rate = \
-                AllocF.computing_photosynthesis_rate(shoot_g,
+                AllocF.computing_photosynthesis_rate(plant, shoot_g,
                                                      air_temperature_in_degree_Celsius=air_temperature)
             # We record this total photosynthesis rate into the plant object:
             plant.photosynthesized_C_rate = total_photosynthesis_rate
