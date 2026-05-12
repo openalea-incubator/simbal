@@ -83,6 +83,10 @@ def ADDING_A_CHILD_ORGAN(parent_element,
                 elif isinstance(getattr(parent_element, attribute), dict):
                     # Then we set the attribute of the child to an empty dictionnary:
                     setattr(child, attribute, {})
+                # If the attribute of the parent element corresponds to a dictionnary:
+                elif isinstance(getattr(parent_element, attribute), str):
+                    # Then we set the attribute of the child to an empty dictionnary:
+                    setattr(child, attribute, "[Undetermined]")
                 # Otherwise, we assume that this should be a numerical value and set it to 0:
                 else:
                     setattr(child, attribute, 0)
@@ -632,8 +636,8 @@ def computing_light_interception(shoot_MTG,
         total_PAR_intercepted = 400
         sum_of_surfacic_PAR = 400
 
-    # COMPUTING THE DISTRIBUTION OF LIGHT INTENSITY AMONG THE ORGANS:
-    #################################################################
+    # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
+    ################################################################
 
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
@@ -658,6 +662,9 @@ def computing_light_interception(shoot_MTG,
         # Then we will need the number of previous actual shares to include in the calculation of the average share:
         number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
 
+    # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
+    sum_of_light_fractions = 0.
+
     # We cover each organ n of the shoot:
     for vid in g.vertices_iter(scale=1):
         n = g.node(vid)
@@ -678,7 +685,7 @@ def computing_light_interception(shoot_MTG,
             n.light_intensity_share = new_light_intensity_share
         # Otherwise, if we need to consider previous light intensity shares:
         else:
-            # If light was intercepted at this time step, then we add the share of light intentisty for this organ
+            # If light was intercepted at this time step, then we add the share of light intensity for this organ
             # to the list of previous light intensity shares:
             if sum_of_surfacic_PAR > 0.:
                 # If the previously recorded list does not contain yet the right number of shares to be averaged:
@@ -695,6 +702,21 @@ def computing_light_interception(shoot_MTG,
                 n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
             else:
                 n.light_intensity_share = new_light_intensity_share
+
+        # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
+        sum_of_light_fractions += n.light_intensity_share
+
+    # CONTROL & ADJUSTMENTS:
+    # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
+    if abs(sum_of_light_fractions - 1) > 1e-14:
+        print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was not equal to 1!")
+        print("We therefore adjusted each light intensity share to correct this!")
+        # We will adjust the light intensity share of each organ so that their sum is now equal to 1.
+        # We cover each organ n of the shoot:
+        for vid in g.vertices_iter(scale=1):
+            n = g.node(vid)
+            # We adjust the light intensity share so that the sum of all shares now equals 0:
+            n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
 
     return total_PAR_intercepted, sum_of_surfacic_PAR
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1881,19 +1903,17 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
         if n.length <= 0.:
             continue
 
-        # COMPUTING THE NEW RESULTING NET INCREASE RATE IN C & N IN THIS ORGAN:
+        # COMPUTING THE NEW RESULTING NET INCREASE RATE IN C & N IN THIS ORGAN
+        # (WITHOUT CONSIDERING REDISTRIBUTION PROCESSES!):
         # We compute the net rate of C increase in the labile C pool associated to the organ (gC per node per second):
         net_C_increase_rate = (
                 n.photosynthesized_C_rate
-                # TODO: should C_storage_rate be included in the balance of the structural mass or here?
+                #TODO: should C_storage_rate be included in the balance of the structural mass or here?
                 - n.shoot_maintenance_respiration_rate
                 - n.actual_C_consumption_rate_by_shoot_growth
         )
         # We compute the net rate of N increase in the labile N pool associated to the organ:
-        net_N_increase_rate = (
-            - n.shoot_N_mobilization_rate
-            - n.actual_N_consumption_rate_by_shoot_growth
-        )
+        net_N_increase_rate = - n.actual_N_consumption_rate_by_shoot_growth
 
         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE C:
         n.labile_C += net_C_increase_rate * time_step_in_seconds
@@ -1973,7 +1993,8 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     # We also record the summed rates:
     s.photosynthesized_C_rate = total_photosynthesized_C_rate
     s.shoot_maintenance_respiration_rate = total_shoot_maintenance_respiration_rate
-    #TODO: WATCH OUT
+    # #TODO: WATCH OUT - we do not compute plants' actual growth costs since they are calculated elsewhere
+    #  based on the call of each growth function:
     # s.actual_C_consumption_rate_by_shoot_growth = total_actual_C_consumption_rate_by_shoot_growth
     # s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
 

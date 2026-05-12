@@ -284,7 +284,7 @@ def computing_shoot_root_exchange_rates(plant,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for recording the properties of the plant:
-def recording_main_plant_properties(plant, time_in_days):
+def recording_main_plant_properties(plant, shoot_MTG, root_MTG, time_in_days):
     """
     This function records the current properties of the plant object and returns them in a dictionnary.
 
@@ -298,7 +298,7 @@ def recording_main_plant_properties(plant, time_in_days):
     A dictionnary containing the main properties of the plant object (e.g. labile C and N pools, structural mass
     and rates in shoots and roots
     """
-    results_dict = {"Time (days)": time_in_days,
+    results_dict = {"Final time (days)": time_in_days,
                     "Shoot structural mass (gDW)":
                         plant.shoot_struct_mass,
                     "Root structural mass (gDW)":
@@ -382,7 +382,15 @@ def recording_main_plant_properties(plant, time_in_days):
                     "Rate of root net C immobilization (gC per plant per second)":
                         plant.net_root_C_immobilization_rate,
                     "Rate of root net N immobilization (gN per plant per second)":
-                        plant.net_root_N_immobilization_rate
+                        plant.net_root_N_immobilization_rate,
+                    "Number of leaves":
+                        len([vid for vid in shoot_MTG.vertices() if shoot_MTG.node(vid).label == 'Leaf']),
+                    "Number of internodes":
+                        len([vid for vid in shoot_MTG.vertices() if shoot_MTG.node(vid).label == 'Internode']),
+                    "Number of root apices":
+                        len([vid for vid in root_MTG.vertices() if root_MTG.node(vid).label == 'Apex']),
+                    "Number of root segments":
+                        len([vid for vid in root_MTG.vertices() if root_MTG.node(vid).label == 'Segment'])
                     }
     return results_dict
 #-----------------------------------------------------------------------------------------------------------------------
@@ -683,7 +691,7 @@ def run_simulation(my_path=None,
                 plant.shoot_labile_N_pool += n.labile_N
                 plant.shoot_labile_N_deficit += n.labile_N_deficit
             except:
-                print("!!! ERROR: we could compute the initial properties of the shoot element", vid)
+                print("!!! ERROR: we could not compute the initial properties of the shoot element", vid)
         # We add an extra-property to the base of the shoot system, corresponding to the time since the last phytomer
         # was formed (used together with the phyllochron later on):
         shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
@@ -717,12 +725,15 @@ def run_simulation(my_path=None,
         # We record the properties in the initial state of the root MTG in an external file:
         recording_MTG_properties(root_g, os.path.join(root_MTG_directory, 'MTG_00000.csv'))
 
-    # We also initialize the dictionnary containing the general properties of the plant:
-    results_dict = recording_main_plant_properties(plant, time_in_days=0.)
+    # We also initialize the dictionary containing the general properties of the plant:
+    results_dict = recording_main_plant_properties(plant, shoot_g, root_g, time_in_days=0.)
+    # We add a few more entries:
     results_dict["Air temperature (degree_Celsius)"] = "NA"
     results_dict["Soil temperature (degree_Celsius)"] = "NA"
     results_dict["Light irradiation (micromol of photons per m2 per second)"] = "NA"
     results_dict["Soil available N (gN per gDW of soil)"] = "NA"
+    results_dict["Step"] = 0
+    # We initialize a dataframe containing these properties for each time step:
     plant_data_frame = pd.DataFrame(results_dict, index=[0])
 
     # And we initialize the C and N balance by computing the initial amounts of C and N in the shoots and roots:
@@ -765,8 +776,8 @@ def run_simulation(my_path=None,
         initial_step_number = input_frame['step_number'].loc[0]
         initial_time_in_days = input_frame['initial_time_in_days'].loc[0]
     else:
-        # We then initialize the step and time at 0:
-        initial_step_number = 0
+        # We then initialize the step and time at 1:
+        initial_step_number = 1
         initial_time_in_days = 0.
     # In any case, the value of 'step' is initialized:
     step = initial_step_number
@@ -809,8 +820,8 @@ def run_simulation(my_path=None,
     for step in range(initial_step_number, initial_step_number + n_steps):
 
         # We calculate the initial and final time of the current time step (in days):
-        initial_time_in_days = initial_time + (step) * TIME_STEP_IN_DAYS
-        final_time_in_days = initial_time + (step+1) * TIME_STEP_IN_DAYS
+        initial_time_in_days = initial_time + (step - 1) * TIME_STEP_IN_DAYS
+        final_time_in_days = initial_time + (step) * TIME_STEP_IN_DAYS
 
         # DEFINING THE INPUTS AT THIS TIME STEP:
         # --------------------------------------
@@ -1350,11 +1361,12 @@ def run_simulation(my_path=None,
         recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
 
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
-        results_dict = recording_main_plant_properties(plant, final_time_in_days)
+        results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days)
         results_dict["Air temperature (degree_Celsius)"] = air_temperature
         results_dict["Soil temperature (degree_Celsius)"] = soil_temperature
         results_dict["Light irradiation (micromol of photons per m2 per second)"] = light_input
         results_dict["Soil available N (gN per gDW of soil)"] = soil_available_nitrogen
+        results_dict["Step"] = step
         new_df = pd.DataFrame([results_dict.values()], columns=results_dict.keys())
         plant_data_frame = pd.concat([plant_data_frame, new_df])
         # We record the dataframe as a csv file:
