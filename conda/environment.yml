@@ -1,0 +1,13 @@
+name: simbal_dev
+channels:
+  - conda-forge
+  - openalea3
+dependencies:
+  - python
+  - pip
+  - openalea.plantgl
+  - openalea.mtg
+  - openalea.caribu
+  - openalea.rhizodep
+  - pip:
+      - -e '..[test,dev,doc]'

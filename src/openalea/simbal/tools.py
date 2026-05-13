@@ -12,7 +12,7 @@ from openalea.mtg.plantframe import color
 from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
 
-import simbal_parameters as param
+import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.model as rhizodep_param
 
 import os
@@ -1175,7 +1175,7 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
     else:
 
         # We first define the path and the file to read as a .csv:
-        PATH1 = os.path.join(original_input_file)
+        PATH1 = os.path.join('../../..', original_input_file)
         # Then we read the file and copy it in a dataframe "df":
         df = pd.read_csv(PATH1,
                          sep=',',
@@ -1191,7 +1191,7 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
         # We consider not modifying the current table if it has already the same number of lines as expected
         # with the required time step:
         if do_not_execute_if_file_with_suitable_size_exists:
-            PATH2 = os.path.join('input_file.csv')
+            PATH2 = os.path.join('../../..', 'input_file.csv')
             previous_file = pd.read_csv(PATH2, sep=',', header=0)
             if len(previous_file['step_number']) == n_steps:
                 print("There is already an 'input_file.csv' of proper length for this tutorial, "
