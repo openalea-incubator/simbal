@@ -434,6 +434,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_bud.thermal_time_since_formation = 0.
         # We define the type of the internode:
         new_internode.type = "Cotyledon_supporting_segment"
+        new_internode.angle_roll = 180
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
         new_leaf.surface_max = param.cotyledon_surface_max
@@ -586,10 +587,11 @@ def computing_light_interception(shoot_MTG,
         # We open the standard light input file as a dataframe:
         sky = str(data_path('Turtle16soc.light'))
 
-        # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
-        warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
+        # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
+        # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
         reference_light_file = pd.read_csv(sky,
-                                           delim_whitespace=True,
+                                           # delim_whitespace=True,
+                                           delimiter=" ",
                                            header=None)
 
         # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
@@ -1181,7 +1183,7 @@ def potential_shoot_growth(shoot_MTG,
                 potential_elongation_rate = elong_internode * temperature_adjustement
             else:
                 # Otherwise, we only allow only a very slow elongation rate:
-                potential_elongation_rate = elong_internode * temperature_adjustement / 100.
+                potential_elongation_rate = elong_internode * temperature_adjustement / 100. #TODO: change the parameter with the actual elongation before stem elongation
             # Eventually, we record the potential new length:
             n.potential_length = n.length + potential_elongation_rate * time_step_in_seconds
 
@@ -2093,137 +2095,6 @@ def prepare_plants_population(list_of_reference_MTG=[],
 
     return scene_information, list_of_MTG
 
-    ########################################################################################################################
-########################################################################################################################
-
-# Function for creating a scene with uniques shapes ID:
-def create_plants_population_scene(scene_information,
-                                   list_of_MTG,
-                                   scene_length=1.,
-                                   scene_width=1.,
-                                   creating_a_soil_surface=False,
-                                   upscaling_factor=1,
-                                   leaf_shape="oval"):
-
-    """
-    This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
-    to display in the scene. The scene created by this function contains a shape coinciding with each
-    visible plant element and characterized by a unique identifyer. The function also updates the plant MTG with
-    their actual spatial coordinates, and updates the scene information with plant rotation and with the list
-    of initial and reindexed indices of shapes.
-
-    Parameters
-    ----------
-    scene_information: a dictionnary containing a list of plant indices ("plant_id") and a list
-                       of their corresponding positions ("position"), each represented as a tuple (x,y,z)
-    list_of_MTG: a list of plant MTG used to populate the scene
-    scene_length: length of the zone to populate with plants (meters)
-    scene_width: width of the zone to populate with plants (meters)
-    upscaling_factor: a factor by which all dimensions should be multiplied
-                      (e.g. 100 to convert dimensions from meters to centimeters)
-    leaf_shape: a string describing the type of leaf shape to be used (see get_shoot_visitor)
-
-    Returns
-    -------
-
-    scene_information: a dictionnary containing a list of plant indices, a list of their corresponding positions,
-                       a list of their relative rotation, the list of all shapes and the list of all triangles
-                       in the scene, and a dictionnary associating the reindexed ID of shapes with the original ID
-                       in each plant MTG
-    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
-                 has been provided as an input of the function)
-    """
-
-    # We initialize additional properties of scene_information:
-    scene_information["rotation"] = []
-    scene_information["shapes"] = []
-    scene_information["triangles"] = []
-    # We initialize an indexer that will record the correspondance between the initial vid of the MTG and the new,
-    # unique indices of the scene:
-    shapes_indexer = {}
-    # We initialize a lag number that will be used for reindexing the shapes of each individual plant
-    vid_lag = 0
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-    # We initialize the final scene:
-    final_scene = pgl.Scene()
-
-    # We get the list of plant positions from the scene_information:
-    list_of_positions = scene_information["position"]
-
-    # We cover each plant in the population:
-    for plant_index in range(0, len(list_of_positions)):
-
-        # We access the MTG corresponding to the current plant index:
-        new_MTG = list_of_MTG[plant_index]
-
-        # We initialize the indexer for the current plant:
-        shapes_indexer[plant_index] = {}
-
-        # We first define the seed of random, depending on the index of the plant:
-        np.random.seed(int(param.random_choice * plant_index))
-        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-        angle_roll = abs(np.random.normal(180, 180))
-        # We record this rotation in the scene information:
-        scene_information["rotation"].append(angle_roll)
-
-        # We reset the turtle:
-        turtle.reset()
-        # And we reposition the turtle from there:
-        turtle.move(list_of_positions[plant_index])
-        turtle.rollL(angle_roll)
-        # We create a scene for one plant by moving the turtle along the MTG:
-        scene = turt.TurtleFrame(new_MTG,
-                                 visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-                                                           upscaling_factor=upscaling_factor),
-                                 turtle=turtle, gc=False)
-
-        # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene)
-        # We reindex the different shapes by adding the lag number:
-        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene)
-        # And we increment the lag number to reindex the vid of the next plant:
-        vid_lag += len(new_MTG)
-        # We cover each reindexed shape of the original scene corresponding to the MTG of the current plant:
-        for shape_id in reindexed_shapes.keys():
-            # We get the corresponding shape:
-            shape = reindexed_shapes[shape_id]
-            # We access its original id:
-            old_shape_id = shape.id
-            # We modify it with the new id:
-            shape.id = shape_id
-            # We store the correspondence between the new id and the old id:
-            shapes_indexer[plant_index][shape_id] = old_shape_id
-            # Finally, we add the reindexed shape to the final scene:
-            final_scene += shape
-
-        # We record the new shapes:
-        scene_information["shapes"].append(reindexed_shapes)
-    openalea.plantgl
-    # We record the reindexer:
-    scene_information["new_index_to_old_index"] = shapes_indexer
-
-    # We transform the scene into triangles:
-    triangle_scene = pgl_to_triangles(scene)
-    # We record the triangles:
-    scene_information["triangles"].append(triangle_scene)
-
-    if creating_a_soil_surface:
-        # We create a flat soil surface corresponding to the limits of the scene:
-        points = [(0, 0, 0),
-                  (scene_length * upscaling_factor, 0, 0),
-                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-                  (0, scene_width * upscaling_factor, 0)]
-        normals = [(0, 0, 1) for i in range(4)]
-        indices = [(0, 1, 2, 3)]
-        square = pgl.QuadSet(points, indices, normals, indices)
-        # We define the same color for each of the 4 points:
-        square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
-        final_scene += square
-
-    return final_scene, scene_information, list_of_MTG
-#-----------------------------------------------------------------------------------------------------------------------
 ########################################################################################################################
 ########################################################################################################################
 
@@ -2234,8 +2105,8 @@ if __name__ == '__main__':
 
     # We create a reference MTG:
     shoot_g = create_shoot_MTG(number_of_phytomers=3,
-                               initial_internode_height=0.002,
-                               initial_internode_radius=0.0008,
+                               initial_internode_height=0.001,
+                               initial_internode_radius=0.0006,
                                initial_leaf_length=0.003)
 
     # PLOTTING ONE SINGLE PLANT:
@@ -2247,6 +2118,7 @@ if __name__ == '__main__':
                        # leaf_shape="oval",
                        # leaf_shape="typical_leaf_shape",
                        leaf_shape="rapeseed_shape",
+                       petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=zoom_factor,
                        x_center = 0. * zoom_factor,
@@ -2255,12 +2127,13 @@ if __name__ == '__main__':
                        x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
                        grid=False,
                        # background_color=[0, 0, 0],
-                       single_color=[100,150,50],
+                       # single_color=[50,0,0],
+                       property_name='length', cmap='jet', vmin=0, vmax=6e-3, lognorm=False,
                        # property_name='labile_C', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
                        # property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
                        # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
                        # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-                       recording_plot=False
+                       recording_plot=True
                        # plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step)
                        )
     print("Plot done!")

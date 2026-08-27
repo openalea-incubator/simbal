@@ -29,17 +29,34 @@ except ImportError:
 ########################################################################################################################
 
 # Function for moving the turtle and create specific shapes for stems and leaves:
-def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
+def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=False):
     """
     This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
-    :leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
+
+    Parameters
+    ----------
+    leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
     are displayed with a typical leaf curved shape, based on their length only.
-    :return: shoot_visitor
+    upscaling_factor: number by which all dimensions will be multiplied (useful for solving plot resolution issues)
+    petiole_showing: if True, cylinders corresponding to petioles will be shown, in addition to leaf shapes
+
+    Returns
+    -------
+    A shoot_visitor controling the movement of the turtle within the shoot system.
     """
 
     def oval_shape(length=1., width=1.):
         """
         This simple function generates a PlantGL shape of an ellipse, defined by a length and a width.
+
+        Parameters
+        ----------
+        length: length of the shape (m)
+        width: width of the shape (m)
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaf
         """
         # We create first a round disc:
         disc = pgl.Disc()
@@ -50,63 +67,376 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         return shape
 
     def unileaflet(length=1., width=1.):
-        """Generates a unileaflet shape [taken from Colzette].
+        """
+        This function generates a unileaflet shape, defined by a length and a width.
 
-        :param length: length of the shape, defaults to 1.
-        :type length: float, optional
-        :param width: width of the shape, defaults to 1.
-        :type width: float, optional
-        :return: the shape
-        :rtype: pgl.Group
+        Parameters
+        ----------
+        length: length of the shape (m)
+        width: width of the shape (m)
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaf
         """
         disc = pgl.Translated((-0.5, 0, 0), pgl.Disc())
         disc = pgl.Scaled((length, width, 1), disc)
         disc = pgl.AxisRotated(axis=(0, 1, 0), angle=pi / 2., geometry=disc)
-
         d3 = pgl.AxisRotated(axis=(1, 0, 0), angle=0., geometry=disc)
-
         shape = pgl.Group([d3])
         return shape
 
-    def drop_shape(length=1., width=1.):
+    def typical_leaf_shape(length=1.):
         """
-        ...
-        :param length: length of the shape, defaults to 1.
-        :type length: float, optional
-        :param width: width of the shape, defaults to 1.
-        :type width: float, optional
-        :return: the shape
-        :rtype: pgl.Group
+        This function returns a typical leaf shape with empirical curving.
+
+        Parameters
+        ----------
+        length: the length of the leaf (m)
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaf
         """
-        # We define a function giving points in 3D:
-        pts = lambda x, y, z: pgl.Vector4(x, y, z)
-        # We set two symetric curves, each of them will build the contours of one half of the leaf:
-        r1 = [pts(0, 0, 0), pts(3, -0.5, 1), pts(3, -3, 2), pts(-1, -5, 3), pts(-1, 0, 3)]
-        r2 = [pts(0, 0, 0), pts(3, 0.5, 1), pts(3, 3, 2), pts(-1, 5, 3), pts(-1, 0, 3)]
-        # We concatenate the two curves within a matrix of points:
-        m = pgl.Point4Matrix([r1, r2])
-        # We create a smoothened shape from this:
-        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
-        # We scale the shape according to the specified width and length:
-        leaf_scale = pgl.Vector3(1, width, length)
-        leaf_shape = pgl.Scaled(leaf_scale, shape)
-        return leaf_shape
-
-    def rapeseed_leafshape(length=1., width=1.):
-        sc_factor = 3.
-        pts = lambda x, y, z: pgl.Vector4(x / sc_factor, y / sc_factor, z / sc_factor, 1.0)
-        r1 = [pts(0, 0, 0), pts(7, -0.5, 1), pts(3, -3, 2), pts(1.5, -5, 2.75), pts(-1, 0, 3)]
-        r2 = [pts(0, 0, 0), pts(7, 0.5, 1), pts(3, 3, 2), pts(1.5, 5, 2.75), pts(-1, 0, 3)]
-
-        r1 = [pts(0, 0, 0), pts(3, -0.5, 1), pts(3, -3, 2), pts(1.5, -5, 2.75), pts(-1, 0, 3)]
-        r2 = [pts(0, 0, 0), pts(3, 0.5, 1), pts(3, 3, 2), pts(1.5, 5, 2.75), pts(0, 0, 3)]
-
-        m = pgl.Point4Matrix([r1, r2])
-        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
-        # We scale the shape according to the specified width and length:
-        leaf_scale = pgl.Vector3(length*param.leaf_width_to_length_ratio, length*param.leaf_width_to_length_ratio, length)
-        leaf_shape = pgl.Scaled(leaf_scale, shape)
+        scale_factor = length
+        leaf_shape = pgl.NurbsPatch(
+            [[(-0.0241355 * scale_factor, -0.0549754 * scale_factor, -0.00804807 * scale_factor, 1),
+              # (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
+              # (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
+              (-0.00223729 * scale_factor, -0.00247516 * scale_factor, 0.000385988 * scale_factor, 1)],
+             [(0.314084 * scale_factor, -0.472921 * scale_factor, 0.392759 * scale_factor, 1),
+              # (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
+              # (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
+              (0.408856 * scale_factor, 0.483731 * scale_factor, 0.413612 * scale_factor, 1)],
+             [(0.329337 * scale_factor, -0.501345 * scale_factor, 0.730665 * scale_factor, 1),
+              # (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
+              # (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
+              (0.414001 * scale_factor, 0.558038 * scale_factor, 0.74373 * scale_factor, 1)],
+             [(0.00223079 * scale_factor, 0.0223592 * scale_factor, 0.999352 * scale_factor, 1),
+              # (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
+              # (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
+              (-0.0011293 * scale_factor, 0.0361733 * scale_factor, 1.00279 * scale_factor, 1)]])
         return (leaf_shape)
+
+    def rapeseed_leafshape(length=1.):
+        """
+        This function returns a single shape of rapeseed leaf with a petiole and a blade.
+
+        Parameters
+        ----------
+        length: the length of the leaf (m)
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaf
+        """
+
+        # We get all dimensions based on allometry with leaf length:
+        petiole_length = length * param.petiole_to_leaf_length_ratio
+        petiole_diameter = length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio
+        blade_length = length * (1 - param.petiole_to_leaf_length_ratio)
+        blade_length_for_max_width = blade_length * param.relative_length_for_max_width
+        blade_width = length * param.leaf_width_to_length_ratio
+        blade_radius = length * param.blade_radius_to_length_ratio
+
+        # TEST WITH C-SPLINE:
+        # We create points through which the perimeter of the shape will have to pass through:
+        Points=[]        #
+        Points.append((0,
+                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       0))
+        Points.append((petiole_length,
+                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       0))
+        Points.append((petiole_length + blade_length_for_max_width,
+                       blade_width, # The leaf will start at the full petiole width
+                       0))
+        Points.append((petiole_length + blade_length,
+                       0, # The leaf will start at the full petiole width
+                       0))
+        # # If necessary, we add symetrical points to close the curve:
+        # Points.append((petiole_length + blade_length_for_max_width,
+        #                -blade_width, # The leaf will start at the full petiole width
+        #                0))
+        # Points.append((petiole_length,
+        #                -petiole_diameter / 2, # The leaf will start at the full petiole width
+        #                0))
+        # Points.append((0,
+        #                -petiole_diameter / 2, # The leaf will start at the full petiole width
+        #                0))
+        # Points.append((0,
+        #                petiole_diameter / 2, # The leaf will start at the full petiole width
+        #                0))
+        # Now we create a spline that passes through each point:
+        s_curve = pgl.cspline.cspline(Points)
+        # We create the symetric curve:
+        s_curve_neg = pgl.cspline.cspline([(x,-y,z) for (x,y,z) in Points])
+        # TODO: In a perfect word, there would be an easy option here to create a shape from the close spline curve
+        # representing the leaf. For now, we try to make the shape using a Bezier patch,
+        # by getting the control points from the spline:
+        # The Beziers control points should theroretically correspond to the following lists:
+        Bezier_control_points = s_curve.ctrlPointList
+        Bezier_control_points_neg = s_curve_neg.ctrlPointList
+        # We construct a control matrix from these:
+        n = pgl.Point4Matrix([Bezier_control_points, Bezier_control_points_neg])
+        # And we create a Bezier shape based on this control matrix:
+        spline_shape = pgl.BezierPatch(n, ustride=10, vstride=10)
+        # We compare the shape with the spline curve and with the Bezier control points:
+        control_points_line = pgl.Polyline([pgl.Vector3(x,y,z) for (x,y,z,t) in Bezier_control_points])
+        spline_curve = pgl.Shape(s_curve, appearance=pgl.Material(pgl.Color3(150,0,0)))
+        # We plot everything:
+        scene = pgl.Scene()
+        scene += spline_curve
+        scene += control_points_line
+        scene += spline_shape
+        # We show the scene:
+        pgl.Viewer.display(scene)
+        # CONCLUSION: The spline passes through the required points, but the Bezier shape does not follow this curve...
+
+        # USE OF BEZIER CURVES:
+
+        # We quickly define a function for generating appropriate PlantGL vectors:
+        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
+
+        # We define a function for returning the z-coordinate for any x-coordinate
+        # located on the arc made by the leaf blade:
+        def z_arc_coordinate(x, arc_length=1., radius=1.):
+            # We know that the arc length is equal to alpha * radius, where alpha is the angle under the arc, so:
+            alpha = arc_length / radius
+            # We can see that tan((Pi - alpha) / 2) = x/z, so:
+            z = x / np.tan((pi - alpha) / 2.)
+            return z
+
+        # We define the control points of the Bezier surface that will be plotted, and put them in a list.
+        # NOTE: x will react to leaf length, y to leaf width, and z will control the curvature.
+        Points = []
+        # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+        # so that the petiole starts with a certain width:
+        Points.append((0,
+                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       0))
+        # We add two more points for drawing the petiole (at 100% and 150% of petiole length):
+        Points.append((1.00 * petiole_length,
+                       petiole_diameter / 2,
+                       0))
+        # Points.append((1.50 * petiole_length,
+        #                0, # Here we put 0 so that there is a slight narrowing before blade
+        #                0))
+        # We now draw the blade, by adding two points located at 50% and 75% of blade length:
+        Points.append((petiole_length + blade_length_for_max_width*0.75, # 0.50 * blade_length,
+                       1.85 * blade_width,
+                       # To start the blade curving, we compute the z-coordinate based on the radius of the blade.
+                       # However, because the Bezier curve will tend to smoothen the curve for intermediate points,
+                       # we set the radius as twice the value of the actual blade radius:
+                       # z_arc_coordinate(1.50 * petiole_length, radius=blade_radius * 2)))
+                       z_arc_coordinate(0.25 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
+                        # 0))
+        Points.append((petiole_length + blade_length_for_max_width*1, # 0.75 * blade_length,
+                       1.85 * blade_width,
+                       z_arc_coordinate(0.75 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
+                       # 0))
+        # For ending the blade, we add two points at 99% and 100% of blade length:
+        Points.append((petiole_length + 0.99 * blade_length,
+                       0.5 * blade_width,
+                       # This time, the curving radius is set to the actual blade radius:
+                       z_arc_coordinate(0.99 * blade_length, arc_length=blade_length, radius= blade_radius)))
+                       # 0))
+        # The Bezier curve will necessarily pass through this last point:
+        Points.append((petiole_length + 1.00 * blade_length,
+                       0,
+                       z_arc_coordinate(1.00 * blade_length, arc_length=blade_length, radius= blade_radius)))
+                       # 0))
+
+        # We construct two symetrical curves from the points defined above:
+        r1 = [pts(x,y,z) for (x,y,z) in Points]
+        r2 = [pts(x,-y,z) for (x,y,z) in Points]
+        # We construct a control matrix in Plant GL based on these two symetrical curves:
+        m = pgl.Point4Matrix([r1, r2])
+        # And we generate the Bezier surface from this matrix:
+        shape = pgl.BezierPatch(m, ustride=30, vstride=30)
+
+        # # NOTE 1: To check how the Bezier curve is shaped by the control points and adjust the points if necessary,
+        # # we can plot the curves and the points:
+        # scene = pgl.Scene()
+        # # We create a Bezier curve for each set of points:
+        # curve1 = pgl.BezierCurve(r1, 30)
+        # curve2 = pgl.BezierCurve(r2, 30)
+        # scene += curve1
+        # scene += curve2
+        # # We create a polyline among the points of the first curve:
+        # polygon1 = pgl.Polyline(Points)
+        # polygon1.colorList = [(0, 150, 50, 0) for point in Points]
+        # # We create another polyline for the points of the symetrical curve:
+        # Points_neg = [(x,-y,z) for (x,y,z) in Points]
+        # polygon2 = pgl.Polyline(Points_neg)
+        # polygon2.colorList = [(0, 150, 50, 0) for point in Points]
+        # scene += polygon1
+        # scene += polygon2
+        # # We define the coordinates of the point cam_pos that represents the position of the camera:
+        # cam_pos = pgl.Vector3(0, 0, 10)
+        # cam_target = pgl.Vector3(1, 0, 0)
+        # # We position the camera in the scene relatively to the center of the scene:
+        # pgl.Viewer.camera.lookAt(cam_pos, cam_target)
+        # # We add a grid:
+        # pgl.Viewer.grids.setXYPlane(True)
+        # # We show the scene:
+        # pgl.Viewer.display(scene)
+
+        # NOTE 2: The surface created here has interesting properties, given the allometric relationships with leaf length:
+        # 1) The surface is proportional to the square of the leaf length.
+        # 2) For a given length, the surface is proportional to the param.leaf_width_to_length_ratio.
+        # 3) The surface of the shape is propotional to the surface of the theoretical ellipse made by leaf length and leaf width.
+
+        # The surface created above does not necessarily equal the surface of the ideal leaf corresponding to an ellipse.
+        # In order to keep the same surface here, we adjust the shape of the leaf so that its surface is equal to the
+        # theoretical ellipse:
+        surface_ellipse = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
+        surface_shape = 1.21547 * surface_ellipse
+        #TODO: find a function to automatically get the actual surface of the created shape!
+        # Here the factor 1.21547 is an empirical factor corresponding to the tested configuration...
+        surface_corrector = surface_ellipse / surface_shape
+        # Here, we only reduce the width of the leaf, not its length:
+        scaling_factor = pgl.Vector3(1, surface_corrector, 1)
+        shape = pgl.Scaled(scaling_factor, shape)
+
+        # # We can display the resulting leaf if necessary:
+        # scene = pgl.Scene()
+        # scene += shape
+        # pgl.Viewer.display(scene)
+
+        # Finally, we return the final leaf shape of petiole & blade:
+        return (shape)
+
+    def cotyledon_shape(length=1.):
+        """
+        This function returns a single shape of cotyledon with a petiole and a blade.
+
+        Parameters
+        ----------
+        length: the length of the cotyledon (m)
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaf
+        """
+
+        # We get all dimensions based on allometry with leaf length:
+        petiole_length = length * 0.3
+        petiole_diameter = length * 0.05
+        blade_length = length * 0.7
+        blade_width = length * 0.5
+        blade_radius = length * 1
+
+        # We quickly define a function for generating appropriate PlantGL vectors:
+        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
+
+        # We define a function for returning the z-coordinate for any x-coordinate
+        # located on the arc made by the leaf blade:
+        def z_arc_coordinate(x, arc_length=1., radius=1.):
+            # We know that the arc length is equal to alpha * radius, where alpha is the angle under the arc, so:
+            alpha = arc_length / radius
+            # We can see that tan((Pi - alpha) / 2) = x/z, so:
+            z = x / np.tan((pi - alpha) / 2.)
+            return z
+
+        # We define the control points of the Bezier surface that will be plotted, and put them in a list.
+        # NOTE: x will react to leaf length, y to leaf width, and z will control the curvature.
+        Points = []
+        # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+        # so that the petiole starts with a certain width:
+        Points.append((0,
+                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       0))
+        # We add two more points for drawing the petiole (at 100% and 150% of petiole length):
+        Points.append((1.00 * petiole_length,
+                       petiole_diameter / 2,
+                       0))
+        Points.append((1.50 * petiole_length,
+                       blade_width,
+                       0))
+        # We now draw the blade, by adding two points located at 50% and 75% of blade length:
+        Points.append((petiole_length + 0.50 * blade_length,
+                       blade_width,
+                       # To start the blade curving, we compute the z-coordinate based on the radius of the blade.
+                       # However, because the Bezier curve will tend to smoothen the curve for intermediate points,
+                       # we set the radius as twice the value of the actual blade radius:
+                       # z_arc_coordinate(1.50 * petiole_length, radius=blade_radius * 2)))
+                       z_arc_coordinate(0.25 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
+                        # 0))
+        Points.append((petiole_length + 0.50 * blade_length,
+                       1.85 * blade_width,
+                       z_arc_coordinate(0.50 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
+                       # 0))
+        # For ending the blade, we add two points at 99% and 100% of blade length:
+        Points.append((petiole_length + 0.99 * blade_length,
+                       1.0 * blade_width,
+                       # This time, the curving radius is set to the actual blade radius:
+                       z_arc_coordinate(0.99 * blade_length, arc_length=blade_length, radius= blade_radius)))
+                       # 0))
+        # The Bezier curve will necessarily pass through this last point:
+        Points.append((petiole_length + 1.00 * blade_length,
+                       0,
+                       z_arc_coordinate(1.00 * blade_length, arc_length=blade_length, radius= blade_radius)))
+                       # 0))
+
+        # We construct two symetrical curves from the points defined above:
+        r1 = [pts(x,y,z) for (x,y,z) in Points]
+        r2 = [pts(x,-y,z) for (x,y,z) in Points]
+        # We construct a control matrix in Plant GL based on these two symetrical curves:
+        m = pgl.Point4Matrix([r1, r2])
+        # And we generate the Bezier surface from this matrix:
+        shape = pgl.BezierPatch(m, ustride=30, vstride=30)
+
+        # NOTE 1: To check how the Bezier curve is shaped by the control points and adjust the points if necessary,
+        # we can plot the curves and the points:
+        scene = pgl.Scene()
+        # We create a Bezier curve for each set of points:
+        curve1 = pgl.BezierCurve(r1, 30)
+        curve2 = pgl.BezierCurve(r2, 30)
+        scene += curve1
+        scene += curve2
+        # We create a polyline among the points of the first curve:
+        polygon1 = pgl.Polyline(Points)
+        polygon1.colorList = [(0, 150, 50, 0) for point in Points]
+        # We create another polyline for the points of the symetrical curve:
+        Points_neg = [(x,-y,z) for (x,y,z) in Points]
+        polygon2 = pgl.Polyline(Points_neg)
+        polygon2.colorList = [(0, 150, 50, 0) for point in Points]
+        scene += polygon1
+        scene += polygon2
+        # We define the coordinates of the point cam_pos that represents the position of the camera:
+        cam_pos = pgl.Vector3(0, 0, 10)
+        cam_target = pgl.Vector3(1, 0, 0)
+        # We position the camera in the scene relatively to the center of the scene:
+        pgl.Viewer.camera.lookAt(cam_pos, cam_target)
+        # We add a grid:
+        pgl.Viewer.grids.setXYPlane(True)
+        # We show the scene:
+        pgl.Viewer.display(scene)
+
+        # NOTE 2: The surface created here has interesting properties, given the allometric relationships with leaf length:
+        # 1) The surface is proportional to the square of the leaf length.
+        # 2) For a given length, the surface is proportional to the param.leaf_width_to_length_ratio.
+        # 3) The surface of the shape is propotional to the surface of the theoretical ellipse made by leaf length and leaf width.
+
+        # The surface created above does not necessarily equal the surface of the ideal leaf corresponding to an ellipse.
+        # In order to keep the same surface here, we adjust the shape of the leaf so that its surface is equal to the
+        # theoretical ellipse:
+        surface_ellipse = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
+        surface_shape = 1.21547 * surface_ellipse #TODO: find a function to automatically get the surface of the created shape!
+        # Here the factor 1.21547 is an empirical factor corresponding to the tested configuration.
+        surface_corrector = surface_ellipse / surface_shape
+        # # Here, we only reduce the width of the leaf, not its length:
+        # scaling_factor = pgl.Vector3(1, surface_corrector, 1)
+        # shape = pgl.Scaled(scaling_factor, shape)
+
+        # We can display the resulting leaf if necessary:
+        scene = pgl.Scene()
+        scene += shape
+        pgl.Viewer.display(scene)
+
+        # Finally, we return the final leaf shape of petiole & blade:
+        return (shape)
 
     def fababean_leafletshape(length=1., width=1.):
         sc_factor = 3.173
@@ -120,7 +450,21 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         leaf_shape = pgl.Scaled(leaf_scale, shape)
         return (leaf_shape)
 
+    # Now we define the actual shoot visitor by moving the turtle:
     def shoot_visitor(g, v, turtle):
+        """
+        This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
+
+        Parameters
+        ----------
+        g: the shoot MTG
+        v: the vertex ID corresponding to the shoot organ to display
+        turtle: the turtle to move within the scene of the plot
+
+        Returns
+        -------
+        A shoot_visitor controling the movement of the turtle within the shoot system.
+        """
 
         # We access the node corresponding to the vertex ID "v" of the MTG "g":
         n = g.node(v)
@@ -146,24 +490,32 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
         # -------------------
         # In the current element corresponds to a leaf or a cotyledon:
         if n.label == 'Leaf' or n.label == "Fallen_leaf":
+
+            # SHOWING THE PETIOLE FIRST:
+            # If needed, we first draw a cylinder corresponding to the petiole:
+            if petiole_showing:
+                petiole_length = length
+                petiole_radius = length * 0.02
+                # We define the radius of the cylinder to be displayed:
+                turtle.setWidth(petiole_radius)
+                # We define the length of the cylinder corresponding to the petiole, and move the turtle:
+                turtle.F(petiole_length)
+
             # COTYLEDON:
             if n.type == "Cotyledon":
-                # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
-                # to be displayed:
-                turtle.f(length / 2.)
-                # We also need to rotate the turtle so that the oval is correctly oriented:
+                # We need to start the cotyledon from the side wall of the parent internode.
+                # We first get the parent internode:
+                index_parent = g.Father(v, EdgeType='+')
+                parent = g.node(index_parent)
+                internode_radius = parent.radius * upscaling_factor
+                # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
+                turtle.f(internode_radius*0.9)
+                # We flip the turtle so that the cotyledon will be oriented in the correct way:
                 turtle.down(90)
-                # Finally, we print the oval shape according to the length and radius of the leaf:
-                turtle.customGeometry(oval_shape(length=length, width=length))
-                # We reposition the turtle at the base of the leaf:
-                # We first revert the angle:
-                turtle.down(-90)
-                # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
-                turtle.down(180)
-                turtle.f(length / 2.)
-                # And finally, we reorientate the turtle:
-                turtle.down(180)
-            # A. OPTION WITH OVAL SHAPE:
+                # And we draw the leaf:
+                turtle.customGeometry(cotyledon_shape(length=length))
+
+            # OPTION WITH OVAL SHAPE:
             elif leaf_shape == "oval":
                 # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
                 # to be displayed:
@@ -180,40 +532,35 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1):
                 turtle.f(length / 2.)
                 # And finally, we reorientate the turtle:
                 turtle.down(180)
-            # B. OPTION WITH 'TYPICAL' LEAF SHAPE:
+
+            # OPTION WITH 'TYPICAL' LEAF SHAPE:
             elif leaf_shape == "typical_leaf_shape":
-                scale_factor = 1. * length
-                leafshape = pgl.NurbsPatch(
-                    [[(-0.0241355 * scale_factor, -0.0549754 * scale_factor, -0.00804807 * scale_factor, 1),
-                      # (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
-                      # (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
-                      (-0.00223729 * scale_factor, -0.00247516 * scale_factor, 0.000385988 * scale_factor, 1)],
-                     [(0.314084 * scale_factor, -0.472921 * scale_factor, 0.392759 * scale_factor, 1),
-                      # (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
-                      # (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
-                      (0.408856 * scale_factor, 0.483731 * scale_factor, 0.413612 * scale_factor, 1)],
-                     [(0.329337 * scale_factor, -0.501345 * scale_factor, 0.730665 * scale_factor, 1),
-                      # (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
-                      # (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
-                      (0.414001 * scale_factor, 0.558038 * scale_factor, 0.74373 * scale_factor, 1)],
-                     [(0.00223079 * scale_factor, 0.0223592 * scale_factor, 0.999352 * scale_factor, 1),
-                      # (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
-                      # (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
-                      (-0.0011293 * scale_factor, 0.0361733 * scale_factor, 1.00279 * scale_factor, 1)]])
-                turtle.customGeometry(leafshape)
-            # C. OPTION WITH UNILEAFLET:
+                turtle.customGeometry(typical_leaf_shape(length=length))
+
+            # OPTION WITH UNILEAFLET:
             elif leaf_shape == "unileaflet":
                 turtle.customGeometry(unileaflet(length=length, width=2 * radius))
-            # D. OPTION WITH DROP SHAPE:
-            elif leaf_shape == "drop_shape":
-                turtle.customGeometry(drop_shape(length=length, width=2 * radius))
-            # E. OPTION WITH RAPESEED LEAF SHAPE:
+
+            # OPTION WITH RAPESEED LEAF SHAPE:
             elif leaf_shape == "rapeseed_shape":
-                turtle.customGeometry(rapeseed_leafshape(length=length, width=length*param.leaf_width_to_length_ratio))
-            # F. OPTION WITH FABA BEAN LEAFLET SHAPE:
+
+                # We need to start the leaf from the side wall of the parent internode.
+                # We first get the parent internode:
+                index_parent = g.Father(v, EdgeType='+')
+                parent = g.node(index_parent)
+                internode_radius = parent.radius * upscaling_factor
+                # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
+                turtle.f(internode_radius*0.9)
+                # We flip the turtle so that the leaf will be oriented in the correct way:
+                turtle.down(90)
+                # And we draw the leaf:
+                turtle.customGeometry(rapeseed_leafshape(length=length))
+
+            # OPTION WITH FABA BEAN LEAFLET SHAPE:
             elif leaf_shape == "fababean_shape":
                 turtle.customGeometry(fababean_leafletshape(length=length, width=2 * radius))
-            # E. OPTION WITH CLASSICAL CYLINDERS:
+
+            # OPTION WITH CLASSICAL CYLINDERS:
             else:
                 # We define the radius of the cylinder to be displayed:
                 turtle.setWidth(radius)
@@ -635,6 +982,7 @@ def setting_PGLViewer(width=1200, height=1200,
 def plotting_shoot_MTG(g,
                        # leaf_shape="oval",
                        leaf_shape="typical_leaf_shape",
+                       petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=1.,
                        x_center=0, y_center=-0, z_center=0.,
@@ -660,9 +1008,17 @@ def plotting_shoot_MTG(g,
 
     # SETTING THE NEW SCENE WITH THE TURTLE:
     # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor), turtle=turtle, gc=False)
+    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                          upscaling_factor=upscaling_factor,
+                                                          petiole_showing=petiole_showing),
+                             turtle=turtle, gc=False)
     # We get a dictionnary of all shapes in the scene:
     shapes = dict((sh.id, sh) for sh in scene)
+
+    # We create a dictionnary of correspondance between shapes ID and vertex ID,
+    # in case several shapes are shown for one single vertex:
+    # vid_for_sid_correspondance = dict()
+
     # We cover each node of the MTG:
     for vid in colors:
         if vid in shapes:
@@ -695,7 +1051,7 @@ def plotting_shoot_MTG(g,
     # RECORDING THE MTG:
     if recording_plot:
         print("Saving the PlantGL plot...")
-        pgl.Viewer.saveSnapshot(plot_name)
+        pgl.Viewer.saveSnapshot(plot_name, type="PNG", withAlpha=True)
         print("Plot saved!")
 
     return
@@ -736,6 +1092,135 @@ def plotting_shoot_MTG_population(g,
     pgl.Viewer.saveSnapshot(plot_filepath)
 
     return
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for creating a scene with uniques shapes ID:
+def create_plants_population_scene(scene_information,
+                                   list_of_MTG,
+                                   scene_length=1.,
+                                   scene_width=1.,
+                                   creating_a_soil_surface=False,
+                                   upscaling_factor=1,
+                                   leaf_shape="oval"):
+
+    """
+    This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
+    to display in the scene. The scene created by this function contains a shape coinciding with each
+    visible plant element and characterized by a unique identifyer. The function also updates the plant MTG with
+    their actual spatial coordinates, and updates the scene information with plant rotation and with the list
+    of initial and reindexed indices of shapes.
+
+    Parameters
+    ----------
+    scene_information: a dictionnary containing a list of plant indices ("plant_id") and a list
+                       of their corresponding positions ("position"), each represented as a tuple (x,y,z)
+    list_of_MTG: a list of plant MTG used to populate the scene
+    scene_length: length of the zone to populate with plants (meters)
+    scene_width: width of the zone to populate with plants (meters)
+    upscaling_factor: a factor by which all dimensions should be multiplied
+                      (e.g. 100 to convert dimensions from meters to centimeters)
+    leaf_shape: a string describing the type of leaf shape to be used (see get_shoot_visitor)
+
+    Returns
+    -------
+
+    scene_information: a dictionnary containing a list of plant indices, a list of their corresponding positions,
+                       a list of their relative rotation, the list of all shapes and the list of all triangles
+                       in the scene, and a dictionnary associating the reindexed ID of shapes with the original ID
+                       in each plant MTG
+    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
+                 has been provided as an input of the function)
+    """
+
+    # We initialize additional properties of scene_information:
+    scene_information["rotation"] = []
+    scene_information["shapes"] = []
+    scene_information["triangles"] = []
+    # We initialize an indexer that will record the correspondance between the initial vid of the MTG and the new,
+    # unique indices of the scene:
+    shapes_indexer = {}
+    # We initialize a lag number that will be used for reindexing the shapes of each individual plant
+    vid_lag = 0
+
+    # We initialize a turtle in PlantGL:
+    turtle = turt.PglTurtle()
+    # We initialize the final scene:
+    final_scene = pgl.Scene()
+
+    # We get the list of plant positions from the scene_information:
+    list_of_positions = scene_information["position"]
+
+    # We cover each plant in the population:
+    for plant_index in range(0, len(list_of_positions)):
+
+        # We access the MTG corresponding to the current plant index:
+        new_MTG = list_of_MTG[plant_index]
+
+        # We initialize the indexer for the current plant:
+        shapes_indexer[plant_index] = {}
+
+        # We first define the seed of random, depending on the index of the plant:
+        np.random.seed(int(param.random_choice * plant_index))
+        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
+        angle_roll = abs(np.random.normal(180, 180))
+        # We record this rotation in the scene information:
+        scene_information["rotation"].append(angle_roll)
+
+        # We reset the turtle:
+        turtle.reset()
+        # And we reposition the turtle from there:
+        turtle.move(list_of_positions[plant_index])
+        turtle.rollL(angle_roll)
+        # We create a scene for one plant by moving the turtle along the MTG:
+        scene = turt.TurtleFrame(new_MTG,
+                                 visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                           upscaling_factor=upscaling_factor),
+                                 turtle=turtle, gc=False)
+
+        # We get a dictionnary of all shapes in the scene:
+        shapes = dict((sh.id, sh) for sh in scene)
+        # We reindex the different shapes by adding the lag number:
+        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene)
+        # And we increment the lag number to reindex the vid of the next plant:
+        vid_lag += len(new_MTG)
+        # We cover each reindexed shape of the original scene corresponding to the MTG of the current plant:
+        for shape_id in reindexed_shapes.keys():
+            # We get the corresponding shape:
+            shape = reindexed_shapes[shape_id]
+            # We access its original id:
+            old_shape_id = shape.id
+            # We modify it with the new id:
+            shape.id = shape_id
+            # We store the correspondence between the new id and the old id:
+            shapes_indexer[plant_index][shape_id] = old_shape_id
+            # Finally, we add the reindexed shape to the final scene:
+            final_scene += shape
+
+        # We record the new shapes:
+        scene_information["shapes"].append(reindexed_shapes)
+    openalea.plantgl
+    # We record the reindexer:
+    scene_information["new_index_to_old_index"] = shapes_indexer
+
+    # We transform the scene into triangles:
+    triangle_scene = pgl_to_triangles(scene)
+    # We record the triangles:
+    scene_information["triangles"].append(triangle_scene)
+
+    if creating_a_soil_surface:
+        # We create a flat soil surface corresponding to the limits of the scene:
+        points = [(0, 0, 0),
+                  (scene_length * upscaling_factor, 0, 0),
+                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
+                  (0, scene_width * upscaling_factor, 0)]
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        square = pgl.QuadSet(points, indices, normals, indices)
+        # We define the same color for each of the 4 points:
+        square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
+        final_scene += square
+
+    return final_scene, scene_information, list_of_MTG
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function that methodically creates each shape (takes a long time for large root systems):

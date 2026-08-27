@@ -7,8 +7,8 @@
     :license: see LICENSE for details.
 """
 
-import AllocF as AllocF
-import RootSimple as RootSimple
+import openalea.simbal.AllocF as AllocF
+import openalea.simbal.RootSimple as RootSimple
 import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.parameters as rhizodep_param
 
@@ -539,7 +539,9 @@ def run_simulation(my_path=None,
     #--------------------------------
     if my_path is None:
         # We define the reference directory (here, we move to the parent directory of the current directory):
-        my_path = os.path.dirname(os.getcwd())
+        # my_path = os.path.dirname(os.getcwd())
+        # We first define the path and the file to read as a .csv:
+        my_path = os.path.join('../../..', os.getcwd())
 
     # We consider the outputs directory:
     outputs_directory = os.path.join(my_path, "simulation", "outputs")
@@ -1379,8 +1381,13 @@ def run_simulation(my_path=None,
 
 if __name__ == '__main__':
 
-    my_path = os.path.dirname(os.getcwd())
+    current_wd = os.getcwd()
+    main_simbal_folder = os.path.join(os.getcwd(), os.pardir, os.pardir, os.pardir)
+    # main_simbal_folder = 'C:\\Users\\frees\\fspm\\simbal'
     # We run the whole simulation according to the instructions and parameters defined in the 'simbal_parameters.xlsx'
     # file (otherwise, default parameters from the 'simbal_parameters.py' file or from the function will be used):
-    run_simulation(input_file=os.path.join(my_path, "simulation", "inputs", "inputs_over_time.csv"),
+    run_simulation(my_path=main_simbal_folder,
+                   input_file=os.path.join(main_simbal_folder, "simulation", "inputs", "inputs_over_time.csv"),
                    input_file_time_step_in_days=1/24.)
+
+#TODO: vérifier l'apparition des phytomères au cours du temps

@@ -78,7 +78,20 @@ LA_max_relative_increase_per_day = 0.5
 leaf_minimal_thickness = 0.001
 
 # Allometric coefficient defining the width of a leaf from its length (meter of width per meter of length):
-leaf_width_to_length_ratio = 0.5
+leaf_width_to_length_ratio = 0.2
+
+# Allometric coefficient defining the fraction of blade length for which width is maximal (meter of length per meter of length)
+# NOTE: the relative length is 0 at blade base and 1 at blade tip:
+relative_length_for_max_width = 0.3
+
+# Allometric coefficient defining the length of the petiole relatively to the length of the leaf (meter per meter):
+petiole_to_leaf_length_ratio = 0.5
+
+# Allometric coefficient defining the width of the petiole relatively to the width of the leaf (meter per meter):
+petiole_to_leaf_width_ratio = 0.2
+
+# Allometric coefficient defining the radius of the arc made by the blade relatively to its length (meter per meter):
+blade_radius_to_length_ratio = 0.5
 
 # Potential rate of internode elongation (meter per second):
 elong_internode = 2.89351851851852E-07
