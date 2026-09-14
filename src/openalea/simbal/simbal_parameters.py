@@ -78,20 +78,42 @@ LA_max_relative_increase_per_day = 0.5
 leaf_minimal_thickness = 0.001
 
 # Allometric coefficient defining the width of a leaf from its length (meter of width per meter of length):
-leaf_width_to_length_ratio = 0.2
+leaf_width_to_length_ratio = 0.42
 
-# Allometric coefficient defining the fraction of blade length for which width is maximal (meter of length per meter of length)
+# Allometric coefficient defining the width of a cotyledon from its length (meter of width per meter of length):
+cotyledon_width_to_length_ratio = 1.
+
+# Allometric coefficient defining the width of a leaflet from its length (meter of width per meter of length):
+leaflet_width_to_length_ratio = 0.3
+
+# Allometric coefficient defining the fraction of leaf blade length for which width is maximal (meter of length per meter of length)
 # NOTE: the relative length is 0 at blade base and 1 at blade tip:
-relative_length_for_max_width = 0.3
+relative_blade_length_for_max_width = 0.5
+
+# Allometric coefficient defining the fraction of cotyledon blade length for which width is maximal (meter of length per meter of length)
+# NOTE: the relative length is 0 at blade base and 1 at blade tip:
+relative_cotyledon_blade_length_for_max_width = 0.5
 
 # Allometric coefficient defining the length of the petiole relatively to the length of the leaf (meter per meter):
-petiole_to_leaf_length_ratio = 0.5
+petiole_to_leaf_length_ratio = 0.38
+
+# Allometric coefficient defining the length of the petiole relatively to the length of the whole cotyledon (meter per meter):
+petiole_to_cotyledon_length_ratio = 0.38
 
 # Allometric coefficient defining the width of the petiole relatively to the width of the leaf (meter per meter):
-petiole_to_leaf_width_ratio = 0.2
+petiole_to_leaf_width_ratio = 0.10
 
-# Allometric coefficient defining the radius of the arc made by the blade relatively to its length (meter per meter):
-blade_radius_to_length_ratio = 0.5
+# Allometric coefficient defining the width of the petiole relatively to its length (meter per meter):
+fababean_petiole_width_to_length_ratio = 0.02
+
+# Allometric coefficient defining the width of the petiole relatively to the width of the cotyledon (meter per meter):
+petiole_to_cotyledon_width_ratio = 0.10
+
+# Allometric coefficient defining ratio of leaf blade length with the radius of the arc made by the blade (meter per meter):
+blade_length_to_radius_ratio = 1.
+
+# Allometric coefficient defining ratio of cotyledon blade length with the radius of the arc made by the blade (meter per meter):
+cotyledon_blade_length_to_radius_ratio = 0.2
 
 # Potential rate of internode elongation (meter per second):
 elong_internode = 2.89351851851852E-07
@@ -126,8 +148,12 @@ phyllochron = 5. * (60.*60.*24.)
 # (seconds at the reference growth temperature):
 thermal_youth_duration = 60. * (60.*60.*24.)
 
-# We define the shape of the leaves to be displayed and used for light interception:
-leaf_shape = "oval"
+# We define the shape of the leaves to be used for light interception:
+light_interception_leaf_shape = "diamond_shape"
+
+# We define the shape of the leaves to be displayed on plots:
+rapeseed_leaf_shape = "rapeseed_leaf_shape"
+faba_bean_leaf_shape = "faba_bean_leaf_shape"
 
 # We define the initial dimensions (meters) of phytomers when they are formed:
 initial_leaf_length = 0.001

@@ -29,6 +29,9 @@ import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
 
+from src.openalea.simbal.tools import leaf_insertion_angle_evolution
+
+
 ########################################################################################################################
 ########################################################################################################################
 
@@ -85,7 +88,7 @@ def ADDING_A_CHILD_ORGAN(parent_element,
                     setattr(child, attribute, {})
                 # If the attribute of the parent element corresponds to a dictionnary:
                 elif isinstance(getattr(parent_element, attribute), str):
-                    # Then we set the attribute of the child to an empty dictionnary:
+                    # Then we set the attribute of the child to "[Undetermined]":
                     setattr(child, attribute, "[Undetermined]")
                 # Otherwise, we assume that this should be a numerical value and set it to 0:
                 else:
@@ -176,6 +179,7 @@ def ADDING_A_PHYTOMER(parent_element,
     leaf.radius = leaf_length * param.leaf_width_to_length_ratio / 2.
     leaf.angle_down = param.leaf_insertion_angle
     leaf.angle_roll = 0.
+    leaf.type = "Normal"
     # We calculate the surface, assuming the leaf is an ellipse characterized by its length and width:
     leaf.surface = leaf.length / 2. * leaf.radius * pi
     # We define the maximal surface of the new leaf:
@@ -419,12 +423,12 @@ def create_shoot_MTG(number_of_cotyledons=2,
 
     # For each new cotyledon to be created:
     for i in range(0, number_of_cotyledons):
-        # We first create a very small internode, and then a connected cotyledon and a bud: # TODO: Should we remove the bud
+        # We first create an internode of zero length, and then a connected cotyledon and a fake bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
                                                                struct_mass_density=struct_mass_density,
                                                                minimal_leaf_thickness=minimal_leaf_thickness,
                                                                internode_radius=new_internode.radius * 0.9,
-                                                               internode_length=0.0001,
+                                                               internode_length=0.,
                                                                leaf_length=initial_leaf_length,
                                                                bud_length=0.,
                                                                properties_identical_to_parent = True)
@@ -438,6 +442,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
         new_leaf.surface_max = param.cotyledon_surface_max
+        # We set the bud diameter to 0, so that it will never be able to emerge:
+        new_bud.radius = 0.
 
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
@@ -495,6 +501,30 @@ def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
             # NB: we need to add 'iloc[0]' as the previous expression otherwise returns a series, not a single value.
     return g
 #-----------------------------------------------------------------------------------------------------------------------
+def geometry_evolution(shoot_MTG, plant_thermal_age_in_degree_days):
+    """
+    This function updates the evolution of geometrical features of the shoot MTG over time.
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG containing each organ as node
+    plant_thermal_age: the thermal age of the whole plant
+
+    Returns
+    -------
+    [Nothing; the shoot MTG has been updated with some new geometrical properties for specific organs]
+    """
+
+    # We cover each organ n of the shoot:
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        n = shoot_MTG.node(vid)
+        # If the organ is a leaf:
+        if n.label == "Leaf":
+            if n.type != "Cotyledon":
+                leaf_age = n.thermal_time_since_formation / (24.*60.*60.) * param.T_ref_growth
+                # We compute the evolution of the insertion angle of this leaf on the stem, and modify the angle accordingly:
+                n.angle_down = leaf_insertion_angle_evolution(plant_thermal_age_in_degree_days=plant_thermal_age_in_degree_days,
+                                                              leaf_age_in_degree_days = leaf_age)
+    return shoot_MTG
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception(shoot_MTG,
                                  incoming_light_density = 400,
@@ -1098,6 +1128,7 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
 def potential_shoot_growth(shoot_MTG,
                            SFQN = 1,
                            leaf_minimal_thickness = 1e-3,
+                           leaf_shape="diamond_shape",
                            elong_internode = 5e-7,
                            plant_age = 0.,
                            time_step_in_seconds = 60.*60.*24.,
@@ -1148,14 +1179,25 @@ def potential_shoot_growth(shoot_MTG,
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
             # TODO: what happens if the leaf has already a thickness higher than the minimal one?
-            # We assume that the leaf is an ellipse characterized by its length and its width, which is calculated as
-            # the product of the length with an allometric coefficient. The surface of the ellipse is then defined as:
-            # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2. * pi
-            # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4. * pi
-            # Hence:
-            n.potential_length = sqrt((n.surface+maximal_surface_increase) * 4 / (param.leaf_width_to_length_ratio * pi))
-            # The radius, which is half of the width, is also calculated based on the allometric coefficient
-            n.potential_radius = n.potential_length * param.leaf_width_to_length_ratio / 2.
+
+            if leaf_shape == "diamond_shape":
+                # We consider the leaf as a diamond characterized by its length and its width, which is calculated as
+                # the product of the length with an allometric coefficient. The surface of the diamond is then defined as:
+                # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2.
+                # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4.
+                # Hence:
+                n.potential_length = sqrt((n.surface+maximal_surface_increase) * 4 / (param.leaf_width_to_length_ratio))
+                # The radius, which is half of the width, is also calculated based on the allometric coefficient:
+                n.potential_radius = n.potential_length * param.leaf_width_to_length_ratio / 2.
+            else:
+                # We assume that the leaf is an ellipse characterized by its length and its width, which is calculated as
+                # the product of the length with an allometric coefficient. The surface of the ellipse is then defined as:
+                # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2. * pi
+                # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4. * pi
+                # Hence:
+                n.potential_length = sqrt((n.surface+maximal_surface_increase) * 4 / (param.leaf_width_to_length_ratio * pi))
+                # The radius, which is half of the width, is also calculated based on the allometric coefficient:
+                n.potential_radius = n.potential_length * param.leaf_width_to_length_ratio / 2.
 
         # CASE 2: the shoot element is an internode
         #------------------------------------------
@@ -1345,6 +1387,7 @@ def actual_shoot_growth(shoot_MTG,
                         structural_C_content = 0.44,
                         structural_N_content = 0.02,
                         leaf_minimal_thickness = 1e-3,
+                        leaf_shape = "diamond_shape",
                         time_step_in_seconds = 60.*60.*24.,
                         air_temperature_in_degree_Celsius = 10.):
     """
@@ -1470,16 +1513,28 @@ def actual_shoot_growth(shoot_MTG,
         elif n.label == "Leaf":
             surface_increment = final_volume_increment / leaf_minimal_thickness
             n.surface += surface_increment
-            # We assume that the leaf is an ellipse characterized by its length and its width, which is calculated as
-            # the product of the length with an allometric coefficient. The surface of the ellipse is then defined as:
-            # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2. * pi
-            # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4. * pi
-            # Hence:
-            length_increment = sqrt(n.surface * 4 / (param.leaf_width_to_length_ratio * pi)) - n.length
-            # The length is incremented with the corresponding result:
-            n.length += length_increment
-            # The radius, which is half of the width, is also calculated based on the allometric coefficient
-            new_radius = n.length * param.leaf_width_to_length_ratio / 2.
+            if leaf_shape == "diamond_shape":
+                # We consider the leaf as a diamond characterized by its length and its width, which is calculated as
+                # the product of the length with an allometric coefficient. The surface of the diamond is then defined as:
+                # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2.
+                # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4.
+                # Hence:
+                length_increment = sqrt(n.surface * 4 / (param.leaf_width_to_length_ratio)) - n.length
+                # The length is incremented with the corresponding result:
+                n.length += length_increment
+                # The radius, which is half of the width, is also calculated based on the allometric coefficient
+                new_radius = n.length * param.leaf_width_to_length_ratio / 2.
+            else:
+                # We assume that the leaf is an ellipse characterized by its length and its width, which is calculated as
+                # the product of the length with an allometric coefficient. The surface of the ellipse is then defined as:
+                # surface = (length / 2.) * (param.leaf_width_to_length_ratio * length) / 2. * pi
+                # i.e. surface = length ^ 2 * param.leaf_width_to_length_ratio / 4. * pi
+                # Hence:
+                length_increment = sqrt(n.surface * 4 / (param.leaf_width_to_length_ratio * pi)) - n.length
+                # The length is incremented with the corresponding result:
+                n.length += length_increment
+                # The radius, which is half of the width, is also calculated based on the allometric coefficient
+                new_radius = n.length * param.leaf_width_to_length_ratio / 2.
             # We make sure that the new radius is not lower than the previous one:
             if (new_radius - n.radius) / n.radius < - 1e-12:
                 print("!!! WATCH OUT: the new radius of the leaf", vid,
@@ -1489,8 +1544,14 @@ def actual_shoot_growth(shoot_MTG,
             else:
                 # If the new radius is correct, we record it:
                 n.radius = new_radius
-            # We update other dimensional characteristics based on this growth:
-            n.surface = n.length / 2. * n.radius * pi
+            # We update the surface of the leaf based on the final length and radius:
+            if leaf_shape == "diamond_shape":
+                # If the leaf is considered as a diamond:
+                n.surface = n.length / 2. * n.radius
+            else:
+                # Else, we assume that the leaf is shaped as an ellipse:
+                n.surface = n.length / 2. * n.radius * pi
+            # We update other characteristics based on this growth:
             n.volume += final_volume_increment
             n.struct_mass += final_volume_increment * structural_mass_density
 
@@ -2117,7 +2178,8 @@ if __name__ == '__main__':
     plotting_shoot_MTG(shoot_g,
                        # leaf_shape="oval",
                        # leaf_shape="typical_leaf_shape",
-                       leaf_shape="rapeseed_shape",
+                       leaf_shape="fababean_leaf_shape",
+                       # leaf_shape="diamond_shape",
                        petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=zoom_factor,

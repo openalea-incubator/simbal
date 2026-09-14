@@ -275,21 +275,22 @@ def computing_shoot_root_exchange_rates(plant,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for recording the properties of the plant:
-def recording_main_plant_properties(plant, shoot_MTG, root_MTG, time_in_days):
+def recording_main_plant_properties(plant, shoot_MTG, root_MTG, final_time_in_days, thermal_time_in_degree_days):
     """
     This function records the current properties of the plant object and returns them in a dictionnary.
 
     Parameters
     ----------
     plant: the object corresponding to the whole plant, containing shoot and root-related variables
-    time_in_days: the time step of the simulation (seconds)
+    final_time_in_days: the time step of the simulation (seconds)
 
     Returns
     -------
     A dictionnary containing the main properties of the plant object (e.g. labile C and N pools, structural mass
     and rates in shoots and roots
     """
-    results_dict = {"Final time (days)": time_in_days,
+    results_dict = {"Final time (days)": final_time_in_days,
+                    "Final thermal time (degree-days)": thermal_time_in_degree_days,
                     "Shoot structural mass (gDW)":
                         plant.shoot_struct_mass,
                     "Root structural mass (gDW)":
@@ -484,7 +485,8 @@ def balance_check(plant, time_step_in_seconds = 60.*60.,
 
 # Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation(my_path=None,
-                   simulation_period_in_days=20., time_step_in_days=1/24., starting_time_in_days=0.,
+                   simulation_period_in_days=20., time_step_in_days=1/24.,
+                   starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
                    input_file=None,
                    input_file_time_step_in_days=1.,
                    forcing_constant_aboveground_environment=False,
@@ -500,7 +502,11 @@ def run_simulation(my_path=None,
                    initial_shoot_labile_C_concentration = 1e-2, # in gC per gram of structural mass
                    initial_shoot_labile_N_concentration = 1e-3, # in gN per gram of structural mass
                    initial_root_labile_C_concentration = 1e-2, # in gC per gram of structural mass
-                   initial_root_labile_N_concentration = 1e-3 # in gN per gram of structural mass
+                   initial_root_labile_N_concentration = 1e-3, # in gN per gram of structural mass
+                   # rapeseed_leaf_shape = "rapeseed_leaf_shape",
+                   rapeseed_leaf_shape = "diamond_shape",
+                   faba_bean_leaf_shape = "faba_bean_leaf_shape",
+                   light_intersection_leaf_shape = "diamond_shape",
                    ):
 
     """
@@ -618,6 +624,8 @@ def run_simulation(my_path=None,
                                                 time_step_in_days)
     STARTING_TIME_IN_DAYS = scenario_parameters.get('starting_time_in_days',
                                                 starting_time_in_days)
+    STARTING_THERMAL_TIME_IN_DAYS = scenario_parameters.get('starting_thermal_time_in_degree_days',
+                                                starting_thermal_time_in_degree_days)
     if input_file is None:
         INPUT_FILE = scenario_parameters.get('input_file',
                                              input_file)
@@ -640,7 +648,7 @@ def run_simulation(my_path=None,
 
     # SETTING INITIAL CONDITIONS
     #---------------------------
-    
+
     # INITIALIZING THE WHOLE PLANT:
     # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
     plant = whole_plant()
@@ -719,7 +727,7 @@ def run_simulation(my_path=None,
         recording_MTG_properties(root_g, os.path.join(root_MTG_directory, 'MTG_00000.csv'))
 
     # We also initialize the dictionary containing the general properties of the plant:
-    results_dict = recording_main_plant_properties(plant, shoot_g, root_g, time_in_days=0.)
+    results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days=0., thermal_time_in_degree_days=0.)
     # We add a few more entries:
     results_dict["Air temperature (degree_Celsius)"] = "NA"
     results_dict["Soil temperature (degree_Celsius)"] = "NA"
@@ -753,6 +761,10 @@ def run_simulation(my_path=None,
     n_steps = trunc(SIMULATION_PERIOD_IN_DAYS / TIME_STEP_IN_DAYS)
     # We initialize a counter that will be used over successive time steps together with the phyllochron:
     elapsed_time_in_days_since_last_leaf_emergence = 0.
+
+    # We initiate actual and thermal time at the end of each step:
+    actual_time_in_days = STARTING_TIME_IN_DAYS
+    thermal_time_in_degree_days = STARTING_THERMAL_TIME_IN_DAYS
 
     # READING THE INPUT FILE:
     # -----------------------
@@ -867,6 +879,10 @@ def run_simulation(my_path=None,
         # We calculate the equivalent time step in thermal time:
         thermal_time_step_in_seconds_shoots = time_step_in_seconds * temperature_time_adjustment_shoot
         # TODO in the future: consider a vertical gradient of temperature, and hence a vertical modification of the adjustments
+
+        # We eventually compute the final and actual thermal time for this time step:
+        actual_time_in_days = final_time_in_days
+        thermal_time_in_degree_days += (thermal_time_step_in_seconds_shoots)/(24.*60.*60.) * param.T_ref_growth
 
         # RESETTING RATES AT PLANT SCALE:
         #################################
@@ -1078,7 +1094,9 @@ def run_simulation(my_path=None,
                                                     inter_row_distance=inter_row_distance,
                                                     scene_length=row_length,
                                                     scene_width=scene_width,
-                                                    leaf_shape=param.leaf_shape,
+                                                    # leaf_shape=param.leaf_shape,
+                                                    #  WATCH OUT: here we simplify the shape to reduce computation time!
+                                                    leaf_shape=light_intersection_leaf_shape,
                                                     averaging_light_intensity_share=True,
                                                     period_of_light_intensity_averaging_in_days=0.5,
                                                     time_step_in_days=time_step_in_days
@@ -1197,6 +1215,7 @@ def run_simulation(my_path=None,
             AllocF.potential_shoot_growth(shoot_g,
                                           SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                           leaf_minimal_thickness=param.leaf_minimal_thickness,
+                                          leaf_shape=light_intersection_leaf_shape,
                                           elong_internode=param.elong_internode,
                                           time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
                                           air_temperature_in_degree_Celsius=air_temperature)
@@ -1209,6 +1228,7 @@ def run_simulation(my_path=None,
                                            structural_C_content=param.structural_C_content,
                                            structural_N_content=param.structural_N_content,
                                            leaf_minimal_thickness=param.leaf_minimal_thickness,
+                                           leaf_shape=light_intersection_leaf_shape,
                                            time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
                                            air_temperature_in_degree_Celsius=air_temperature)
             # At this stage, the shoot structure has been updated and the consumption rates have been calculated
@@ -1286,6 +1306,12 @@ def run_simulation(my_path=None,
                   "gC and labile N pool is",
                   "{:.2E}".format(Decimal(plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)), "gN.")
 
+        # AGEING AND CONSEQUENCES:
+        ##########################
+
+        AllocF.geometry_evolution(shoot_MTG = shoot_g,
+                                  plant_thermal_age_in_degree_days = thermal_time_in_degree_days)
+
         # CHECKING C & N BALANCE:
         #########################
 
@@ -1333,12 +1359,13 @@ def run_simulation(my_path=None,
                              z_center=param.z_center*zoom_factor,
                              x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
                              grid=False,
-                             leaf_shape=param.leaf_shape,
+                             leaf_shape=rapeseed_leaf_shape,
                              background_color=[94, 76, 64],
-                             single_color_shoot=[30,120,60],
+                             # single_color_shoot=[30,120,60],
                              single_color_root=[200,200,100],
-                             # single_color_shoot=None,
+                             single_color_shoot=None,
                              # single_color_root=None,
+                             property_name_shoot='light_intensity_share', cmap_shoot='Greens', vmin_shoot=0.001, vmax_shoot=0.5, lognorm_shoot=False,
                              # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
                              # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
                              recording_plot=True,
@@ -1354,7 +1381,9 @@ def run_simulation(my_path=None,
         recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
 
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
-        results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days)
+        results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
+                                                       final_time_in_days=actual_time_in_days,
+                                                       thermal_time_in_degree_days=thermal_time_in_degree_days)
         results_dict["Air temperature (degree_Celsius)"] = air_temperature
         results_dict["Soil temperature (degree_Celsius)"] = soil_temperature
         results_dict["Light irradiation (micromol of photons per m2 per second)"] = light_input

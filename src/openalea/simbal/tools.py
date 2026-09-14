@@ -11,6 +11,7 @@ from openalea.mtg import turtle as turt
 from openalea.mtg.plantframe import color
 from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
+from openalea.plantgl.all import surface
 
 import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.model as rhizodep_param
@@ -45,6 +46,30 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
     A shoot_visitor controling the movement of the turtle within the shoot system.
     """
 
+    # We define a function for returning the curving coordinates for any point of the blade:
+    def arc_coordinates(arc_length=1., radius=1.):
+        """
+        This functions returns a list of [x,y,z] coordinates corresponding to the tip of the blade starting at (0,0,0),
+        defined by a radius and a blade length. The blade is forming an arc on the circle included in the plant (X,Y),
+        and for which the x-axis is tangent to the circle corresponding to the arc.
+
+        Parameters
+        ----------
+        arc_length: length of the blade (m)
+        radius: radius of the circle supporting the arc made by the blade (m)
+
+        Returns
+        -------
+        A liste of [x,y,z] coordinates corresponding to the tip of the blade
+        """
+        # We know that the arc length is equal to alpha * radius, where alpha is the angle under the arc, so:
+        alpha = arc_length / radius
+        # The (x, y, z) coordinates of the blade tip are therefore defined as:
+        x = radius * np.sin(alpha)
+        y = 0.
+        z = radius * (1 - np.cos(alpha))
+        return [x, y, z]
+
     def oval_shape(length=1., width=1.):
         """
         This simple function generates a PlantGL shape of an ellipse, defined by a length and a width.
@@ -66,24 +91,43 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         shape = pgl.Scaled((length, width, 1), disc)
         return shape
 
-    def unileaflet(length=1., width=1.):
+    def diamond_shape(petiole_length=0.2, blade_length=1., blade_length_for_max_width=0.5,
+                      blade_width=1., blade_radius=1.):
         """
-        This function generates a unileaflet shape, defined by a length and a width.
+        This simple function generates a PlantGL leaf shape of a diamond, defined by a length and a width,
+        as well as a curving calculated from the dimensions of the leaf petiole, blade and radius.
 
         Parameters
         ----------
-        length: length of the shape (m)
-        width: width of the shape (m)
+        petiole_length: length of the theoretical petiole before leaf curving starts (m)
+        blade_length: length of the theoretical curved blade (m)
+        blade_length_for_max_width: length of the leaf for which width is maximal (m)
+        blade_width: maximal width of the blade (m)
+        blade_radius: radius of the circle supporting the arc made by the blade (m)
 
         Returns
         -------
         A PlantGL shape corresponding to the leaf
         """
-        disc = pgl.Translated((-0.5, 0, 0), pgl.Disc())
-        disc = pgl.Scaled((length, width, 1), disc)
-        disc = pgl.AxisRotated(axis=(0, 1, 0), angle=pi / 2., geometry=disc)
-        d3 = pgl.AxisRotated(axis=(1, 0, 0), angle=0., geometry=disc)
-        shape = pgl.Group([d3])
+
+        # We define a list of the four points delimiting the diamond:
+        points = [
+            # First point corresponding to the origin:
+            (0, 0, 0),
+            # Second point corresponding to the maximal width:
+            (petiole_length + blade_length_for_max_width, blade_width/2., 0),
+            # Third point corresponding to the curved leaf tip:
+            (petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
+             0,
+             arc_coordinates(arc_length = blade_length, radius=blade_radius)[2]),
+            # Fourth point, corresponding to the opposite of the second point:
+            (petiole_length + blade_length_for_max_width, -blade_width/2., 0)]
+        # We add a list of normals and a list of indices necessary for defining the QuadSet:
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        # We create the shape corresponding to the diamond:
+        shape = pgl.QuadSet(points, indices, normals, indices)
+        # pgl.Viewer.display(shape)
         return shape
 
     def typical_leaf_shape(length=1.):
@@ -118,7 +162,7 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
               (-0.0011293 * scale_factor, 0.0361733 * scale_factor, 1.00279 * scale_factor, 1)]])
         return (leaf_shape)
 
-    def rapeseed_leafshape(length=1.):
+    def rapeseed_leaf_shape(length=1.):
         """
         This function returns a single shape of rapeseed leaf with a petiole and a blade.
 
@@ -135,9 +179,9 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         petiole_length = length * param.petiole_to_leaf_length_ratio
         petiole_diameter = length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio
         blade_length = length * (1 - param.petiole_to_leaf_length_ratio)
-        blade_length_for_max_width = blade_length * param.relative_length_for_max_width
+        blade_length_for_max_width = blade_length * param.relative_blade_length_for_max_width
         blade_width = length * param.leaf_width_to_length_ratio
-        blade_radius = length * param.blade_radius_to_length_ratio
+        blade_radius = blade_length /  param.blade_length_to_radius_ratio
 
         # TEST WITH C-SPLINE:
         # We create points through which the perimeter of the shape will have to pass through:
@@ -146,132 +190,160 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                        petiole_diameter / 2, # The leaf will start at the full petiole width
                        0))
         Points.append((petiole_length,
-                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       petiole_diameter / 2, # The petiole will end at the full petiole width
                        0))
-        Points.append((petiole_length + blade_length_for_max_width,
-                       blade_width, # The leaf will start at the full petiole width
+        Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
+                       blade_width/2.,
+                       arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
+        Points.append((petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
+                       0,
+                       arc_coordinates(arc_length=blade_length, radius=blade_radius)[2]))
+        # If necessary, we add symetrical points to close the curve:
+        Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
+                       -blade_width / 2.,
+                       arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
+        Points.append((petiole_length,
+                       -petiole_diameter / 2,
                        0))
-        Points.append((petiole_length + blade_length,
-                       0, # The leaf will start at the full petiole width
-                       0))
-        # # If necessary, we add symetrical points to close the curve:
-        # Points.append((petiole_length + blade_length_for_max_width,
-        #                -blade_width, # The leaf will start at the full petiole width
-        #                0))
-        # Points.append((petiole_length,
-        #                -petiole_diameter / 2, # The leaf will start at the full petiole width
-        #                0))
-        # Points.append((0,
-        #                -petiole_diameter / 2, # The leaf will start at the full petiole width
-        #                0))
-        # Points.append((0,
-        #                petiole_diameter / 2, # The leaf will start at the full petiole width
-        #                0))
-        # Now we create a spline that passes through each point:
-        s_curve = pgl.cspline.cspline(Points)
-        # We create the symetric curve:
-        s_curve_neg = pgl.cspline.cspline([(x,-y,z) for (x,y,z) in Points])
-        # TODO: In a perfect word, there would be an easy option here to create a shape from the close spline curve
-        # representing the leaf. For now, we try to make the shape using a Bezier patch,
-        # by getting the control points from the spline:
-        # The Beziers control points should theroretically correspond to the following lists:
-        Bezier_control_points = s_curve.ctrlPointList
-        Bezier_control_points_neg = s_curve_neg.ctrlPointList
-        # We construct a control matrix from these:
-        n = pgl.Point4Matrix([Bezier_control_points, Bezier_control_points_neg])
-        # And we create a Bezier shape based on this control matrix:
-        spline_shape = pgl.BezierPatch(n, ustride=10, vstride=10)
-        # We compare the shape with the spline curve and with the Bezier control points:
-        control_points_line = pgl.Polyline([pgl.Vector3(x,y,z) for (x,y,z,t) in Bezier_control_points])
-        spline_curve = pgl.Shape(s_curve, appearance=pgl.Material(pgl.Color3(150,0,0)))
-        # We plot everything:
-        scene = pgl.Scene()
-        scene += spline_curve
-        scene += control_points_line
-        scene += spline_shape
-        # We show the scene:
-        pgl.Viewer.display(scene)
-        # CONCLUSION: The spline passes through the required points, but the Bezier shape does not follow this curve...
-
-        # USE OF BEZIER CURVES:
-
-        # We quickly define a function for generating appropriate PlantGL vectors:
-        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
-
-        # We define a function for returning the z-coordinate for any x-coordinate
-        # located on the arc made by the leaf blade:
-        def z_arc_coordinate(x, arc_length=1., radius=1.):
-            # We know that the arc length is equal to alpha * radius, where alpha is the angle under the arc, so:
-            alpha = arc_length / radius
-            # We can see that tan((Pi - alpha) / 2) = x/z, so:
-            z = x / np.tan((pi - alpha) / 2.)
-            return z
-
-        # We define the control points of the Bezier surface that will be plotted, and put them in a list.
-        # NOTE: x will react to leaf length, y to leaf width, and z will control the curvature.
-        Points = []
-        # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
-        # so that the petiole starts with a certain width:
         Points.append((0,
-                       petiole_diameter / 2, # The leaf will start at the full petiole width
+                       -petiole_diameter / 2,
                        0))
-        # We add two more points for drawing the petiole (at 100% and 150% of petiole length):
-        Points.append((1.00 * petiole_length,
+        Points.append((0,
                        petiole_diameter / 2,
                        0))
-        # Points.append((1.50 * petiole_length,
-        #                0, # Here we put 0 so that there is a slight narrowing before blade
-        #                0))
-        # We now draw the blade, by adding two points located at 50% and 75% of blade length:
-        Points.append((petiole_length + blade_length_for_max_width*0.75, # 0.50 * blade_length,
-                       1.85 * blade_width,
-                       # To start the blade curving, we compute the z-coordinate based on the radius of the blade.
-                       # However, because the Bezier curve will tend to smoothen the curve for intermediate points,
-                       # we set the radius as twice the value of the actual blade radius:
-                       # z_arc_coordinate(1.50 * petiole_length, radius=blade_radius * 2)))
-                       z_arc_coordinate(0.25 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
-                        # 0))
-        Points.append((petiole_length + blade_length_for_max_width*1, # 0.75 * blade_length,
-                       1.85 * blade_width,
-                       z_arc_coordinate(0.75 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
-                       # 0))
-        # For ending the blade, we add two points at 99% and 100% of blade length:
-        Points.append((petiole_length + 0.99 * blade_length,
-                       0.5 * blade_width,
-                       # This time, the curving radius is set to the actual blade radius:
-                       z_arc_coordinate(0.99 * blade_length, arc_length=blade_length, radius= blade_radius)))
-                       # 0))
-        # The Bezier curve will necessarily pass through this last point:
-        Points.append((petiole_length + 1.00 * blade_length,
-                       0,
-                       z_arc_coordinate(1.00 * blade_length, arc_length=blade_length, radius= blade_radius)))
-                       # 0))
+        # Now we create a spline that passes through each point:
+        s_curve = pgl.cspline.cspline(Points)
+        spline_curve = pgl.Shape(s_curve, appearance=pgl.Material(pgl.Color3(150,0,0)))
+        # # We create the symetric curve:
+        # s_curve_neg = pgl.cspline.cspline([(x,-y,z) for (x,y,z) in Points])
+        # # TODO: In a perfect word, there would be an easy option here to create a shape from the close spline curve
+        # # representing the leaf. For now, we try to make the shape using a Bezier patch,
+        # # by getting the control points from the spline:
+        # # The Beziers control points should theroretically correspond to the following lists:
+        # Bezier_control_points = s_curve.ctrlPointList
+        # Bezier_control_points_neg = s_curve_neg.ctrlPointList
+        # # We construct a control matrix from these:
+        # n = pgl.Point4Matrix([Bezier_control_points, Bezier_control_points_neg])
+        # # And we create a Bezier shape based on this control matrix:
+        # spline_shape = pgl.BezierPatch(n, ustride=10, vstride=10)
+        # # We compare the shape with the spline curve and with the Bezier control points:
+        # control_points_line = pgl.Polyline([pgl.Vector3(x,y,z) for (x,y,z,t) in Bezier_control_points])
+        # # We plot everything:
+        # scene = pgl.Scene()
+        # scene += spline_curve
+        # scene += control_points_line
+        # scene += spline_shape
+        # # We show the scene:
+        # pgl.Viewer.display(scene)
+        # # CONCLUSION: The spline passes through the required points, but the Bezier shape does not follow this curve...
 
-        # We construct two symetrical curves from the points defined above:
-        r1 = [pts(x,y,z) for (x,y,z) in Points]
-        r2 = [pts(x,-y,z) for (x,y,z) in Points]
-        # We construct a control matrix in Plant GL based on these two symetrical curves:
-        m = pgl.Point4Matrix([r1, r2])
+        # USE OF BEZIER CURVES:
+        # We quickly define a function for generating appropriate PlantGL vectors:
+        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
+        # We define the control points of the Bezier surface that will be plotted, and put them in a list.
+        # NOTE: x will react to leaf length, y to leaf width, and z will control the curvature.
+        def Beziers_points_list(petiole_length, petiole_width,
+                                blade_length, blade_width, blade_length_for_max_width, blade_radius,
+                                curving=True):
+            """
+            This function returns a list of Beziers points based on the dimensions of petiole and blade,
+            with or without z-curving.
+            """
+            # We intiialize a list containing the control points for the Bezier curve:
+            Points_Beziers = []
+            if not curving:
+                # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+                # so that the petiole starts with a certain width:
+                Points_Beziers.append((0,
+                                       petiole_width / 2,  # The leaf will start at the full petiole width
+                                       0))
+                # We add one point for drawing the petiole (at 100% of petiole length):
+                Points_Beziers.append((petiole_length,
+                                       0,
+                                       0))
+                # We now draw the blade, by adding one point located at half the blade length where width is maximal:
+                Points_Beziers.append((petiole_length + blade_length_for_max_width * 0.5,
+                                       blade_width / 2. * 2,
+                                       0))
+                # For ending the blade, we add two points at 99% and 100% of blade length:
+                Points_Beziers.append((petiole_length + 0.99 * blade_length,
+                                       0.2 * blade_width,
+                                       0))
+                # The Bezier curve will necessarily pass through this last point:
+                Points_Beziers.append((petiole_length + blade_length,
+                                       0,
+                                       0))
+            else:
+                # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+                # so that the petiole starts with a certain width:
+                Points_Beziers.append((0,
+                                       petiole_width / 2, # The leaf will start at the full petiole width
+                                       0))
+                # We add one point for drawing the petiole (at 100% of petiole length):
+                Points_Beziers.append((petiole_length,
+                                       0,
+                                       0))
+                # We now draw the blade, by adding one point located at half the blade length where width is maximal:
+                Points_Beziers.append((petiole_length + blade_length_for_max_width*0.5,
+                                       blade_width / 2. * 2, # Here we double the width so that the resulting curve reaches it
+                                       # Curving should theoretically start here, but we keep the z to 0 for accounting
+                                       # for Beziers smoothing:
+                                       0))
+                # For ending the blade, we add two points at 99% and 100% of blade length:
+                Points_Beziers.append((petiole_length + arc_coordinates(arc_length=0.99*blade_length, radius= blade_radius)[0],
+                                       0.2 * blade_width,
+                                       arc_coordinates(arc_length=0.99*blade_length, radius= blade_radius)[2]))
+                # The Bezier curve will necessarily pass through this last pointn which corresponds to the end
+                # of the curved blade:
+                Points_Beziers.append((petiole_length + arc_coordinates(arc_length=blade_length, radius= blade_radius)[0],
+                                       0,
+                                       arc_coordinates(arc_length=blade_length, radius= blade_radius)[2]))
+            return Points_Beziers
+
+        # We compute Bezier points from the current dimensions, but without considering curving:
+        Points_Beziers_0 = Beziers_points_list(petiole_length, petiole_diameter,
+                                               blade_length, blade_width, blade_length_for_max_width, blade_radius,
+                                               curving=False)
+        # We construct two symetrical curves from the points defined above, still without curving:
+        # i.e. with z=0:
+        r1_0 = [pts(x,y,z) for (x,y,z) in Points_Beziers_0]
+        r2_0 = [pts(x,-y,z) for (x,y,z) in Points_Beziers_0]
+        # We construct a control matrix in Plant GL based on these symetrical curves:
+        m_0 = pgl.Point4Matrix([r1_0, r2_0])
         # And we generate the Bezier surface from this matrix:
-        shape = pgl.BezierPatch(m, ustride=30, vstride=30)
+        shape_0 = pgl.BezierPatch(m_0, ustride=30, vstride=30)
 
         # # NOTE 1: To check how the Bezier curve is shaped by the control points and adjust the points if necessary,
         # # we can plot the curves and the points:
         # scene = pgl.Scene()
-        # # We create a Bezier curve for each set of points:
-        # curve1 = pgl.BezierCurve(r1, 30)
-        # curve2 = pgl.BezierCurve(r2, 30)
-        # scene += curve1
-        # scene += curve2
+        # # We add the previous Bezier shape:
+        # scene += shape_0
+        # # We add the spline corresponding to the "real" points:
+        # scene += spline_curve
         # # We create a polyline among the points of the first curve:
-        # polygon1 = pgl.Polyline(Points)
-        # polygon1.colorList = [(0, 150, 50, 0) for point in Points]
+        # polygon1 = pgl.Polyline(Points_Beziers_0)
+        # polygon1.colorList = [(0, 150, 50, 0) for point in Points_Beziers_0]
         # # We create another polyline for the points of the symetrical curve:
-        # Points_neg = [(x,-y,z) for (x,y,z) in Points]
+        # Points_neg = [(x,-y,z) for (x,y,z) in Points_Beziers_0]
         # polygon2 = pgl.Polyline(Points_neg)
-        # polygon2.colorList = [(0, 150, 50, 0) for point in Points]
+        # polygon2.colorList = [(0, 150, 50, 0) for point in Points_Beziers_0]
         # scene += polygon1
         # scene += polygon2
+        # # We also add the diamond shape that would correspond to light interception:
+        # Points_diamond = [(0, 0, 0),
+        #                   (petiole_length + blade_length_for_max_width,
+        #                    blade_width / 2.,
+        #                    0),
+        #                   (petiole_length + arc_coordinates(arc_length=blade_length, radius= blade_radius)[0],
+        #                    0,
+        #                    arc_coordinates(arc_length=blade_length, radius= blade_radius)[2]),
+        #                   (petiole_length + blade_length_for_max_width,
+        #                    -blade_width / 2.,
+        #                    0),
+        #                   (0, 0, 0)]
+        # polygon3 = pgl.Polyline(Points_diamond)
+        # polygon3.colorList = [(0, 0, 150, 0) for point in Points_diamond]
+        # scene += polygon3
         # # We define the coordinates of the point cam_pos that represents the position of the camera:
         # cam_pos = pgl.Vector3(0, 0, 10)
         # cam_target = pgl.Vector3(1, 0, 0)
@@ -285,27 +357,60 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         # NOTE 2: The surface created here has interesting properties, given the allometric relationships with leaf length:
         # 1) The surface is proportional to the square of the leaf length.
         # 2) For a given length, the surface is proportional to the param.leaf_width_to_length_ratio.
-        # 3) The surface of the shape is propotional to the surface of the theoretical ellipse made by leaf length and leaf width.
+        # 3) The surface of the shape is proportional to the surface of the theoretical ellipse made by leaf length and leaf width.
 
-        # The surface created above does not necessarily equal the surface of the ideal leaf corresponding to an ellipse.
-        # In order to keep the same surface here, we adjust the shape of the leaf so that its surface is equal to the
-        # theoretical ellipse:
-        surface_ellipse = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
-        surface_shape = 1.21547 * surface_ellipse
-        #TODO: find a function to automatically get the actual surface of the created shape!
-        # Here the factor 1.21547 is an empirical factor corresponding to the tested configuration...
-        surface_corrector = surface_ellipse / surface_shape
-        # Here, we only reduce the width of the leaf, not its length:
-        scaling_factor = pgl.Vector3(1, surface_corrector, 1)
-        shape = pgl.Scaled(scaling_factor, shape)
+        # # NOTE 3: If the shape needs to be resized, we can do the following, provided that we know the adjusting factor:
+        # scaling_factor = pgl.Vector3(new_length/length, new_width/blade_width, 1)
+        # new_shape = pgl.Scaled(scaling_factor, shape)
+        # new_surface = surface(new_shape)
+
+        # ADJUSTING SHAPE DIMENSIONS:
+        # The shape created above does not have the same surface area as the ideal leaf corresponding to an ellipse,
+        # a diamond or another shape. In order to keep the same surface area here, we adjust the dimensions of the actual
+        # leaf, so that its surface becomes equal to the theoretical ideal shape.
+        # For an ellipse, the theoretical surface area is:
+        # surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
+        # For a diamond, the theoretical surface area is:
+        surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2.
+        # For the actual shape (without z-curving), the current surface area is:
+        surface_shape = surface(shape_0)
+
+        # The surface area of the theoretical shape is proportional to the square of length, with S = a * L^2,
+        # where a = S/L^2, e.g. a = param.leaf_width_to_length_ratio/4 in the case of a diamond.
+        # The surface area of the actual shape calculated here is also assumed proportional to the square of length,
+        # with S' = a' * L^2, where a' is empirically determined: a' = S'/L^2. We are now looking at the new length
+        # for which the actual shape would get the same surface area as the theoretical shape, i.e.:
+        # a' * L_new^2 = a * L^2, so L_new = sqrt(a/a') * L. We calculate this here:
+        # new_length = sqrt((surface_theoretical/length**2)/(surface_shape/length**2)) * length, i.e.:
+        new_length = sqrt(surface_theoretical / surface_shape) * length
+
+        # Now that we have the final dimensions of the actual shape, we can create the final shape:
+        new_petiole_length = new_length * param.petiole_to_leaf_length_ratio
+        new_petiole_diameter = new_length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio
+        new_blade_length = new_length * (1 - param.petiole_to_leaf_length_ratio)
+        new_blade_length_for_max_width = new_blade_length * param.relative_blade_length_for_max_width
+        new_blade_width = new_length * param.leaf_width_to_length_ratio
+        new_blade_radius = new_blade_length /  param.blade_length_to_radius_ratio
+        # We compute the new Beziers points from these new dimensions, this time with z-curving:
+        new_Points_Beziers = Beziers_points_list(new_petiole_length, new_petiole_diameter,
+                                                 new_blade_length, new_blade_width, new_blade_length_for_max_width,
+                                                 new_blade_radius,
+                                                 curving=True)
+        # We construct two symetrical curves from the new points defined above, this time with the full z-curving :
+        r1 = [pts(x, y, z) for (x, y, z) in new_Points_Beziers]
+        r2 = [pts(x, -y, z) for (x, y, z) in new_Points_Beziers]
+        # We construct the control matrix in Plant GL based on these symetrical curves:
+        m = pgl.Point4Matrix([r1, r2])
+        # And we generate the Bezier surfaces from this matrix:
+        final_shape = pgl.BezierPatch(m, ustride=30, vstride=30)
 
         # # We can display the resulting leaf if necessary:
         # scene = pgl.Scene()
-        # scene += shape
+        # scene += final_shape
         # pgl.Viewer.display(scene)
 
         # Finally, we return the final leaf shape of petiole & blade:
-        return (shape)
+        return (final_shape)
 
     def cotyledon_shape(length=1.):
         """
@@ -317,138 +422,195 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
 
         Returns
         -------
-        A PlantGL shape corresponding to the leaf
+        A PlantGL shape corresponding to the cotyledon
         """
 
         # We get all dimensions based on allometry with leaf length:
-        petiole_length = length * 0.3
-        petiole_diameter = length * 0.05
-        blade_length = length * 0.7
-        blade_width = length * 0.5
-        blade_radius = length * 1
+        petiole_length = length * param.petiole_to_cotyledon_length_ratio
+        petiole_diameter = length * param.petiole_to_cotyledon_width_ratio
+        blade_length = length * (1 - param.petiole_to_cotyledon_length_ratio)
+        blade_length_for_max_width = blade_length * param.relative_cotyledon_blade_length_for_max_width
+        blade_width = length * param.cotyledon_width_to_length_ratio
+        blade_radius = length / param.cotyledon_blade_length_to_radius_ratio
 
+        # USE OF BEZIER CURVES:
         # We quickly define a function for generating appropriate PlantGL vectors:
         pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
-
-        # We define a function for returning the z-coordinate for any x-coordinate
-        # located on the arc made by the leaf blade:
-        def z_arc_coordinate(x, arc_length=1., radius=1.):
-            # We know that the arc length is equal to alpha * radius, where alpha is the angle under the arc, so:
-            alpha = arc_length / radius
-            # We can see that tan((Pi - alpha) / 2) = x/z, so:
-            z = x / np.tan((pi - alpha) / 2.)
-            return z
-
         # We define the control points of the Bezier surface that will be plotted, and put them in a list.
         # NOTE: x will react to leaf length, y to leaf width, and z will control the curvature.
-        Points = []
-        # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
-        # so that the petiole starts with a certain width:
-        Points.append((0,
-                       petiole_diameter / 2, # The leaf will start at the full petiole width
-                       0))
-        # We add two more points for drawing the petiole (at 100% and 150% of petiole length):
-        Points.append((1.00 * petiole_length,
-                       petiole_diameter / 2,
-                       0))
-        Points.append((1.50 * petiole_length,
-                       blade_width,
-                       0))
-        # We now draw the blade, by adding two points located at 50% and 75% of blade length:
-        Points.append((petiole_length + 0.50 * blade_length,
-                       blade_width,
-                       # To start the blade curving, we compute the z-coordinate based on the radius of the blade.
-                       # However, because the Bezier curve will tend to smoothen the curve for intermediate points,
-                       # we set the radius as twice the value of the actual blade radius:
-                       # z_arc_coordinate(1.50 * petiole_length, radius=blade_radius * 2)))
-                       z_arc_coordinate(0.25 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
-                        # 0))
-        Points.append((petiole_length + 0.50 * blade_length,
-                       1.85 * blade_width,
-                       z_arc_coordinate(0.50 * blade_length, arc_length=blade_length, radius= blade_radius * 2)))
-                       # 0))
-        # For ending the blade, we add two points at 99% and 100% of blade length:
-        Points.append((petiole_length + 0.99 * blade_length,
-                       1.0 * blade_width,
-                       # This time, the curving radius is set to the actual blade radius:
-                       z_arc_coordinate(0.99 * blade_length, arc_length=blade_length, radius= blade_radius)))
-                       # 0))
-        # The Bezier curve will necessarily pass through this last point:
-        Points.append((petiole_length + 1.00 * blade_length,
-                       0,
-                       z_arc_coordinate(1.00 * blade_length, arc_length=blade_length, radius= blade_radius)))
-                       # 0))
+        def Beziers_points_list(petiole_length, petiole_width, blade_length, blade_width, blade_length_for_max_width,
+                                blade_radius,
+                                curving=True):
+            """
+            This function returns a list of Beziers points based on the dimensions of petiole and blade,
+            with or without z-curving.
+            """
+            # We intiialize a list containing the control points for the Bezier curve:
+            Points_Beziers = []
+            if not curving:
+                # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+                # so that the petiole starts with a certain width:
+                Points_Beziers.append((0,
+                                       petiole_width / 2,  # The leaf will start at the full petiole width
+                                       0))
+                # We add one point for drawing the petiole (at 100% of petiole length):
+                Points_Beziers.append((petiole_length,
+                                       0,
+                                       0))
+                # We now draw the blade, by adding one point located at half the blade length where width is maximal:
+                Points_Beziers.append((petiole_length + blade_length_for_max_width * 0.5,
+                                       blade_width / 2. * 2,
+                                       0))
+                # For ending the blade, we add two points at 99% and 100% of blade length:
+                Points_Beziers.append((petiole_length + 0.99 * blade_length,
+                                       0.2 * blade_width,
+                                       0))
+                # The Bezier curve will necessarily pass through this last point:
+                Points_Beziers.append((petiole_length + blade_length,
+                                       0,
+                                       0))
+            else:
+                # We start from the first point, at x=0 and z=0, and at y = petiole_radius,
+                # so that the petiole starts with a certain width:
+                Points_Beziers.append((0,
+                                       petiole_width / 2, # The leaf will start at the full petiole width
+                                       0))
+                # We add one point for drawing the petiole (at 100% of petiole length):
+                Points_Beziers.append((petiole_length,
+                                       0,
+                                       0))
+                # We now draw the blade, by adding one point located at half the blade length where width is maximal:
+                Points_Beziers.append((petiole_length + blade_length_for_max_width*0.5,
+                                       blade_width / 2. * 2, # Here we double the width so that the resulting curve reaches it
+                                       # Curving should theoretically start here, but we keep the z to 0 for accounting
+                                       # for Beziers smoothing:
+                                       0))
+                # For ending the blade, we add two points at 99% and 100% of blade length:
+                Points_Beziers.append((petiole_length + 0.99 * blade_length,
+                                       0.2 * blade_width,
+                                       arc_coordinates(arc_length=0.99*blade_length, radius= blade_radius)[2]))
+                # The Bezier curve will necessarily pass through this last pointn which corresponds to the end
+                # of the curved blade:
+                Points_Beziers.append((petiole_length + arc_coordinates(arc_length=blade_length, radius= blade_radius)[0],
+                                       0,
+                                       arc_coordinates(arc_length=blade_length, radius= blade_radius)[2]))
+            return Points_Beziers
 
-        # We construct two symetrical curves from the points defined above:
-        r1 = [pts(x,y,z) for (x,y,z) in Points]
-        r2 = [pts(x,-y,z) for (x,y,z) in Points]
-        # We construct a control matrix in Plant GL based on these two symetrical curves:
-        m = pgl.Point4Matrix([r1, r2])
+        # We compute Bezier points from the current dimensions, but without considering curving:
+        Points_Beziers_0 = Beziers_points_list(petiole_length, petiole_diameter,
+                                               blade_length, blade_width, blade_length_for_max_width,
+                                               blade_radius,
+                                               curving=False)
+        # We construct two symetrical curves from the points defined above, still without curving:
+        # i.e. with z=0:
+        r1_0 = [pts(x,y,z) for (x,y,z) in Points_Beziers_0]
+        r2_0 = [pts(x,-y,z) for (x,y,z) in Points_Beziers_0]
+        # We construct a control matrix in Plant GL based on these symetrical curves:
+        m_0 = pgl.Point4Matrix([r1_0, r2_0])
         # And we generate the Bezier surface from this matrix:
-        shape = pgl.BezierPatch(m, ustride=30, vstride=30)
+        shape_0 = pgl.BezierPatch(m_0, ustride=30, vstride=30)
 
-        # NOTE 1: To check how the Bezier curve is shaped by the control points and adjust the points if necessary,
-        # we can plot the curves and the points:
-        scene = pgl.Scene()
-        # We create a Bezier curve for each set of points:
-        curve1 = pgl.BezierCurve(r1, 30)
-        curve2 = pgl.BezierCurve(r2, 30)
-        scene += curve1
-        scene += curve2
-        # We create a polyline among the points of the first curve:
-        polygon1 = pgl.Polyline(Points)
-        polygon1.colorList = [(0, 150, 50, 0) for point in Points]
-        # We create another polyline for the points of the symetrical curve:
-        Points_neg = [(x,-y,z) for (x,y,z) in Points]
-        polygon2 = pgl.Polyline(Points_neg)
-        polygon2.colorList = [(0, 150, 50, 0) for point in Points]
-        scene += polygon1
-        scene += polygon2
-        # We define the coordinates of the point cam_pos that represents the position of the camera:
-        cam_pos = pgl.Vector3(0, 0, 10)
-        cam_target = pgl.Vector3(1, 0, 0)
-        # We position the camera in the scene relatively to the center of the scene:
-        pgl.Viewer.camera.lookAt(cam_pos, cam_target)
-        # We add a grid:
-        pgl.Viewer.grids.setXYPlane(True)
-        # We show the scene:
-        pgl.Viewer.display(scene)
+        # ADJUSTING SHAPE DIMENSIONS:
+        # The shape created above does not have the same surface area as the ideal leaf corresponding to an ellipse,
+        # a diamond or another shape. In order to keep the same surface area here, we adjust the dimensions of the actual
+        # leaf, so that its surface becomes equal to the theoretical ideal shape.
+        # For an ellipse, the theoretical surface area is:
+        # surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2. * pi
+        # For a diamond, the theoretical surface area is:
+        surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2.
+        # For the actual shape (without z-curving), the current surface area is:
+        surface_shape = surface(shape_0)
 
-        # NOTE 2: The surface created here has interesting properties, given the allometric relationships with leaf length:
-        # 1) The surface is proportional to the square of the leaf length.
-        # 2) For a given length, the surface is proportional to the param.leaf_width_to_length_ratio.
-        # 3) The surface of the shape is propotional to the surface of the theoretical ellipse made by leaf length and leaf width.
+        # The surface area of the theoretical shape is proportional to the square of length, with S = a * L^2,
+        # where a = S/L^2, e.g. a = param.leaf_width_to_length_ratio/4 in the case of a diamond.
+        # The surface area of the actual shape calculated here is also assumed proportional to the square of length,
+        # with S' = a' * L^2, where a' is empirically determined: a' = S'/L^2. We are now looking at the new length
+        # for which the actual shape would get the same surface area as the theoretical shape, i.e.:
+        # a' * L_new^2 = a * L^2, so L_new = sqrt(a/a') * L. We calculate this here:
+        # new_length = sqrt((surface_theoretical/length**2)/(surface_shape/length**2)) * length, i.e.:
+        new_length = sqrt(surface_theoretical / surface_shape) * length
+        # The new radius is calculated according to the allometric relationship, which is true for each type of surface:
+        new_width = new_length * param.cotyledon_width_to_length_ratio
 
-        # The surface created above does not necessarily equal the surface of the ideal leaf corresponding to an ellipse.
-        # In order to keep the same surface here, we adjust the shape of the leaf so that its surface is equal to the
-        # theoretical ellipse:
-        surface_ellipse = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
-        surface_shape = 1.21547 * surface_ellipse #TODO: find a function to automatically get the surface of the created shape!
-        # Here the factor 1.21547 is an empirical factor corresponding to the tested configuration.
-        surface_corrector = surface_ellipse / surface_shape
-        # # Here, we only reduce the width of the leaf, not its length:
-        # scaling_factor = pgl.Vector3(1, surface_corrector, 1)
-        # shape = pgl.Scaled(scaling_factor, shape)
-
-        # We can display the resulting leaf if necessary:
-        scene = pgl.Scene()
-        scene += shape
-        pgl.Viewer.display(scene)
-
-        # Finally, we return the final leaf shape of petiole & blade:
-        return (shape)
-
-    def fababean_leafletshape(length=1., width=1.):
-        sc_factor = 3.173
-        pts = lambda x, y, z: pgl.Vector4(x / sc_factor, y / sc_factor, z / sc_factor, 1.0)
-        r1 = [pts(0, 0, 0), pts(0, -1, 0.1), pts(0, -2, 1), pts(0, -3, 2), pts(0, -1, 3), pts(0, -1, 3.9), pts(0, 0, 4)]
-        r2 = [pts(0, 0, 0), pts(0, 1, 0.1), pts(0, 2, 1), pts(0, 3, 2), pts(0, 1, 3), pts(0, 1, 3.9), pts(0, 0, 4)]
+        # Now that we have the final dimensions of the actual shape, we can create the final shape:
+        new_petiole_length = new_length * param.petiole_to_cotyledon_length_ratio
+        new_petiole_diameter = new_length * param.cotyledon_width_to_length_ratio * param.petiole_to_cotyledon_width_ratio
+        new_blade_length = new_length * (1 - param.petiole_to_cotyledon_length_ratio)
+        new_blade_length_for_max_width = new_blade_length * param.relative_cotyledon_blade_length_for_max_width
+        new_blade_width = new_length * param.cotyledon_width_to_length_ratio
+        new_blade_radius = new_blade_length /  param.cotyledon_blade_length_to_radius_ratio
+        new_Points_Beziers = Beziers_points_list(new_petiole_length, new_petiole_diameter,
+                                                 new_blade_length, new_blade_width, new_blade_length_for_max_width,
+                                                 new_blade_radius, curving=True)
+        # We construct two symetrical curves from the new points defined above, this time with the full z-curving :
+        r1 = [pts(x, y, z) for (x, y, z) in new_Points_Beziers]
+        r2 = [pts(x, -y, z) for (x, y, z) in new_Points_Beziers]
+        # We construct the control matrix in Plant GL based on these symetrical curves:
         m = pgl.Point4Matrix([r1, r2])
-        shape = pgl.BezierPatch(m, ustride=9, vstride=2)
-        # We scale the shape according to the specified width and length:
-        leaf_scale = pgl.Vector3(1, width, length)
-        leaf_shape = pgl.Scaled(leaf_scale, shape)
-        return (leaf_shape)
+        # And we generate the Bezier surfaces from this matrix:
+        final_shape = pgl.BezierPatch(m, ustride=30, vstride=30)
+
+        # Finally, we return the final cotyledon shape of petiole & blade:
+        return (final_shape)
+
+    def leaflet_shape(leaflet_length=1., leaflet_width=1., u=9, v=2):
+
+        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
+        # We create a list containing the control points for the Bezier curve:
+        Points_Beziers = [(0,0,0),
+                          (leaflet_length/2., leaflet_width*2.,0),
+                          (leaflet_length,0,0)]
+        # We transform the points into suitable format and prepare two syemtric curves from this:
+        # r1 = [pts(0, 0, 0), pts(0, -1, 0.1), pts(0, -2, 1), pts(0, -3, 2), pts(0, -1, 3), pts(0, -1, 3.9), pts(0, 0, 4)]
+        r1 = [pts(z, y, x) for (x, y, z) in Points_Beziers]
+        r2 = [pts(z, -y, x) for (x, y, z) in Points_Beziers]
+        m = pgl.Point4Matrix([r1, r2])
+        leaflet_shape = pgl.BezierPatch(m, ustride=u, vstride=v)
+        # leaflet_shape = pgl.Scaled((leaflet_length, leaflet_width, 1), leaflet_shape)
+        return (leaflet_shape)
+
+    def fababean_leaf_shape(length=1., width=1., number_of_leaflets=5):
+
+        # We calculate the leaf surface, assuming that it corresponds to a diamond:
+        leaf_surface = length/2. * width/2.
+        # We assume that each leaflet has the same surface:
+        leaflet_surface = leaf_surface / number_of_leaflets
+        leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
+        leaflet_width = leaflet_length * param.leaflet_width_to_length_ratio
+        leaflet = leaflet_shape(leaflet_length, leaflet_width)
+
+        if number_of_leaflets < 2:
+            number_of_petioles = 1
+        else:
+            number_of_petioles = (number_of_leaflets) // 2
+
+        total_petiole_length = length - leaflet_length
+        petiole = pgl.Cylinder(radius=length*param.fababean_petiole_width_to_length_ratio, height=total_petiole_length)
+        leaflet_left = pgl.AxisRotated(axis=(1, 0, 0), angle=-60 * pi/180 , geometry=leaflet)
+        leaflet_right = pgl.AxisRotated(axis=(1, 0, 0), angle=60 * pi/180, geometry=leaflet)
+
+        petiole_leaflet_length_1 = length * 0.3
+        petiole_leaflet_length_2 = length * 0.2
+
+        # We initiate a list containing all leaflets:
+        leaflets = [petiole]
+        translate = [0, 0, petiole_leaflet_length_1]
+        # We intiate a counter for leaflets to handle:
+        count_leaflets = number_of_leaflets
+        # We add the first two leaflefts:
+        leaflets.append(pgl.Translated(translate, leaflet_left))
+        leaflets.append(pgl.Translated(translate, leaflet_right))
+        for i in range(number_of_petioles):
+            leaflets.append(pgl.Translated(translate, leaflet_left))
+            leaflets.append(pgl.Translated(translate, leaflet_right))
+            translate[2] += petiole_leaflet_length_2
+            count_leaflets -= 2
+        if count_leaflets == 1:
+            leaflets.append(pgl.Translated((0, 0, total_petiole_length), leaflet))
+
+        # Finally, we group all the leaflefts into a single shape:
+        leafshape_fababean = pgl.Group(leaflets)
+        return leafshape_fababean
 
     # Now we define the actual shoot visitor by moving the turtle:
     def shoot_visitor(g, v, turtle):
@@ -512,8 +674,19 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                 turtle.f(internode_radius*0.9)
                 # We flip the turtle so that the cotyledon will be oriented in the correct way:
                 turtle.down(90)
-                # And we draw the leaf:
-                turtle.customGeometry(cotyledon_shape(length=length))
+                # And we draw the cotyledon:
+                # In case the general leaf_shape has been imposed as a diamon_shape, we also plot the cotyledon as a diamond:
+                if leaf_shape == "diamond_shape":
+                    blade_length_for_max_width = (length * (1 - param.petiole_to_cotyledon_length_ratio)
+                                                  * param.relative_cotyledon_blade_length_for_max_width)
+                    turtle.customGeometry(diamond_shape(petiole_length = length * param.petiole_to_cotyledon_length_ratio,
+                                                        blade_length = length * (1 - param.petiole_to_cotyledon_length_ratio),
+                                                        blade_length_for_max_width = blade_length_for_max_width,
+                                                        blade_width = length * param.cotyledon_width_to_length_ratio,
+                                                        blade_radius=length / param.cotyledon_blade_length_to_radius_ratio))
+                else:
+                    # Otherwise, we look for the specifically-designed cotyledon shape:
+                    turtle.customGeometry(cotyledon_shape(length=length))
 
             # OPTION WITH OVAL SHAPE:
             elif leaf_shape == "oval":
@@ -533,16 +706,33 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                 # And finally, we reorientate the turtle:
                 turtle.down(180)
 
+            # OPTION WITH DIAMOND LEAF SHAPE:
+            elif leaf_shape == "diamond_shape":
+                # We need to start the leaf from the side wall of the parent internode.
+                # We first get the parent internode:
+                index_parent = g.Father(v, EdgeType='+')
+                parent = g.node(index_parent)
+                internode_radius = parent.radius * upscaling_factor
+                # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
+                turtle.f(internode_radius*0.9)
+                # We flip the turtle so that the leaf will be oriented in the correct way:
+                turtle.down(90)
+                # We recalculate the total length for which the width should be maximal:
+                blade_length_for_max_width = (length * (1 - param.petiole_to_leaf_length_ratio)
+                                              * param.relative_blade_length_for_max_width)
+                # And we draw the shape:
+                turtle.customGeometry(diamond_shape(petiole_length = length * param.petiole_to_leaf_length_ratio,
+                                                    blade_length = length * (1 - param.petiole_to_leaf_length_ratio),
+                                                    blade_length_for_max_width = blade_length_for_max_width,
+                                                    blade_width = length * param.leaf_width_to_length_ratio,
+                                                    blade_radius = length / param.blade_length_to_radius_ratio))
+
             # OPTION WITH 'TYPICAL' LEAF SHAPE:
             elif leaf_shape == "typical_leaf_shape":
                 turtle.customGeometry(typical_leaf_shape(length=length))
 
-            # OPTION WITH UNILEAFLET:
-            elif leaf_shape == "unileaflet":
-                turtle.customGeometry(unileaflet(length=length, width=2 * radius))
-
             # OPTION WITH RAPESEED LEAF SHAPE:
-            elif leaf_shape == "rapeseed_shape":
+            elif leaf_shape == "rapeseed_leaf_shape":
 
                 # We need to start the leaf from the side wall of the parent internode.
                 # We first get the parent internode:
@@ -554,11 +744,11 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                 # We flip the turtle so that the leaf will be oriented in the correct way:
                 turtle.down(90)
                 # And we draw the leaf:
-                turtle.customGeometry(rapeseed_leafshape(length=length))
+                turtle.customGeometry(rapeseed_leaf_shape(length=length))
 
             # OPTION WITH FABA BEAN LEAFLET SHAPE:
-            elif leaf_shape == "fababean_shape":
-                turtle.customGeometry(fababean_leafletshape(length=length, width=2 * radius))
+            elif leaf_shape == "fababean_leaf_shape":
+                turtle.customGeometry(fababean_leaf_shape(length=length, width=2 * radius))
 
             # OPTION WITH CLASSICAL CYLINDERS:
             else:
@@ -587,6 +777,15 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         n.z2 = position2[2] * upscaling_factor
 
     return shoot_visitor
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# We create a function that computes the insertion angle of the petiole of a leaf from the mother stem,
+# based on the thermal age of the plant and of the leaf:
+def leaf_insertion_angle_evolution(plant_thermal_age_in_degree_days, leaf_age_in_degree_days):
+    a = 0.322 - 2.74E-04 * plant_thermal_age_in_degree_days
+    b = (2.26E-05 * plant_thermal_age_in_degree_days - 7.38E-03) * plant_thermal_age_in_degree_days
+    angle = min(90, a * leaf_age_in_degree_days + b)
+    return angle
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def get_root_visitor(upscaling_factor=1.):
@@ -1459,7 +1658,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
         if vid in shapes:
             n = shoot_MTG.node(vid)
             if single_color_shoot is None:
-                shapes[vid].appearance = pgl.Material(colors_shoot[vid], transparency=0.2)
+                shapes[vid].appearance = pgl.Material(colors_shoot[vid], transparency=0)
             else:
                 # Otherwise, we can print it with a unique color:
                 if n.label=="Fallen_leaf":
@@ -1469,7 +1668,8 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                     # If the leaf has fallen, we print in grey, semi-transparent:
                     shapes[vid].appearance = pgl.Material([200,220,200], transparency=0.2)
                 else:
-                    shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
+                    # shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
+                    shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0)
 
     # We add each shape of the current MTG to the final scene:
     for shape in shoot_scene:
@@ -1565,7 +1765,7 @@ def temperature_modification(temperature_in_Celsius, process_at_T_ref=1., T_ref=
             modified_process = 0.
             return modified_process
 
-    # We compute a temperature-modified process, correspond to a Q10-modified relationship,
+    # We compute a temperature-modified process, corresponding to a Q10-modified relationship,
     # based on the work of Tjoelker et al. (2001):
     modified_process = process_at_T_ref * (A * (temperature_in_Celsius - T_ref) + B) ** (1 - C) \
                        * (A * (temperature_in_Celsius - T_ref) + B) ** (C * (temperature_in_Celsius - T_ref) / 10.)
