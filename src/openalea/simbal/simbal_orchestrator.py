@@ -166,7 +166,7 @@ def computing_shoot_root_exchange_rates(plant,
             # Then the amount of C exchanged is limited to a fraction of the amount of C available in shoots:
             fraction = param.fraction_of_shoot_C_leftover_remaining_in_shoots
             net_final_C_exchange = net_shoot_C * fraction
-            print("WATCH OUT: all the C from shoots should have been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_final_C_exchange)), "gC!")
+            print("WATCH OUT: all the C from shoots should have been allocated to roots, i.e.", "{:.2E}".format(Decimal(net_shoot_C)), "gC!")
             print("We therefore allocated only", fraction*100,"% of it to the roots." )
         # CASE 2: The flow from root to shoot is positive but there is not enough C in the root to sustain it:
         elif expected_C_exchange < 0. and abs(expected_C_exchange) > net_root_C:
@@ -503,10 +503,6 @@ def run_simulation(my_path=None,
                    initial_shoot_labile_N_concentration = 1e-3, # in gN per gram of structural mass
                    initial_root_labile_C_concentration = 1e-2, # in gC per gram of structural mass
                    initial_root_labile_N_concentration = 1e-3, # in gN per gram of structural mass
-                   # rapeseed_leaf_shape = "rapeseed_leaf_shape",
-                   rapeseed_leaf_shape = "diamond_shape",
-                   faba_bean_leaf_shape = "faba_bean_leaf_shape",
-                   light_intersection_leaf_shape = "diamond_shape",
                    ):
 
     """
@@ -662,8 +658,8 @@ def run_simulation(my_path=None,
                                           initial_internode_radius=0.,
                                           initial_leaf_length=0.,
                                           leaf_surface_max=0.,
-                                          initial_labile_C_content=0,
-                                          initial_labile_N_content=0
+                                          initial_labile_C_concentration=0,
+                                          initial_labile_N_concentration=0
                                           )
         # We define an arbitrary shoot structural mass (gram), which will remain constant over the simulation:
         plant.shoot_struct_mass = 0.1
@@ -675,11 +671,12 @@ def run_simulation(my_path=None,
         shoot_g = AllocF.create_shoot_MTG(number_of_cotyledons=2, # We define two cotyledons
                                           number_of_phytomers=0,
                                           initial_internode_radius=rhizodep_param.D_ini / 2.,
-                                          initial_hypocotyle_length=0.002,
-                                          initial_internode_height=0.,
-                                          initial_leaf_length=0.0005,
-                                          initial_labile_C_content=initial_shoot_labile_C_concentration,
-                                          initial_labile_N_content=initial_shoot_labile_N_concentration
+                                          initial_hypocotyl_length=param.initial_hypocotyl_length,
+                                          initial_internode_height=param.initial_internode_length,
+                                          initial_cotyledon_length=param.initial_cotyledon_length,
+                                          initial_leaf_length=param.initial_leaf_length,
+                                          initial_labile_C_concentration=initial_shoot_labile_C_concentration,
+                                          initial_labile_N_concentration=initial_shoot_labile_N_concentration
                                           )
 
         # We update the shoot system general properties based on the shoot MTG:
@@ -910,8 +907,9 @@ def run_simulation(my_path=None,
         print("    > Computing shoot-to-root C transfer...")
         # We compute the rate of net C transfer from shoots to roots:
         computing_shoot_root_exchange_rates(plant, computing_C_exchange=True, computing_N_exchange=False,
+                                            time_step_in_seconds=time_step_in_seconds,
                                             C_option="by_diffusion")
-        print("    > The net transfer of C is",
+        print("    > The net transfer of C should be",
               "{:.2E}".format(Decimal(plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds)), "gC.")
         # Note that only the rate has been computed here, the labile C pools have not been updated yet!
         # We limit the transfer of C from shoots to roots (or from roots to shoots) to the maximal amount of labile C
@@ -950,8 +948,9 @@ def run_simulation(my_path=None,
         print("    > Computing root-to-shoot N transfer...")
         # We compute the rate of net N transfer from roots to shoots:
         computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, computing_N_exchange=True,
+                                            time_step_in_seconds=time_step_in_seconds,
                                             N_option="by_diffusion")
-        print("    > The net transfer of N is",
+        print("    > The net transfer of N should be",
               "{:.2E}".format(Decimal(plant.net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds)),
               "gN.")
         # We then limit the transfer of N from roots to shoots (or from shoots to roots) to the maximal amount of N
@@ -1094,9 +1093,9 @@ def run_simulation(my_path=None,
                                                     inter_row_distance=inter_row_distance,
                                                     scene_length=row_length,
                                                     scene_width=scene_width,
-                                                    # leaf_shape=param.leaf_shape,
+                                                    # leaf_shape=param.plotting_leaf_shape,
                                                     #  WATCH OUT: here we simplify the shape to reduce computation time!
-                                                    leaf_shape=light_intersection_leaf_shape,
+                                                    leaf_shape=param.light_interception_leaf_shape,
                                                     averaging_light_intensity_share=True,
                                                     period_of_light_intensity_averaging_in_days=0.5,
                                                     time_step_in_days=time_step_in_days
@@ -1215,7 +1214,7 @@ def run_simulation(my_path=None,
             AllocF.potential_shoot_growth(shoot_g,
                                           SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                           leaf_minimal_thickness=param.leaf_minimal_thickness,
-                                          leaf_shape=light_intersection_leaf_shape,
+                                          leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
                                           elong_internode=param.elong_internode,
                                           time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
                                           air_temperature_in_degree_Celsius=air_temperature)
@@ -1228,7 +1227,7 @@ def run_simulation(my_path=None,
                                            structural_C_content=param.structural_C_content,
                                            structural_N_content=param.structural_N_content,
                                            leaf_minimal_thickness=param.leaf_minimal_thickness,
-                                           leaf_shape=light_intersection_leaf_shape,
+                                           leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
                                            time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
                                            air_temperature_in_degree_Celsius=air_temperature)
             # At this stage, the shoot structure has been updated and the consumption rates have been calculated
@@ -1359,7 +1358,9 @@ def run_simulation(my_path=None,
                              z_center=param.z_center*zoom_factor,
                              x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
                              grid=False,
-                             leaf_shape=rapeseed_leaf_shape,
+                             plant_species=param.plant_species,
+                             leaf_shape=param.plotting_leaf_shape,
+                             simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
                              background_color=[94, 76, 64],
                              # single_color_shoot=[30,120,60],
                              single_color_root=[200,200,100],
@@ -1419,4 +1420,5 @@ if __name__ == '__main__':
                    input_file=os.path.join(main_simbal_folder, "simulation", "inputs", "inputs_over_time.csv"),
                    input_file_time_step_in_days=1/24.)
 
-#TODO: vérifier l'apparition des phytomères au cours du temps
+#TODO: check phytomer emergence over time
+#TODO: solve the initial shoot C and N balance

@@ -331,12 +331,13 @@ def new_phytomers_initiation(shoot_system,
 # This function enables to generate an initial MTG with a certain number of leaves and corresponding internodes:
 def create_shoot_MTG(number_of_cotyledons=2,
                      number_of_phytomers=3,
+                     initial_cotyledon_length=0.003,
                      initial_leaf_length=0.003,
                      initial_internode_radius = 0.001,
-                     initial_hypocotyle_length = 0.01,
+                     initial_hypocotyl_length = 0.01,
                      initial_internode_height = 0.0005,
-                     initial_labile_C_content = 0.001,
-                     initial_labile_N_content = 0.0001,
+                     initial_labile_C_concentration = 0.001,
+                     initial_labile_N_concentration = 0.0001,
                      struct_mass_density=1e5, minimal_leaf_thickness=1e-3):
     """
     This function is used to create the shoot part of a plant with a succession of different phytomers on the same branch.
@@ -363,12 +364,12 @@ def create_shoot_MTG(number_of_cotyledons=2,
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
                               label='Base_of_the_root_system',
-                              type="Hypocotyle",
+                              type="hypocotyl",
                               # Geometry:
                               radius=initial_internode_radius,
                               potential_radius=initial_internode_radius,
-                              length=initial_hypocotyle_length,
-                              potential_length=initial_hypocotyle_length,
+                              length=initial_hypocotyl_length,
+                              potential_length=initial_hypocotyl_length,
                               angle_down=0.,
                               angle_roll=0.,
                               x1=0.,
@@ -403,7 +404,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               Caribu_area = 0.
                               )
 
-    # We access this first element, and initialize the internode on which the next elements will be attached:
+    # We access this first element (hypocotyl), and consider it as an internode on which the next upper shoot elements
+    # will be attached:
     new_internode = g.node(id_base)
     # We calculate the surface, volume and structural mass of this first element:
     new_internode.surface = new_internode.radius * 2. * pi * new_internode.length
@@ -411,8 +413,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
     new_internode.struct_mass = new_internode.volume * struct_mass_density
     new_internode.photosynthetic_area = new_internode.surface
 
-    new_internode.labile_C = initial_labile_C_content * new_internode.struct_mass
-    new_internode.labile_N = initial_labile_N_content * new_internode.struct_mass
+    new_internode.labile_C = initial_labile_C_concentration * new_internode.struct_mass
+    new_internode.labile_N = initial_labile_N_concentration * new_internode.struct_mass
 
     # We define the ramification order of this first internode as 0:
     new_internode.ramification_order = 0
@@ -429,7 +431,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                minimal_leaf_thickness=minimal_leaf_thickness,
                                                                internode_radius=new_internode.radius * 0.9,
                                                                internode_length=0.,
-                                                               leaf_length=initial_leaf_length,
+                                                               leaf_length=initial_cotyledon_length,
                                                                bud_length=0.,
                                                                properties_identical_to_parent = True)
         # We set the thermal time since the phytomer formed according to the phyllochron:
@@ -439,6 +441,9 @@ def create_shoot_MTG(number_of_cotyledons=2,
         # We define the type of the internode:
         new_internode.type = "Cotyledon_supporting_segment"
         new_internode.angle_roll = 180
+        # We set its labile content to 0, as it has no length or mass:
+        new_internode.labile_C = 0.
+        new_internode.labile_N = 0.
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
         new_leaf.surface_max = param.cotyledon_surface_max
@@ -464,6 +469,13 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_internode.type= "Normal"
         new_leaf.type = "Normal"
         new_bud.type = "Normal"
+        # We also need to specify the labile contents of the internode and the leaf:
+        if new_internode.length > 0.:
+            new_internode.labile_C = initial_labile_C_concentration
+            new_internode.labile_N = initial_labile_N_concentration
+        if new_leaf.length > 0.:
+            new_leaf.labile_C = initial_labile_C_concentration
+            new_leaf.labile_N = initial_labile_N_concentration
 
     # Finally, on the last internode, we add a new apex that may continue to form new phytomers over the simulation:
     new_apex = ADDING_A_CHILD_ORGAN(parent_element=new_internode,
@@ -2176,10 +2188,9 @@ if __name__ == '__main__':
     z_cam = 0.
     zoom_factor = 100.
     plotting_shoot_MTG(shoot_g,
-                       # leaf_shape="oval",
-                       # leaf_shape="typical_leaf_shape",
-                       leaf_shape="fababean_leaf_shape",
+                       plant_species="faba_bean",
                        # leaf_shape="diamond_shape",
+                       leaf_shape="faba_bean_leaf_shape",
                        petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=zoom_factor,

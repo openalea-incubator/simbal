@@ -22,6 +22,8 @@ import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
 
+from src.openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
+
 try:
     import pyvista as pv
 except ImportError:
@@ -30,14 +32,14 @@ except ImportError:
 ########################################################################################################################
 
 # Function for moving the turtle and create specific shapes for stems and leaves:
-def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=False):
+def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape", simplified_shape="diamond_shape",
+                      upscaling_factor=1, petiole_showing=False):
     """
     This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
 
     Parameters
     ----------
-    leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
-    are displayed with a typical leaf curved shape, based on their length only.
+    leaf_shape: ...
     upscaling_factor: number by which all dimensions will be multiplied (useful for solving plot resolution issues)
     petiole_showing: if True, cylinders corresponding to petioles will be shown, in addition to leaf shapes
 
@@ -109,19 +111,30 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         -------
         A PlantGL shape corresponding to the leaf
         """
-
-        # We define a list of the four points delimiting the diamond:
-        points = [
-            # First point corresponding to the origin:
-            (0, 0, 0),
-            # Second point corresponding to the maximal width:
-            (petiole_length + blade_length_for_max_width, blade_width/2., 0),
-            # Third point corresponding to the curved leaf tip:
-            (petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
-             0,
-             arc_coordinates(arc_length = blade_length, radius=blade_radius)[2]),
-            # Fourth point, corresponding to the opposite of the second point:
-            (petiole_length + blade_length_for_max_width, -blade_width/2., 0)]
+        if blade_radius is None:
+            # We define a list of the four points delimiting the diamond, without curving (z=0):
+            points = [
+                # First point corresponding to the origin:
+                (0, 0, 0),
+                # Second point corresponding to the maximal width:
+                (petiole_length + blade_length_for_max_width, blade_width/2., 0),
+                # Third point corresponding to the leaf tip:
+                (petiole_length + blade_length, 0, 0),
+                # Fourth point, corresponding to the opposite of the second point:
+                (petiole_length + blade_length_for_max_width, -blade_width/2., 0)]
+        else:
+            # We define a list of the four points delimiting the diamond, including a z-coordinate for curving:
+            points = [
+                # First point corresponding to the origin:
+                (0, 0, 0),
+                # Second point corresponding to the maximal width:
+                (petiole_length + blade_length_for_max_width, blade_width/2., 0),
+                # Third point corresponding to the curved leaf tip:
+                (petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
+                 0,
+                 arc_coordinates(arc_length = blade_length, radius=blade_radius)[2]),
+                # Fourth point, corresponding to the opposite of the second point:
+                (petiole_length + blade_length_for_max_width, -blade_width/2., 0)]
         # We add a list of normals and a list of indices necessary for defining the QuadSet:
         normals = [(0, 0, 1) for i in range(4)]
         indices = [(0, 1, 2, 3)]
@@ -368,10 +381,12 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         # The shape created above does not have the same surface area as the ideal leaf corresponding to an ellipse,
         # a diamond or another shape. In order to keep the same surface area here, we adjust the dimensions of the actual
         # leaf, so that its surface becomes equal to the theoretical ideal shape.
-        # For an ellipse, the theoretical surface area is:
-        # surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
-        # For a diamond, the theoretical surface area is:
-        surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2.
+        if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+            # For an ellipse, the theoretical surface area is:
+            surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2. * pi
+        else:
+            # For a diamond, the theoretical surface area is:
+            surface_theoretical = length/2. * length*param.leaf_width_to_length_ratio/2.
         # For the actual shape (without z-curving), the current surface area is:
         surface_shape = surface(shape_0)
 
@@ -514,10 +529,12 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         # The shape created above does not have the same surface area as the ideal leaf corresponding to an ellipse,
         # a diamond or another shape. In order to keep the same surface area here, we adjust the dimensions of the actual
         # leaf, so that its surface becomes equal to the theoretical ideal shape.
-        # For an ellipse, the theoretical surface area is:
-        # surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2. * pi
-        # For a diamond, the theoretical surface area is:
-        surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2.
+        if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+            # For an ellipse, the theoretical surface area is:
+            surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2. * pi
+        else:
+            # For a diamond, the theoretical surface area is:
+            surface_theoretical = length/2. * length*param.cotyledon_width_to_length_ratio/2.
         # For the actual shape (without z-curving), the current surface area is:
         surface_shape = surface(shape_0)
 
@@ -553,64 +570,72 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         # Finally, we return the final cotyledon shape of petiole & blade:
         return (final_shape)
 
-    def leaflet_shape(leaflet_length=1., leaflet_width=1., u=9, v=2):
+    def leaflet_shape(base_shape="Bezier", leaflet_length=1., leaflet_width=1., u=9, v=2):
 
-        pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
-        # We create a list containing the control points for the Bezier curve:
-        Points_Beziers = [(0,0,0),
-                          (leaflet_length/2., leaflet_width*2.,0),
-                          (leaflet_length,0,0)]
-        # We transform the points into suitable format and prepare two syemtric curves from this:
-        # r1 = [pts(0, 0, 0), pts(0, -1, 0.1), pts(0, -2, 1), pts(0, -3, 2), pts(0, -1, 3), pts(0, -1, 3.9), pts(0, 0, 4)]
-        r1 = [pts(z, y, x) for (x, y, z) in Points_Beziers]
-        r2 = [pts(z, -y, x) for (x, y, z) in Points_Beziers]
-        m = pgl.Point4Matrix([r1, r2])
-        leaflet_shape = pgl.BezierPatch(m, ustride=u, vstride=v)
+        # CASE OF A NON-REGULAR SHAPE:
+        if base_shape == "Bezier":
+            # We quickly define a function for generating appropriate PlantGL vectors:
+            pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
+            # We create a list containing the control points for the Bezier curve:
+            Points_Beziers = [(0, 0, 0),
+                              (leaflet_length / 2., leaflet_width/2., 0),
+                              (leaflet_length, 0, 0)]
+            # We transform the points into suitable format and prepare two syemtric curves from this:
+            r1 = [pts(x, y, z) for (x, y, z) in Points_Beziers]
+            r2 = [pts(x, -y, z) for (x, y, z) in Points_Beziers]
+            m = pgl.Point4Matrix([r1, r2])
+            leaflet_shape = pgl.BezierPatch(m, ustride=u, vstride=v)
+            # The shape created above does not have the same surface area as the ideal leaflet corresponding to an ellipse,
+            # a diamond or another shape. In order to keep the same surface area here, we adjust the dimensions of the actual
+            # leaflet, so that its surface becomes equal to the theoretical ideal shape.
+            if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+                # For an ellipse, the theoretical surface area is:
+                surface_theoretical = leaflet_length / 2. * leaflet_width / 2. * pi
+            else:
+                # For a diamond, the theoretical surface area is:
+                surface_theoretical = leaflet_length / 2. * leaflet_width / 2.
+            # For the actual shape the current surface area is:
+            surface_shape = surface(leaflet_shape)
+            # The surface area of the theoretical shape is proportional to the square of length, with S = a * L^2,
+            # where a = S/L^2, e.g. a = param.leaf_width_to_length_ratio/4 in the case of a diamond.
+            # The surface area of the actual shape calculated here is also assumed proportional to the square of length,
+            # with S' = a' * L^2, where a' is empirically determined: a' = S'/L^2. We are now looking at the new length
+            # for which the actual shape would get the same surface area as the theoretical shape, i.e.:
+            # a' * L_new^2 = a * L^2, so L_new = sqrt(a/a') * L. We calculate this here:
+            # new_length = sqrt((surface_theoretical/length**2)/(surface_shape/length**2)) * length, i.e.:
+            new_length = sqrt(surface_theoretical / surface_shape) * leaflet_length
+            # The new width is calculated according to the allometric relationship, which is true for each type of surface:
+            new_width = new_length * param.cotyledon_width_to_length_ratio
+            # We create a new list containing the control points for the new Bezier curve:
+            Points_Beziers_new = [(0, 0, 0),
+                                  (new_length / 2., new_width/2., 0),
+                                  (new_length, 0, 0)]
+            # We transform the points into suitable format and prepare two syemtric curves from this:
+            r1 = [pts(x, y, z) for (x, y, z) in Points_Beziers_new]
+            r2 = [pts(x, -y, z) for (x, y, z) in Points_Beziers_new]
+            n = pgl.Point4Matrix([r1, r2])
+            leaflet_shape = pgl.BezierPatch(n, ustride=u, vstride=v)
+
+        # Otherwise we assume that the base shape is a diamond:
+        else:
+            # We define a list of the four points delimiting the diamond:
+            points = [(0, 0, 0),
+                      # Second point corresponding to the maximal width:
+                      (leaflet_length / 2., leaflet_width / 2., 0),
+                      # Third point corresponding to the curved leaf tip:
+                      (leaflet_length, 0, 0),
+                      # Fourth point, corresponding to the opposite of the second point:
+                      (leaflet_length / 2., -leaflet_width / 2., 0)]
+            # WATCH OUT - Because the symetry applied later on the leaflet is oriented in a weird way, we inverse z and x:
+            points = [(x,y,z) for (x, y, z) in points]
+            # We add a list of normals and a list of indices necessary for defining the QuadSet:
+            normals = [(0, 0, 1) for i in range(4)]
+            indices = [(0, 1, 2, 3)]
+            # We create the shape corresponding to the diamond:
+            leaflet_shape = pgl.QuadSet(points, indices, normals, indices)
+
         # leaflet_shape = pgl.Scaled((leaflet_length, leaflet_width, 1), leaflet_shape)
         return (leaflet_shape)
-
-    def fababean_leaf_shape(length=1., width=1., number_of_leaflets=5):
-
-        # We calculate the leaf surface, assuming that it corresponds to a diamond:
-        leaf_surface = length/2. * width/2.
-        # We assume that each leaflet has the same surface:
-        leaflet_surface = leaf_surface / number_of_leaflets
-        leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
-        leaflet_width = leaflet_length * param.leaflet_width_to_length_ratio
-        leaflet = leaflet_shape(leaflet_length, leaflet_width)
-
-        if number_of_leaflets < 2:
-            number_of_petioles = 1
-        else:
-            number_of_petioles = (number_of_leaflets) // 2
-
-        total_petiole_length = length - leaflet_length
-        petiole = pgl.Cylinder(radius=length*param.fababean_petiole_width_to_length_ratio, height=total_petiole_length)
-        leaflet_left = pgl.AxisRotated(axis=(1, 0, 0), angle=-60 * pi/180 , geometry=leaflet)
-        leaflet_right = pgl.AxisRotated(axis=(1, 0, 0), angle=60 * pi/180, geometry=leaflet)
-
-        petiole_leaflet_length_1 = length * 0.3
-        petiole_leaflet_length_2 = length * 0.2
-
-        # We initiate a list containing all leaflets:
-        leaflets = [petiole]
-        translate = [0, 0, petiole_leaflet_length_1]
-        # We intiate a counter for leaflets to handle:
-        count_leaflets = number_of_leaflets
-        # We add the first two leaflefts:
-        leaflets.append(pgl.Translated(translate, leaflet_left))
-        leaflets.append(pgl.Translated(translate, leaflet_right))
-        for i in range(number_of_petioles):
-            leaflets.append(pgl.Translated(translate, leaflet_left))
-            leaflets.append(pgl.Translated(translate, leaflet_right))
-            translate[2] += petiole_leaflet_length_2
-            count_leaflets -= 2
-        if count_leaflets == 1:
-            leaflets.append(pgl.Translated((0, 0, total_petiole_length), leaflet))
-
-        # Finally, we group all the leaflefts into a single shape:
-        leafshape_fababean = pgl.Group(leaflets)
-        return leafshape_fababean
 
     # Now we define the actual shoot visitor by moving the turtle:
     def shoot_visitor(g, v, turtle):
@@ -653,8 +678,10 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
         # In the current element corresponds to a leaf or a cotyledon:
         if n.label == 'Leaf' or n.label == "Fallen_leaf":
 
-            # SHOWING THE PETIOLE FIRST:
-            # If needed, we first draw a cylinder corresponding to the petiole:
+            # 1a) OPTIONAL - SHOWING THE PETIOLE FIRST:
+            #""""""""""""""""""""""""""""""""""""""""""
+            # If needed, we first draw a cylinder corresponding to the petiole
+            # (not useful for complex shapes defined for a specific species, which already include a petiole in their geometry):
             if petiole_showing:
                 petiole_length = length
                 petiole_radius = length * 0.02
@@ -663,7 +690,8 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                 # We define the length of the cylinder corresponding to the petiole, and move the turtle:
                 turtle.F(petiole_length)
 
-            # COTYLEDON:
+            # 1b) SPECIAL CASE OF COTYLEDON:
+            #"""""""""""""""""""""""""""""""
             if n.type == "Cotyledon":
                 # We need to start the cotyledon from the side wall of the parent internode.
                 # We first get the parent internode:
@@ -684,82 +712,167 @@ def get_shoot_visitor(leaf_shape="oval", upscaling_factor=1, petiole_showing=Fal
                                                         blade_length_for_max_width = blade_length_for_max_width,
                                                         blade_width = length * param.cotyledon_width_to_length_ratio,
                                                         blade_radius=length / param.cotyledon_blade_length_to_radius_ratio))
+                # If the leaf_shape has not been specified as a diamond:
                 else:
-                    # Otherwise, we look for the specifically-designed cotyledon shape:
+                    # Then we look for the specifically-designed cotyledon shape:
                     turtle.customGeometry(cotyledon_shape(length=length))
-
-            # OPTION WITH OVAL SHAPE:
-            elif leaf_shape == "oval":
-                # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
-                # to be displayed:
-                turtle.f(length / 2.)
-                # We also need to rotate the turtle so that the oval is correctly oriented:
-                turtle.down(90)
-                # Finally, we print the oval shape according to the length and radius of the leaf:
-                turtle.customGeometry(oval_shape(length=length, width=2 * radius))
-                # We reposition the turtle at the base of the leaf:
-                # We first revert the angle:
-                turtle.down(-90)
-                # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
-                turtle.down(180)
-                turtle.f(length / 2.)
-                # And finally, we reorientate the turtle:
-                turtle.down(180)
-
-            # OPTION WITH DIAMOND LEAF SHAPE:
-            elif leaf_shape == "diamond_shape":
-                # We need to start the leaf from the side wall of the parent internode.
-                # We first get the parent internode:
-                index_parent = g.Father(v, EdgeType='+')
-                parent = g.node(index_parent)
-                internode_radius = parent.radius * upscaling_factor
-                # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
-                turtle.f(internode_radius*0.9)
-                # We flip the turtle so that the leaf will be oriented in the correct way:
-                turtle.down(90)
-                # We recalculate the total length for which the width should be maximal:
-                blade_length_for_max_width = (length * (1 - param.petiole_to_leaf_length_ratio)
-                                              * param.relative_blade_length_for_max_width)
-                # And we draw the shape:
-                turtle.customGeometry(diamond_shape(petiole_length = length * param.petiole_to_leaf_length_ratio,
-                                                    blade_length = length * (1 - param.petiole_to_leaf_length_ratio),
-                                                    blade_length_for_max_width = blade_length_for_max_width,
-                                                    blade_width = length * param.leaf_width_to_length_ratio,
-                                                    blade_radius = length / param.blade_length_to_radius_ratio))
-
-            # OPTION WITH 'TYPICAL' LEAF SHAPE:
-            elif leaf_shape == "typical_leaf_shape":
-                turtle.customGeometry(typical_leaf_shape(length=length))
-
-            # OPTION WITH RAPESEED LEAF SHAPE:
-            elif leaf_shape == "rapeseed_leaf_shape":
-
-                # We need to start the leaf from the side wall of the parent internode.
-                # We first get the parent internode:
-                index_parent = g.Father(v, EdgeType='+')
-                parent = g.node(index_parent)
-                internode_radius = parent.radius * upscaling_factor
-                # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
-                turtle.f(internode_radius*0.9)
-                # We flip the turtle so that the leaf will be oriented in the correct way:
-                turtle.down(90)
-                # And we draw the leaf:
-                turtle.customGeometry(rapeseed_leaf_shape(length=length))
-
-            # OPTION WITH FABA BEAN LEAFLET SHAPE:
-            elif leaf_shape == "fababean_leaf_shape":
-                turtle.customGeometry(fababean_leaf_shape(length=length, width=2 * radius))
-
-            # OPTION WITH CLASSICAL CYLINDERS:
+            # If the leaf is not a cotyledon:
             else:
-                # We define the radius of the cylinder to be displayed:
-                turtle.setWidth(radius)
-                # We move the turtle by the length of the root segment:
-                turtle.F(length)
-                # And then we come back discretely to the initial position:
-                turtle.down(180)
-                turtle.f(length)
-                turtle.down(180)
+                # 1c) CASE OF FABA BEAN LEAF:
+                #""""""""""""""""""""""""""""
+                # If the plant is faba bean:
+                if plant_species == "faba_bean":
+                    # The leaf is made of a long petiole with leaflets around.
+                    # We calculate the leaf surface:
+                    if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+                        leaf_surface = length / 2. * radius / 2. * pi  # Here the radius is the width, not the curving...
+                    else:
+                        # We assume that the surface is that of a diamond:
+                        leaf_surface = length / 2. * radius / 2. # Here the radius is the width, not the curving...
+                    # The total length of the whole petiole is computed:
+                    total_petiole_length = length
+                    # The upper surface of the cylinder of the petiole is calculated and withdrawn from the total leaf surface:
+                    upper_petiole_surface = total_petiole_length * total_petiole_length * param.fababean_petiole_width_to_length_ratio * pi / 2.
+                    total_leaflet_surface = leaf_surface - upper_petiole_surface
+                    # We assume that leaf surface is distributed equally between each leaflet:
+                    leaflet_surface = total_leaflet_surface / param.number_of_leaflets
+                    # Now we can calculate the length and width of each leaflet based on the simplified shape used for calculations:
+                    if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+                        leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
+                    else:
+                        leaflet_length = 2 * (leaflet_surface / param.leaflet_width_to_length_ratio) ** (0.5)
+                    leaflet_width = leaflet_length * param.leaflet_width_to_length_ratio
+                    # We define a single shape for one leaflet.
+                    # If "diamond_shape" has been specified:
+                    if leaf_shape == "diamond_shape":
+                        # Then one leaflet will equal one diamond:
+                        leaflet = leaflet_shape(base_shape="diamond_shape",
+                                                leaflet_length=leaflet_length,
+                                                leaflet_width=leaflet_width)
+                    # Otherwise, we use the specifically-customized leaflet form:
+                    else:
+                        # Here one leaflet will be made as a Bezier patch:
+                        leaflet = leaflet_shape(base_shape="Bezier",
+                                                leaflet_length=leaflet_length,
+                                                leaflet_width=leaflet_width)
+                    # We compute the number of distinct petiole zones to be shown (one for each pair of leaflets):
+                    if param.number_of_leaflets <= 1:
+                        number_of_petioles = 1
+                    else:
+                        number_of_petioles = param.number_of_leaflets // 2
+                    # We defined the length between two pairs of leaflets:
+                    petiole_leaflet_length_1 = total_petiole_length * 0.4
+                    petiole_leaflet_length_2 = total_petiole_length * 0.3
+                    # We create a cylinder corresponding to the whole petiole:
+                    petiole = pgl.Cylinder(radius=length * param.fababean_petiole_width_to_length_ratio,
+                                           height=total_petiole_length)
+                    # We reorientate the leaflet, either to the left or to the right of the petiole axis,
+                    # by performing two successive rotations along the z-axis, then the y-axis:
+                    leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.fababean_leaflet_angle * pi / 180, geometry=leaflet)
+                    leaflet_left = pgl.AxisRotated(axis=(0, 1, 0), angle = -90 * pi / 180, geometry=leaflet_left)
+                    leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.fababean_leaflet_angle * pi / 180, geometry=leaflet)
+                    leaflet_right = pgl.AxisRotated(axis=(0, 1, 0), angle= -90 * pi / 180, geometry=leaflet_right)
+                    # We initiate a list that will contain the petiole and all leaflets:
+                    leaflets = [petiole]
+                    # We define a translation vector:
+                    translate = [0, 0, petiole_leaflet_length_1]
+                    # We initiate a counter for leaflets to handle:
+                    count_leaflets = param.number_of_leaflets
+                    # We add the first two leaflefts:
+                    leaflets.append(pgl.Translated(translate, leaflet_left))
+                    leaflets.append(pgl.Translated(translate, leaflet_right))
+                    # We cover the rest of the pairs of leaflets:
+                    for i in range(number_of_petioles):
+                        leaflets.append(pgl.Translated(translate, leaflet_left))
+                        leaflets.append(pgl.Translated(translate, leaflet_right))
+                        translate[2] += petiole_leaflet_length_2
+                        count_leaflets -= 2
+                    # Once we reach the last leaflet:
+                    if count_leaflets == 1:
+                        # We create the last leaflet by reorientating it:
+                        last_leaflet = pgl.AxisRotated(axis=(0, 1, 0), angle=-90 * pi / 180, geometry=leaflet)
+                        # Then we move it to the tip of the petiole:
+                        last_leaflet = pgl.Translated((0, 0, total_petiole_length), last_leaflet)
+                        # And we add this leaflet to the list of leaflets:
+                        leaflets.append(last_leaflet)
+                    # Finally, we group the petiole and all the leaflefts into a single shape:
+                    leafshape_fababean = pgl.Group(leaflets)
+                    # And we move the turtle accordingly:
+                    turtle.customGeometry(leafshape_fababean)
+
+                # 1d) FOR OTHER PLANT SPECIES, ESPECIALLY RAPESEED:
+                #""""""""""""""""""""""""""""""""""""""""""""""""""
+                else:
+                    # Below, only one leaf shape will be displayed, (no leaflets).
+
+                    # OPTION WITH OVAL SHAPE:
+                    if leaf_shape == "oval_shape":
+                        # First, we need to move the turtle (without showing it) so that it is located in the middle of the oval
+                        # to be displayed:
+                        turtle.f(length / 2.)
+                        # We also need to rotate the turtle so that the oval is correctly oriented:
+                        turtle.down(90)
+                        # Finally, we print the oval shape according to the length and radius of the leaf:
+                        turtle.customGeometry(oval_shape(length=length, width=2 * radius))
+                        # We reposition the turtle at the base of the leaf:
+                        # We first revert the angle:
+                        turtle.down(-90)
+                        # Then we move backward, i.e. we change angle roll by 180 degrees and by moving forward:
+                        turtle.down(180)
+                        turtle.f(length / 2.)
+                        # And finally, we reorientate the turtle:
+                        turtle.down(180)
+
+                    # OPTION WITH DIAMOND LEAF SHAPE:
+                    elif leaf_shape == "diamond_shape":
+                        # We need to start the leaf from the side wall of the parent internode.
+                        # We first get the parent internode:
+                        index_parent = g.Father(v, EdgeType='+')
+                        parent = g.node(index_parent)
+                        internode_radius = parent.radius * upscaling_factor
+                        # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
+                        turtle.f(internode_radius*0.9)
+                        # We flip the turtle so that the leaf will be oriented in the correct way:
+                        turtle.down(90)
+                        # We recalculate the total length for which the width should be maximal:
+                        blade_length_for_max_width = (length * (1 - param.petiole_to_leaf_length_ratio)
+                                                      * param.relative_blade_length_for_max_width)
+                        # And we draw the shape:
+                        turtle.customGeometry(diamond_shape(petiole_length = length * param.petiole_to_leaf_length_ratio,
+                                                            blade_length = length * (1 - param.petiole_to_leaf_length_ratio),
+                                                            blade_length_for_max_width = blade_length_for_max_width,
+                                                            blade_width = length * param.leaf_width_to_length_ratio,
+                                                            blade_radius = length / param.blade_length_to_radius_ratio))
+
+                    # OPTION WITH 'TYPICAL' LEAF SHAPE:
+                    elif leaf_shape == "typical_leaf_shape":
+                        turtle.customGeometry(typical_leaf_shape(length=length))
+
+                    # OPTION WITH RAPESEED LEAF SHAPE:
+                    elif leaf_shape == "rapeseed_leaf_shape":
+
+                        # We need to start the leaf from the side wall of the parent internode.
+                        # We first get the parent internode:
+                        index_parent = g.Father(v, EdgeType='+')
+                        parent = g.node(index_parent)
+                        internode_radius = parent.radius * upscaling_factor
+                        # Now we move the turtle (without plotting anything) up to the side wall of the parent internode:
+                        turtle.f(internode_radius*0.9)
+                        # We flip the turtle so that the leaf will be oriented in the correct way:
+                        turtle.down(90)
+                        # And we draw the leaf:
+                        turtle.customGeometry(rapeseed_leaf_shape(length=length))
+
+                    # OPTION WITH CLASSICAL CYLINDERS:
+                    else:
+                        # We define the radius of the cylinder to be displayed:
+                        turtle.setWidth(radius)
+                        # We move the turtle by the length of the root segment:
+                        turtle.F(length)
+                        # And then we come back discretely to the initial position:
+                        turtle.down(180)
+                        turtle.f(length)
+                        turtle.down(180)
 
         # 2) CASE OF ANOTHER SHOOT ORGAN:
         # -------------------------------
@@ -960,7 +1073,8 @@ def create_a_scene_with_plants_popuplation(g,
                                            scene_width=1.,
                                            true_color=True,
                                            surrounding_plants_transparency=0.,
-                                           leaf_shape="oval",
+                                           leaf_shape="oval_shape",
+                                           simplified_leaf_shape_for_surface_calculation="ellipse_shape",
                                            upscaling_factor=1):
     """
     This function generates a scene containing a population of plants, all cloned from the same plant MTG "g",
@@ -976,8 +1090,7 @@ def create_a_scene_with_plants_popuplation(g,
     scene_width: width of the scene (m)
     true_color: if so, ...
     surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full transparency)
-    leaf_shape: if "oval", the leaves will be displayed as an ellipse based on their length and width; else, the leaves
-    are displayed with a typical leaf curved shape, based on their length only.
+    leaf_shape: ...
     upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
 
     Returns
@@ -1071,7 +1184,9 @@ def create_a_scene_with_plants_popuplation(g,
         turtle.move(list_of_positions[plant_index])
         turtle.rollL(angle_roll)
         # We create a scene for one plant by moving the turtle along the MTG:
-        scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor),
+        scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                              simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                                              upscaling_factor=upscaling_factor),
                                  turtle=turtle, gc=False)
 
         # We get a dictionnary of all shapes in the scene:
@@ -1179,8 +1294,9 @@ def setting_PGLViewer(width=1200, height=1200,
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to plot a shoot MTG with PlantGL:
 def plotting_shoot_MTG(g,
-                       # leaf_shape="oval",
+                       plant_species="faba_bean",
                        leaf_shape="typical_leaf_shape",
+                       simplified_leaf_shape_for_surface_calculation="ellipse_shape",
                        petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=1.,
@@ -1207,7 +1323,9 @@ def plotting_shoot_MTG(g,
 
     # SETTING THE NEW SCENE WITH THE TURTLE:
     # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(plant_species=plant_species,
+                                                          leaf_shape=leaf_shape,
+                                                          simplified_shape=simplified_leaf_shape_for_surface_calculation,
                                                           upscaling_factor=upscaling_factor,
                                                           petiole_showing=petiole_showing),
                              turtle=turtle, gc=False)
@@ -1261,7 +1379,7 @@ def plotting_shoot_MTG_population(g,
                                   inter_row_distance=0.45,
                                   scene_length=1.,
                                   scene_width=1.,
-                                  leaf_shape="oval",
+                                  leaf_shape="oval_shape",
                                   width=1200, height=900,
                                   upscaling_factor=1.,
                                   x_center=0, y_center=-0, z_center=0.,
@@ -1300,7 +1418,8 @@ def create_plants_population_scene(scene_information,
                                    scene_width=1.,
                                    creating_a_soil_surface=False,
                                    upscaling_factor=1,
-                                   leaf_shape="oval"):
+                                   leaf_shape="oval_shape",
+                                   simplified_leaf_shape_for_surface_calculation="ellipse_shape"):
 
     """
     This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
@@ -1373,6 +1492,7 @@ def create_plants_population_scene(scene_information,
         # We create a scene for one plant by moving the turtle along the MTG:
         scene = turt.TurtleFrame(new_MTG,
                                  visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                           simplified_shape=simplified_leaf_shape_for_surface_calculation,
                                                            upscaling_factor=upscaling_factor),
                                  turtle=turtle, gc=False)
 
@@ -1619,7 +1739,9 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
                          grid=True,
-                         leaf_shape="oval",
+                         plant_species="rapeseed",
+                         leaf_shape="rapeseed_leaf_shape",
+                         simplified_leaf_shape_for_surface_calculation="ellipse_shape",
                          background_color=[94, 76, 64],
                          single_color_shoot=None,
                          single_color_root=None,
@@ -1648,7 +1770,10 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     shoot_turtle = turt.PglTurtle()
     # We create the scene by moving the turtle along the current MTG:
     shoot_scene = turt.TurtleFrame(shoot_MTG,
-                                   visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=upscaling_factor),
+                                   visitor=get_shoot_visitor(plant_species=plant_species,
+                                                             leaf_shape=leaf_shape,
+                                                             simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                                             upscaling_factor=upscaling_factor),
                                    turtle=shoot_turtle,
                                    gc=False)
     # We get a dictionnary of all shapes in the scene:
@@ -1664,7 +1789,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                 if n.label=="Fallen_leaf":
                     # If the leaf has fallen, we print in grey, semi-transparent:
                     shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
-                elif n.type=="Hypocotyle":
+                elif n.type=="Hypocotyl":
                     # If the leaf has fallen, we print in grey, semi-transparent:
                     shapes[vid].appearance = pgl.Material([200,220,200], transparency=0.2)
                 else:

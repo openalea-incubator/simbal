@@ -17,6 +17,19 @@ random_choice = 2
 # SHOOT SYSTEM:
 ###############
 
+# Name of the plant species:
+plant_species = "faba_bean"
+
+# We define the shape of the leaves to be used for plotting:
+plotting_leaf_shape = "faba_bean_leaf_shape"
+# We define the shape of the leaves to be used for light interception:
+light_interception_leaf_shape = "diamond_shape"
+# We define the shape of the leaves to be used for computing leaf surface:
+simplified_leaf_shape_for_surface_calculation = "ellipse_shape"
+# We define the shape of the leaves of each species to be displayed::
+rapeseed_leaf_shape = "rapeseed_leaf_shape"
+faba_bean_leaf_shape = "faba_bean_leaf_shape"
+
 # Supply of resources from seeds:
 rate_of_C_supply_from_seed = 0. # gC per plant per second
 rate_of_C_supply_from_seed = 0. # gN per plant per second
@@ -115,6 +128,12 @@ blade_length_to_radius_ratio = 1.
 # Allometric coefficient defining ratio of cotyledon blade length with the radius of the arc made by the blade (meter per meter):
 cotyledon_blade_length_to_radius_ratio = 0.2
 
+# (Odd) Number of leaflets to display along the petiole of a faba bean leaf:
+number_of_leaflets = 5
+
+# Angle of insertion of the leaflet on the main petiole of one faba bean leaf (degrees):
+fababean_leaflet_angle = 60
+
 # Potential rate of internode elongation (meter per second):
 elong_internode = 2.89351851851852E-07
 
@@ -148,16 +167,11 @@ phyllochron = 5. * (60.*60.*24.)
 # (seconds at the reference growth temperature):
 thermal_youth_duration = 60. * (60.*60.*24.)
 
-# We define the shape of the leaves to be used for light interception:
-light_interception_leaf_shape = "diamond_shape"
-
-# We define the shape of the leaves to be displayed on plots:
-rapeseed_leaf_shape = "rapeseed_leaf_shape"
-faba_bean_leaf_shape = "faba_bean_leaf_shape"
-
 # We define the initial dimensions (meters) of phytomers when they are formed:
 initial_leaf_length = 0.001
 initial_internode_length = 0.001
+initial_hypocotyl_length = 0.001
+initial_cotyledon_length = 0.001
 
 # We define two threshold concentrations for labile C and N in the leaves, below which a senescing leaf will fall
 # (gC (orgN) per gram of structural mass):
@@ -174,7 +188,7 @@ N_labile_content_treshold_for_leaf_fall = 0.
 C_diffusion_coefficient = 1e-6
 
 # Fraction of the C that should remain in the shoots when all C is supposed to be allocated to the roots (gC per gC):
-fraction_of_shoot_C_leftover_remaining_in_shoots = 0.2
+fraction_of_shoot_C_leftover_remaining_in_shoots = 0.20
 
 # Coefficient of N diffusion from roots to shoots (in gram of dry structural mass per square meter per second):
 N_diffusion_coefficient = 1e-6
