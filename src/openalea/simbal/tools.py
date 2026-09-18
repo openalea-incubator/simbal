@@ -12,6 +12,7 @@ from openalea.mtg.plantframe import color
 from openalea.mtg.traversal import pre_order, post_order
 import openalea.plantgl.all as pgl
 from openalea.plantgl.all import surface
+from openalea.caribu.plantgl_adaptor import scene_to_cscene, pgl_to_triangles
 
 import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.model as rhizodep_param
@@ -1066,7 +1067,235 @@ def updating_coordinates(g):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def create_a_scene_with_plants_popuplation(g,
+# Function that distributes plant MTG within a framework:
+def prepare_plants_population(list_of_reference_MTG=[],
+                              number_of_plants_per_square_meter=9,
+                              inter_row_distance=0.45,
+                              scene_length=1.,
+                              scene_width=1.,
+                              upscaling_factor=1):
+
+    """
+    This function distributes plants within a spatial framework based on plant density and inter row distance,
+    and, when provided with a (list of) reference MTG, generates a list of plant MTG to be used in this population.
+
+    Parameters
+    ----------
+    list_of_reference_MTG: a list containing zero, one or several (e.g. in case of multiple species) refence plant
+                           MTG to be duplicated in the population
+    number_of_plants_per_square_meter: plant density for this population (plants per square meter)
+    inter_row_distance: the distance between two rows (meters)
+    scene_length: length of the zone to populate with plants (meters)
+    scene_width: width of the zone to populate with plants (meters)
+    upscaling_factor: a factor by which all dimensions should be multiplied
+                      (e.g. 100 to convert dimensions from meters to centimeters)
+
+    Returns
+    -------
+    scene_information: a dictionnary containing a list of plant indices and a list of their corresponding positions
+    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
+                 has been provided as an input of the function)
+    """
+
+    # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
+    scene_information = {}
+    scene_information["plant_id"] = []
+    scene_information["plant_type"] = []
+    scene_information["position"] = []
+    list_of_MTG = []
+
+    # We calculate the number of rows and plants to be show in the scene:
+    number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
+    number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
+    # We make sure that there is a least one row containing plants:
+    if number_of_plants < number_of_rows:
+        number_of_rows = number_of_plants
+
+    # We calculate the number of plants per row:
+    number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
+    # We calculate the distance between two plants within a row (in meters):
+    inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
+    # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
+    # within the square scene:
+    lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
+    lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
+
+    # We move to the position of the first plant:
+    x = lateral_border_length * upscaling_factor
+    y = lateral_border_width * upscaling_factor
+    z = 0. * upscaling_factor
+
+    # We cover each plant of the scene:
+    for plant_index in range(0, number_of_plants):
+
+        # If a reference MTG or a list of reference MTG has been given, we take the first one
+        # and copy it in the list of MTG:
+        if len(list_of_reference_MTG) > 0:
+            reference_g = list_of_reference_MTG[0]
+            list_of_MTG.append(reference_g.copy())
+
+        # We add the current plant ID to the list of plant ID:
+        scene_information["plant_id"].append(plant_index)
+        # We record the new position (x,y,z)
+        scene_information["position"].append((x, y, z))
+
+        # And we move from one plant to another on the same row:
+        x += inter_plant_distance * upscaling_factor
+        # If we have reached the maximal length of a given row:
+        if x > scene_length * upscaling_factor:
+            # Then we switch to the next row:
+            y += inter_row_distance * upscaling_factor
+            # And we start at the beginning of the new row:
+            x = lateral_border_length * upscaling_factor
+
+    return scene_information, list_of_MTG
+#-----------------------------------------------------------------------------------------------------------------------
+
+# Function that distributes distinct plants within a framework:
+def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2"],
+                                            list_of_distinct_shoot_MTG=[],
+                                            list_of_distinct_root_MTG=[],
+                                            list_of_numbers_of_plants_per_square_meter=[33, 16.5],
+                                            list_of_inter_row_distances=[0.45, 0.675],
+                                            list_of_number_of_rows_to_show=[3,2],
+                                            list_of_scene_lengths=[1, 1],
+                                            list_of_scene_widths=[1, 1],
+                                            upscaling_factor=1):
+
+    """
+    This function distributes distinct plants within a spatial framework based on plant density and inter row distance
+    for each plant with distinct properties, and, when provided with a (list of) reference MTG, generates a list of
+    plant MTG to be used in this population.
+
+    Parameters
+    ----------
+    list_of_reference_MTG: a list containing zero, one or several (e.g. in case of multiple species) refence plant
+                           MTG to be duplicated in the population
+    number_of_plants_per_square_meter: plant density for this population (plants per square meter)
+    inter_row_distance: the distance between two rows (meters)
+    scene_length: length of the zone to populate with plants (meters)
+    scene_width: width of the zone to populate with plants (meters)
+    upscaling_factor: a factor by which all dimensions should be multiplied
+                      (e.g. 100 to convert dimensions from meters to centimeters)
+
+    Returns
+    -------
+    scene_information: a dictionnary containing a list of plant indices and a list of their corresponding positions
+    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
+                 has been provided as an input of the function)
+    """
+
+    # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
+    list_of_shoot_MTG = []
+    list_of_root_MTG = []
+    scene_information = {}
+    scene_information["plant_id"] = []
+    scene_information["plant_type"] = []
+    scene_information["position"] = []
+    scene_information["middle_plants"]=[]
+
+    # We define the number of distinct plants based on the maximal length of the lists provided as inputs:
+    number_of_distinct_plants = max(len(list_of_distinct_plant_names),
+                                    len(list_of_distinct_shoot_MTG),
+                                    len(list_of_distinct_root_MTG),
+                                    len(list_of_numbers_of_plants_per_square_meter),
+                                    len(list_of_inter_row_distances))
+
+    # We initialize the plant index:
+    plant_index = 0
+
+    # For each original plant with distinct properties:
+    for i in range(0, number_of_distinct_plants):
+
+        # We create a special field in the scene information for recording the ID of the middle plant of the scene:
+        middle_id_field = "middle_plant_id_" + str(i)
+        scene_information[middle_id_field] = []
+        scene_information[middle_id_field].append(0)
+
+        number_of_plants_per_square_meter = list_of_numbers_of_plants_per_square_meter[i]
+        inter_row_distance = list_of_inter_row_distances[i]
+        scene_length = list_of_scene_lengths[i]
+        scene_width = list_of_scene_widths[i]
+        number_of_rows_to_show = list_of_number_of_rows_to_show[i]
+
+        number_of_rows_per_meter = 1 / inter_row_distance
+        number_of_plants_per_row_per_meter = number_of_plants_per_square_meter / number_of_rows_per_meter
+        inter_plant_distance = 1 / number_of_plants_per_row_per_meter
+
+        number_of_plants_per_row_to_show =  int(floor(scene_length / inter_plant_distance))
+        number_of_plants_to_show = number_of_rows_to_show * number_of_plants_per_row_to_show
+
+        # We calculate the length and width of the lateral borders, so that the population of plants is centered
+        # within the square scene:
+        lateral_border_width = (scene_width - (number_of_rows_to_show - 1) * inter_row_distance) / 2.
+        lateral_border_length = (scene_length - (number_of_plants_per_row_to_show - 1) * inter_plant_distance) / 2.
+
+        # We calculate the thoretical middle of the scene, in order to identify the best plant candidate for recording
+        # light interception later on, i.e. the plant located closest to the middle of the scene:
+        x_middle = (lateral_border_length + ((number_of_plants_per_row_to_show-1) * inter_plant_distance) / 2.)*upscaling_factor
+        y_middle = (lateral_border_width + ((number_of_rows_to_show-1) * inter_row_distance) / 2.)*upscaling_factor
+        # We initialize the distance of a given plant from the middle of the scene:
+        distance_from_middle = ((x_middle - lateral_border_length) ** 2 + (y_middle - lateral_border_width) ** 2) ** 0.5
+
+        # We move to the position of the first plant:
+        x = lateral_border_length * upscaling_factor
+        y = lateral_border_width * upscaling_factor
+        z = 0. * upscaling_factor
+
+        # We cover each plant of the scene:
+        for j in range(0, number_of_plants_to_show):
+
+            # If a reference MTG or a list of reference MTG has been given, we copy the corresponding MTG and add it
+            # to the list of MTG:
+            if len(list_of_distinct_shoot_MTG) > 0:
+                reference_g = list_of_distinct_shoot_MTG[i]
+                list_of_shoot_MTG.append(reference_g.copy())
+            if len(list_of_distinct_root_MTG) > 0:
+                reference_g = list_of_distinct_root_MTG[i]
+                list_of_root_MTG.append(reference_g.copy())
+
+            # We add the current plant ID to the list of plant ID:
+            scene_information["plant_id"].append(plant_index)
+
+            # We also verify whether the current plant could be the best candidate for representing the middle plant
+            # in the scene or not.
+            # We first check whether the plant is within an acceptable range from the middle:
+            print("Inter-plant-distance is", inter_plant_distance,"and inter-row distance is", inter_row_distance)
+            print("X:",abs(x - x_middle),"; Y:", abs(y - y_middle))
+            if abs(x - x_middle) < inter_plant_distance*upscaling_factor and abs(y - y_middle) < inter_row_distance*upscaling_factor:
+                scene_information["middle_plants"].append("True")
+                scene_information[middle_id_field][0] = plant_index
+                # We compute the distance of the plant from the middle of the scene:
+                new_distance_from_middle = ((x - x_middle)**2 + (y - y_middle)**2)**0.5
+                # If the distance from this plant is lower than previously recorded:
+                if new_distance_from_middle < distance_from_middle:
+                    # Then we define this plant's index as the index of the best middle plant recorded in the scene information:
+                    scene_information[middle_id_field][0] = plant_index
+            else:
+                scene_information["middle_plants"].append("False")
+
+            # We add the current plant type:
+            scene_information["plant_type"].append(list_of_distinct_plant_names[i])
+
+            # We record the new position (x,y,z)
+            scene_information["position"].append((x, y, z))
+
+            # We increment the plant index for the next plant:
+            plant_index += 1
+
+            # And we move from one plant to another on the same row:
+            x += inter_plant_distance * upscaling_factor
+            # If we have reached the maximal length of a given row:
+            if x > (lateral_border_length + (number_of_plants_per_row_to_show-1) * inter_plant_distance) * upscaling_factor * 1.01:
+                # Then we switch to the next row:
+                y += inter_row_distance * upscaling_factor
+                # And we start at the beginning of the new row:
+                x = lateral_border_length * upscaling_factor
+
+    return scene_information, list_of_shoot_MTG, list_of_root_MTG
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+def create_a_scene_with_plants_population(g,
                                            number_of_plants_per_square_meter=9,
                                            inter_row_distance=0.45,
                                            scene_length=1.,
@@ -1392,7 +1621,7 @@ def plotting_shoot_MTG_population(g,
                                   plot_filepath='plot.png'
                                   ):
     my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    complete_scene = create_a_scene_with_plants_popuplation(g,
+    complete_scene = create_a_scene_with_plants_population(g,
                                                             number_of_plants_per_square_meter=number_of_plants_per_square_meter,
                                                             upscaling_factor=upscaling_factor,
                                                             inter_row_distance=inter_row_distance,
@@ -1413,10 +1642,8 @@ def plotting_shoot_MTG_population(g,
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a scene with uniques shapes ID:
 def create_plants_population_scene(scene_information,
-                                   list_of_MTG,
-                                   scene_length=1.,
-                                   scene_width=1.,
-                                   creating_a_soil_surface=False,
+                                   list_of_shoot_MTG,
+                                   list_of_root_MTG,
                                    upscaling_factor=1,
                                    leaf_shape="oval_shape",
                                    simplified_leaf_shape_for_surface_calculation="ellipse_shape"):
@@ -1452,12 +1679,15 @@ def create_plants_population_scene(scene_information,
 
     # We initialize additional properties of scene_information:
     scene_information["rotation"] = []
-    scene_information["shapes"] = []
-    scene_information["triangles"] = []
+    scene_information["shapes_shoot"] = []
+    scene_information["shapes_root"] = []
+    scene_information["triangles_shoot"] = []
+    scene_information["triangles_root"] = []
     # We initialize an indexer that will record the correspondance between the initial vid of the MTG and the new,
     # unique indices of the scene:
-    shapes_indexer = {}
-    # We initialize a lag number that will be used for reindexing the shapes of each individual plant
+    shapes_indexer_shoot = {}
+    shapes_indexer_root = {}
+    # We initialize a lag number that will be used for reindexing the shapes of each individual plant:
     vid_lag = 0
 
     # We initialize a turtle in PlantGL:
@@ -1468,14 +1698,15 @@ def create_plants_population_scene(scene_information,
     # We get the list of plant positions from the scene_information:
     list_of_positions = scene_information["position"]
 
+    # TREATING THE SCENE FOR SHOOTS:
     # We cover each plant in the population:
     for plant_index in range(0, len(list_of_positions)):
 
         # We access the MTG corresponding to the current plant index:
-        new_MTG = list_of_MTG[plant_index]
+        new_shoot_MTG = list_of_shoot_MTG[plant_index]
 
         # We initialize the indexer for the current plant:
-        shapes_indexer[plant_index] = {}
+        shapes_indexer_shoot[plant_index] = {}
 
         # We first define the seed of random, depending on the index of the plant:
         np.random.seed(int(param.random_choice * plant_index))
@@ -1489,20 +1720,20 @@ def create_plants_population_scene(scene_information,
         # And we reposition the turtle from there:
         turtle.move(list_of_positions[plant_index])
         turtle.rollL(angle_roll)
-        # We create a scene for one plant by moving the turtle along the MTG:
-        scene = turt.TurtleFrame(new_MTG,
-                                 visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-                                                           simplified_shape=simplified_leaf_shape_for_surface_calculation,
-                                                           upscaling_factor=upscaling_factor),
-                                 turtle=turtle, gc=False)
 
+        # We create a scene for one shoot MTG by moving the turtle along the MTG:
+        scene_shoot = turt.TurtleFrame(new_shoot_MTG,
+                                       visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                                 simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                                                 upscaling_factor=upscaling_factor),
+                                       turtle=turtle, gc=False)
         # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene)
+        shapes = dict((sh.id, sh) for sh in scene_shoot)
         # We reindex the different shapes by adding the lag number:
-        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene)
+        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_shoot)
         # And we increment the lag number to reindex the vid of the next plant:
-        vid_lag += len(new_MTG)
-        # We cover each reindexed shape of the original scene corresponding to the MTG of the current plant:
+        vid_lag += len(new_shoot_MTG)
+        # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
         for shape_id in reindexed_shapes.keys():
             # We get the corresponding shape:
             shape = reindexed_shapes[shape_id]
@@ -1511,35 +1742,72 @@ def create_plants_population_scene(scene_information,
             # We modify it with the new id:
             shape.id = shape_id
             # We store the correspondence between the new id and the old id:
-            shapes_indexer[plant_index][shape_id] = old_shape_id
+            shapes_indexer_shoot[plant_index][shape_id] = old_shape_id
             # Finally, we add the reindexed shape to the final scene:
             final_scene += shape
-
         # We record the new shapes:
-        scene_information["shapes"].append(reindexed_shapes)
-    openalea.plantgl
-    # We record the reindexer:
-    scene_information["new_index_to_old_index"] = shapes_indexer
+        scene_information["shapes_shoot"].append(reindexed_shapes)
+        # We record the reindexer:
+        scene_information["new_index_to_old_index_shoot"] = shapes_indexer_shoot
+        # We transform the scene into triangles:
+        triangle_scene = pgl_to_triangles(scene_shoot)
+        # We record the triangles:
+        scene_information["triangles_shoot"].append(triangle_scene)
 
-    # We transform the scene into triangles:
-    triangle_scene = pgl_to_triangles(scene)
-    # We record the triangles:
-    scene_information["triangles"].append(triangle_scene)
+    # TREATING THE SCENE FOR ROOTS:
+    # We cover each plant in the population:
+    for plant_index in range(0, len(list_of_positions)):
 
-    if creating_a_soil_surface:
-        # We create a flat soil surface corresponding to the limits of the scene:
-        points = [(0, 0, 0),
-                  (scene_length * upscaling_factor, 0, 0),
-                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-                  (0, scene_width * upscaling_factor, 0)]
-        normals = [(0, 0, 1) for i in range(4)]
-        indices = [(0, 1, 2, 3)]
-        square = pgl.QuadSet(points, indices, normals, indices)
-        # We define the same color for each of the 4 points:
-        square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
-        final_scene += square
+        # We access the MTG corresponding to the current plant index:
+        new_root_MTG = list_of_root_MTG[plant_index]
+        # We initialize the indexer for the current plant:
+        shapes_indexer_root[plant_index] = {}
 
-    return final_scene, scene_information, list_of_MTG
+        # We first define the seed of random, depending on the index of the plant:
+        np.random.seed(int(param.random_choice * plant_index))
+        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
+        angle_roll = abs(np.random.normal(180, 180))
+        # # We record this rotation in the scene information:
+        # scene_information["rotation"].append(angle_roll)
+
+        # We reset the turtle:
+        turtle.reset()
+        # And we reposition the turtle from there:
+        turtle.move(list_of_positions[plant_index])
+        turtle.rollL(angle_roll)
+
+        # We create a scene for one root MTG by moving the turtle along the MTG:
+        scene_root = turt.TurtleFrame(new_root_MTG,
+                                      visitor=get_root_visitor(upscaling_factor=upscaling_factor),
+                                      turtle=turtle, gc=False)
+        # We get a dictionnary of all shapes in the scene:
+        shapes = dict((sh.id, sh) for sh in scene_root)
+        # We reindex the different shapes by adding the lag number:
+        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_root)
+        # And we increment the lag number to reindex the vid of the next plant:
+        vid_lag += len(new_root_MTG)
+        # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
+        for shape_id in reindexed_shapes.keys():
+            # We get the corresponding shape:
+            shape = reindexed_shapes[shape_id]
+            # We access its original id:
+            old_shape_id = shape.id
+            # We modify it with the new id:
+            shape.id = shape_id
+            # We store the correspondence between the new id and the old id:
+            shapes_indexer_root[plant_index][shape_id] = old_shape_id
+            # Finally, we add the reindexed shape to the final scene:
+            final_scene += shape
+        # We record the new shapes:
+        scene_information["shapes_root"].append(reindexed_shapes)
+        # We record the reindexer:
+        scene_information["new_index_to_old_index_root"] = shapes_indexer_root
+        # We transform the scene into triangles:
+        triangle_scene = pgl_to_triangles(scene_root)
+        # We record the triangles:
+        scene_information["triangles_root"].append(triangle_scene)
+
+    return final_scene, scene_information
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function that methodically creates each shape (takes a long time for large root systems):

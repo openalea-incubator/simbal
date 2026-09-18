@@ -19,7 +19,7 @@ from openalea.caribu.data_samples import data_path
 
 from openalea.simbal import simbal_parameters as param
 from openalea.simbal.tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
-                   circle_coordinates, updating_coordinates, create_a_scene_with_plants_popuplation,
+                   circle_coordinates, updating_coordinates, create_a_scene_with_plants_population,
                    plotting_shoot_MTG, plotting_shoots_with_pyvista)
 
 import os
@@ -2082,91 +2082,6 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     # s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
 
     return
-
-########################################################################################################################
-########################################################################################################################
-# Function that distributes plant MTG within a framework:
-def prepare_plants_population(list_of_reference_MTG=[],
-                              number_of_plants_per_square_meter=9,
-                              inter_row_distance=0.45,
-                              scene_length=1.,
-                              scene_width=1.,
-                              upscaling_factor=1):
-
-    """
-    This function distributes plants within a spatial framework based on plant density and inter row distance,
-    and, when provided with a (list of) reference MTG, generates a list of plant MTG to be used in this population.
-
-    Parameters
-    ----------
-    list_of_reference_MTG: a list containing zero, one or several (e.g. in case of multiple species) refence plant
-                           MTG to be duplicated in the population
-    number_of_plants_per_square_meter: plant density for this population (plants per square meter)
-    inter_row_distance: the distance between two rows (meters)
-    scene_length: length of the zone to populate with plants (meters)
-    scene_width: width of the zone to populate with plants (meters)
-    upscaling_factor: a factor by which all dimensions should be multiplied
-                      (e.g. 100 to convert dimensions from meters to centimeters)
-
-    Returns
-    -------
-    scene_information: a dictionnary containing a list of plant indices and a list of their corresponding positions
-    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
-                 has been provided as an input of the function)
-    """
-
-    # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
-    scene_information = {}
-    scene_information["plant_id"] = []
-    scene_information["position"] = []
-    list_of_MTG = []
-
-    # We calculate the number of rows and plants to be show in the scene:
-    number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
-    number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
-    # We make sure that there is a least one row containing plants:
-    if number_of_plants < number_of_rows:
-        number_of_rows = number_of_plants
-
-    # We calculate the number of plants per row:
-    number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
-    # We calculate the distance between two plants within a row (in meters):
-    inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
-    # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
-    # within the square scene:
-    lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
-    lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
-
-    # We move to the position of the first plant:
-    x = lateral_border_length * upscaling_factor
-    y = lateral_border_width * upscaling_factor
-    z = 0. * upscaling_factor
-
-    # We cover each plant of the scene:
-    for plant_index in range(0, number_of_plants):
-
-        # If a reference MTG or a list of reference MTG has been given, we take the first one
-        # and copy it in the list of MTG:
-        if len(list_of_reference_MTG) > 0:
-            reference_g = list_of_reference_MTG[0]
-            list_of_MTG.append(reference_g.copy())
-
-        # We add the current plant ID to the list of plant ID:
-        scene_information["plant_id"].append(plant_index)
-
-        # We record the new position (x,y,z)
-        scene_information["position"].append((x, y, z))
-
-        # And we move from one plant to another on the same row:
-        x += inter_plant_distance * upscaling_factor
-        # If we have reached the maximal length of a given row:
-        if x > scene_length * upscaling_factor:
-            # Then we switch to the next row:
-            y += inter_row_distance * upscaling_factor
-            # And we start at the beginning of the new row:
-            x = lateral_border_length * upscaling_factor
-
-    return scene_information, list_of_MTG
 
 ########################################################################################################################
 ########################################################################################################################
