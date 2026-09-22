@@ -197,40 +197,47 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
         blade_width = length * param.leaf_width_to_length_ratio
         blade_radius = blade_length /  param.blade_length_to_radius_ratio
 
-        # TEST WITH C-SPLINE:
-        # We create points through which the perimeter of the shape will have to pass through:
-        Points=[]        #
-        Points.append((0,
-                       petiole_diameter / 2, # The leaf will start at the full petiole width
-                       0))
-        Points.append((petiole_length,
-                       petiole_diameter / 2, # The petiole will end at the full petiole width
-                       0))
-        Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
-                       blade_width/2.,
-                       arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
-        Points.append((petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
-                       0,
-                       arc_coordinates(arc_length=blade_length, radius=blade_radius)[2]))
-        # If necessary, we add symetrical points to close the curve:
-        Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
-                       -blade_width / 2.,
-                       arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
-        Points.append((petiole_length,
-                       -petiole_diameter / 2,
-                       0))
-        Points.append((0,
-                       -petiole_diameter / 2,
-                       0))
-        Points.append((0,
-                       petiole_diameter / 2,
-                       0))
-        # Now we create a spline that passes through each point:
-        s_curve = pgl.cspline.cspline(Points)
-        spline_curve = pgl.Shape(s_curve, appearance=pgl.Material(pgl.Color3(150,0,0)))
+        # # TEST WITH C-SPLINE:
+        # # We create points through which the perimeter of the shape will have to pass through:
+        # Points=[]        #
+        # Points.append((0,
+        #                petiole_diameter / 2, # The leaf will start at the full petiole width
+        #                0))
+        # Points.append((petiole_length,
+        #                petiole_diameter / 2, # The petiole will end at the full petiole width
+        #                0))
+        # Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
+        #                blade_width/2.,
+        #                arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
+        # Points.append((petiole_length + arc_coordinates(arc_length=blade_length, radius=blade_radius)[0],
+        #                0,
+        #                arc_coordinates(arc_length=blade_length, radius=blade_radius)[2]))
+        # # # If necessary, we add symetrical points to close the curve:
+        # # Points.append((petiole_length + arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[0],
+        # #                -blade_width / 2.,
+        # #                arc_coordinates(arc_length=blade_length_for_max_width, radius=blade_radius)[2]))
+        # # Points.append((petiole_length,
+        # #                -petiole_diameter / 2,
+        # #                0))
+        # # Points.append((0,
+        # #                -petiole_diameter / 2,
+        # #                0))
+        # # Points.append((0,
+        # #                petiole_diameter / 2,
+        # #                0))
+        # # Now we create a spline that passes through each point:
+        # s_curve = pgl.cspline.cspline(Points)
+        # spline_curve = pgl.Shape(s_curve, appearance=pgl.Material(pgl.Color3(150,0,0)))
         # # We create the symetric curve:
         # s_curve_neg = pgl.cspline.cspline([(x,-y,z) for (x,y,z) in Points])
-        # # TODO: In a perfect word, there would be an easy option here to create a shape from the close spline curve
+        # spline_curve_neg = pgl.Shape(s_curve_neg, appearance=pgl.Material(pgl.Color3(0, 0, 150)))
+        # scene = pgl.Scene()
+        # scene += spline_curve
+        # scene += spline_curve_neg
+        # # We show the scene:
+        # pgl.Viewer.display(scene)
+
+        # #TODO: In a perfect word, there would be an easy option here to create a shape from the close spline curve
         # # representing the leaf. For now, we try to make the shape using a Bezier patch,
         # # by getting the control points from the spline:
         # # The Beziers control points should theroretically correspond to the following lists:
@@ -245,8 +252,8 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
         # # We plot everything:
         # scene = pgl.Scene()
         # scene += spline_curve
-        # scene += control_points_line
-        # scene += spline_shape
+        # # scene += control_points_line
+        # # scene += spline_shape
         # # We show the scene:
         # pgl.Viewer.display(scene)
         # # CONCLUSION: The spline passes through the required points, but the Bezier shape does not follow this curve...
@@ -1260,8 +1267,6 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
             # We also verify whether the current plant could be the best candidate for representing the middle plant
             # in the scene or not.
             # We first check whether the plant is within an acceptable range from the middle:
-            print("Inter-plant-distance is", inter_plant_distance,"and inter-row distance is", inter_row_distance)
-            print("X:",abs(x - x_middle),"; Y:", abs(y - y_middle))
             if abs(x - x_middle) < inter_plant_distance*upscaling_factor and abs(y - y_middle) < inter_row_distance*upscaling_factor:
                 scene_information["middle_plants"].append("True")
                 scene_information[middle_id_field][0] = plant_index
@@ -1275,7 +1280,8 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
                 scene_information["middle_plants"].append("False")
 
             # We add the current plant type:
-            scene_information["plant_type"].append(list_of_distinct_plant_names[i])
+            if len(list_of_distinct_plant_names)>= i+1:
+                scene_information["plant_type"].append(list_of_distinct_plant_names[i])
 
             # We record the new position (x,y,z)
             scene_information["position"].append((x, y, z))
@@ -1294,157 +1300,157 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
 
     return scene_information, list_of_shoot_MTG, list_of_root_MTG
 #-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-def create_a_scene_with_plants_population(g,
-                                           number_of_plants_per_square_meter=9,
-                                           inter_row_distance=0.45,
-                                           scene_length=1.,
-                                           scene_width=1.,
-                                           true_color=True,
-                                           surrounding_plants_transparency=0.,
-                                           leaf_shape="oval_shape",
-                                           simplified_leaf_shape_for_surface_calculation="ellipse_shape",
-                                           upscaling_factor=1):
-    """
-    This function generates a scene containing a population of plants, all cloned from the same plant MTG "g",
-    and distributed within rows with a random orientation. The plant in the middle of the scene is the last set of shapes
-    given by the scene. The surrounding plants can be displayed as (semi-) transparent or not.
-
-    Parameters
-    ----------
-    g: the MTG corresponding to the shoot system
-    number_of_plants_per_square_meter: plant density (plants per m2)
-    inter_row_distance: distance between two rows (m)
-    scene_length: length of the rows (m)
-    scene_width: width of the scene (m)
-    true_color: if so, ...
-    surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full transparency)
-    leaf_shape: ...
-    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
-
-    Returns
-    -------
-    final_scene: the final scene with the population of plants
-
-    """
-
-    # 1.COMPUTING PLANT POSITIONS:
-    ##############################
-
-    # We calculate the number of rows and plants to be show in the scene:
-    number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
-    number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
-    # We make sure that there is a least one row containing plants:
-    if number_of_plants < number_of_rows:
-        number_of_rows = number_of_plants
-
-    # We calculate the number of plants per row:
-    number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
-    # We calculate the distance between two plants within a row (in meters):
-    inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
-    # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
-    # within the square scene:
-    lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
-    lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
-
-    # We initialize the list that will contain the x,y,z coordinates of each plant in the scene:
-    list_of_positions = []
-    # We move to the position of the first plant:
-    x = lateral_border_length * upscaling_factor
-    y = lateral_border_width * upscaling_factor
-    z = 0. * upscaling_factor
-    # We cover each plant of the scene:
-    for plant_index in range(0, number_of_plants):
-        # We add the new position (x,y,z) to the list:
-        list_of_positions.append((x, y, z))
-        # And we move from one plant to another on the same row:
-        x += inter_plant_distance * upscaling_factor
-        # If we have reached the maximal length of a given row:
-        if x > scene_length * upscaling_factor:
-            # Then we switch to the next row:
-            y += inter_row_distance * upscaling_factor
-            # And we start at the beginning of the new row:
-            x = lateral_border_length * upscaling_factor
-    # We define the index of the position of the plant that stays in the middle of the scene :
-    index_middle_plant = floor(number_of_plants / 2.)
-    # And we move the position of the middle plant to the last position of the list, so that it is easily recognizable:
-    list_of_positions.append(list_of_positions[index_middle_plant])
-    list_of_positions.remove(list_of_positions[index_middle_plant])
-
-    # CREATING THE FINAL SCENE:
-    ###########################
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-    # We initialize the final scene:
-    final_scene = pgl.Scene()
-
-    # We create a "soil surface" corresponding to the limits of the scene:
-    points = [(0, 0, 0),
-              (scene_length * upscaling_factor, 0, 0),
-              (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-              (0, scene_width * upscaling_factor, 0)]
-    normals = [(0, 0, 1) for i in range(4)]
-    indices = [(0, 1, 2, 3)]
-    square = pgl.QuadSet(points, indices, normals, indices)
-    # We define the same color for each of the 4 points:
-    square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
-    final_scene += square
-
-    # If the option "true_color" has been required:
-    if true_color:
-        # We try to access the dictionnary containing the colors of each vertex:
-        colors = g.property('color')
-        # However, if the dictionnary is empty, we reset the option to False:
-        if colors == {}:
-            true_color = False
-
-    # We cover each plant in the population:
-    for plant_index in range(0, len(list_of_positions)):
-
-        # We first define the seed of random, depending on the index of the plant:
-        np.random.seed(int(param.random_choice * plant_index))
-        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-        angle_roll = abs(np.random.normal(180, 180))
-
-        # We reset the turtle:
-        turtle.reset()
-        # And we reposition the turtle from there:
-        turtle.move(list_of_positions[plant_index])
-        turtle.rollL(angle_roll)
-        # We create a scene for one plant by moving the turtle along the MTG:
-        scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-                                                              simplified_shape=simplified_leaf_shape_for_surface_calculation,
-                                                              upscaling_factor=upscaling_factor),
-                                 turtle=turtle, gc=False)
-
-        # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene)
-
-        # We cover each shape of the current MTG:
-        for shape in scene:
-            # If the true color has to be activated:
-            if true_color:
-                # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-                if plant_index == len(list_of_positions) - 1:
-                    # Then we add the color of the corresponding vertex, with no transparency:
-                    shape.appearance = pgl.Material(colors[shape.id], transparency=0.0)
-                else:
-                    # Then we add the color of the corresponding vertex, with semi-transparency:
-                    shape.appearance = pgl.Material(colors[shape.id], transparency=surrounding_plants_transparency)
-            else:
-                # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-                if plant_index == len(list_of_positions) - 1:
-                    # Then we add the color of the corresponding vertex, with no transparency:
-                    shape.appearance = pgl.Material([0, 250, 0], transparency=0.0)
-                else:
-                    # For all other plants, we set nearly transparent plants with greenish colors:
-                    shape.appearance = pgl.Material([50, 200, 50], transparency=surrounding_plants_transparency)
-            # Finally, we add the shape to the final scene:
-            final_scene += shape
-
-    return final_scene
-#-----------------------------------------------------------------------------------------------------------------------
+# #-----------------------------------------------------------------------------------------------------------------------
+# def create_a_scene_with_plants_population(g,
+#                                           number_of_plants_per_square_meter=9,
+#                                           inter_row_distance=0.45,
+#                                           scene_length=1.,
+#                                           scene_width=1.,
+#                                           true_color=True,
+#                                           surrounding_plants_transparency=0.,
+#                                           leaf_shape="oval_shape",
+#                                           simplified_leaf_shape_for_surface_calculation="ellipse_shape",
+#                                           upscaling_factor=1):
+#     """
+#     This function generates a scene containing a population of plants, all cloned from the same plant MTG "g",
+#     and distributed within rows with a random orientation. The plant in the middle of the scene is the last set of shapes
+#     given by the scene. The surrounding plants can be displayed as (semi-) transparent or not.
+#
+#     Parameters
+#     ----------
+#     g: the MTG corresponding to the shoot system
+#     number_of_plants_per_square_meter: plant density (plants per m2)
+#     inter_row_distance: distance between two rows (m)
+#     scene_length: length of the rows (m)
+#     scene_width: width of the scene (m)
+#     true_color: if so, ...
+#     surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full transparency)
+#     leaf_shape: ...
+#     upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
+#
+#     Returns
+#     -------
+#     final_scene: the final scene with the population of plants
+#
+#     """
+#
+#     # 1.COMPUTING PLANT POSITIONS:
+#     ##############################
+#
+#     # We calculate the number of rows and plants to be show in the scene:
+#     number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
+#     number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
+#     # We make sure that there is a least one row containing plants:
+#     if number_of_plants < number_of_rows:
+#         number_of_rows = number_of_plants
+#
+#     # We calculate the number of plants per row:
+#     number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
+#     # We calculate the distance between two plants within a row (in meters):
+#     inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
+#     # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
+#     # within the square scene:
+#     lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
+#     lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
+#
+#     # We initialize the list that will contain the x,y,z coordinates of each plant in the scene:
+#     list_of_positions = []
+#     # We move to the position of the first plant:
+#     x = lateral_border_length * upscaling_factor
+#     y = lateral_border_width * upscaling_factor
+#     z = 0. * upscaling_factor
+#     # We cover each plant of the scene:
+#     for plant_index in range(0, number_of_plants):
+#         # We add the new position (x,y,z) to the list:
+#         list_of_positions.append((x, y, z))
+#         # And we move from one plant to another on the same row:
+#         x += inter_plant_distance * upscaling_factor
+#         # If we have reached the maximal length of a given row:
+#         if x > scene_length * upscaling_factor:
+#             # Then we switch to the next row:
+#             y += inter_row_distance * upscaling_factor
+#             # And we start at the beginning of the new row:
+#             x = lateral_border_length * upscaling_factor
+#     # We define the index of the position of the plant that stays in the middle of the scene :
+#     index_middle_plant = floor(number_of_plants / 2.)
+#     # And we move the position of the middle plant to the last position of the list, so that it is easily recognizable:
+#     list_of_positions.append(list_of_positions[index_middle_plant])
+#     list_of_positions.remove(list_of_positions[index_middle_plant])
+#
+#     # CREATING THE FINAL SCENE:
+#     ###########################
+#
+#     # We initialize a turtle in PlantGL:
+#     turtle = turt.PglTurtle()
+#     # We initialize the final scene:
+#     final_scene = pgl.Scene()
+#
+#     # We create a "soil surface" corresponding to the limits of the scene:
+#     points = [(0, 0, 0),
+#               (scene_length * upscaling_factor, 0, 0),
+#               (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
+#               (0, scene_width * upscaling_factor, 0)]
+#     normals = [(0, 0, 1) for i in range(4)]
+#     indices = [(0, 1, 2, 3)]
+#     square = pgl.QuadSet(points, indices, normals, indices)
+#     # We define the same color for each of the 4 points:
+#     square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
+#     final_scene += square
+#
+#     # If the option "true_color" has been required:
+#     if true_color:
+#         # We try to access the dictionnary containing the colors of each vertex:
+#         colors = g.property('color')
+#         # However, if the dictionnary is empty, we reset the option to False:
+#         if colors == {}:
+#             true_color = False
+#
+#     # We cover each plant in the population:
+#     for plant_index in range(0, len(list_of_positions)):
+#
+#         # We first define the seed of random, depending on the index of the plant:
+#         np.random.seed(int(param.random_choice * plant_index))
+#         # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
+#         angle_roll = abs(np.random.normal(180, 180))
+#
+#         # We reset the turtle:
+#         turtle.reset()
+#         # And we reposition the turtle from there:
+#         turtle.move(list_of_positions[plant_index])
+#         turtle.rollL(angle_roll)
+#         # We create a scene for one plant by moving the turtle along the MTG:
+#         scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+#                                                               simplified_shape=simplified_leaf_shape_for_surface_calculation,
+#                                                               upscaling_factor=upscaling_factor),
+#                                  turtle=turtle, gc=False)
+#
+#         # We get a dictionnary of all shapes in the scene:
+#         shapes = dict((sh.id, sh) for sh in scene)
+#
+#         # We cover each shape of the current MTG:
+#         for shape in scene:
+#             # If the true color has to be activated:
+#             if true_color:
+#                 # If the plant corresponds to the central plant (which we have moved to the last position in the list):
+#                 if plant_index == len(list_of_positions) - 1:
+#                     # Then we add the color of the corresponding vertex, with no transparency:
+#                     shape.appearance = pgl.Material(colors[shape.id], transparency=0.0)
+#                 else:
+#                     # Then we add the color of the corresponding vertex, with semi-transparency:
+#                     shape.appearance = pgl.Material(colors[shape.id], transparency=surrounding_plants_transparency)
+#             else:
+#                 # If the plant corresponds to the central plant (which we have moved to the last position in the list):
+#                 if plant_index == len(list_of_positions) - 1:
+#                     # Then we add the color of the corresponding vertex, with no transparency:
+#                     shape.appearance = pgl.Material([0, 250, 0], transparency=0.0)
+#                 else:
+#                     # For all other plants, we set nearly transparent plants with greenish colors:
+#                     shape.appearance = pgl.Material([50, 200, 50], transparency=surrounding_plants_transparency)
+#             # Finally, we add the shape to the final scene:
+#             final_scene += shape
+#
+#     return final_scene
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a color map for a MTG:
 def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
@@ -1602,42 +1608,42 @@ def plotting_shoot_MTG(g,
 
     return
 # -----------------------------------------------------------------------------------------------------------------------
-# -----------------------------------------------------------------------------------------------------------------------
-def plotting_shoot_MTG_population(g,
-                                  number_of_plants_per_square_meter=33,
-                                  inter_row_distance=0.45,
-                                  scene_length=1.,
-                                  scene_width=1.,
-                                  leaf_shape="oval_shape",
-                                  width=1200, height=900,
-                                  upscaling_factor=1.,
-                                  x_center=0, y_center=-0, z_center=0.,
-                                  x_cam=5., y_cam=5., z_cam=-1,
-                                  grid=True,
-                                  background_color=[94, 76, 64],
-                                  single_color=None,
-                                  property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-                                  recording_plot=True,
-                                  plot_filepath='plot.png'
-                                  ):
-    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    complete_scene = create_a_scene_with_plants_population(g,
-                                                            number_of_plants_per_square_meter=number_of_plants_per_square_meter,
-                                                            upscaling_factor=upscaling_factor,
-                                                            inter_row_distance=inter_row_distance,
-                                                            scene_length=scene_length,
-                                                            scene_width=scene_width,
-                                                            leaf_shape=leaf_shape)
-    setting_PGLViewer(width=width, height=height,
-                      x_center=x_center, y_center=y_center, z_center=z_center,
-                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                      grid=grid,
-                      background_color=background_color)
-    # background_color=[150, 200, 250])
-    pgl.Viewer.display(complete_scene)
-    pgl.Viewer.saveSnapshot(plot_filepath)
-
-    return
+# # -----------------------------------------------------------------------------------------------------------------------
+# def plotting_shoot_MTG_population(g,
+#                                   number_of_plants_per_square_meter=33,
+#                                   inter_row_distance=0.45,
+#                                   scene_length=1.,
+#                                   scene_width=1.,
+#                                   leaf_shape="oval_shape",
+#                                   width=1200, height=900,
+#                                   upscaling_factor=1.,
+#                                   x_center=0, y_center=-0, z_center=0.,
+#                                   x_cam=5., y_cam=5., z_cam=-1,
+#                                   grid=True,
+#                                   background_color=[94, 76, 64],
+#                                   single_color=None,
+#                                   property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
+#                                   recording_plot=True,
+#                                   plot_filepath='plot.png'
+#                                   ):
+#     my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
+#     complete_scene = create_a_scene_with_plants_population(g,
+#                                                             number_of_plants_per_square_meter=number_of_plants_per_square_meter,
+#                                                             upscaling_factor=upscaling_factor,
+#                                                             inter_row_distance=inter_row_distance,
+#                                                             scene_length=scene_length,
+#                                                             scene_width=scene_width,
+#                                                             leaf_shape=leaf_shape)
+#     setting_PGLViewer(width=width, height=height,
+#                       x_center=x_center, y_center=y_center, z_center=z_center,
+#                       x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+#                       grid=grid,
+#                       background_color=background_color)
+#     # background_color=[150, 200, 250])
+#     pgl.Viewer.display(complete_scene)
+#     pgl.Viewer.saveSnapshot(plot_filepath)
+#
+#     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a scene with uniques shapes ID:
@@ -1646,7 +1652,14 @@ def create_plants_population_scene(scene_information,
                                    list_of_root_MTG,
                                    upscaling_factor=1,
                                    leaf_shape="oval_shape",
-                                   simplified_leaf_shape_for_surface_calculation="ellipse_shape"):
+                                   simplified_leaf_shape_for_surface_calculation="ellipse_shape",
+                                   single_color_shoot=None,
+                                   single_color_root=None,
+                                   property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2,
+                                   lognorm_shoot=True,
+                                   property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2,
+                                   lognorm_root=True,
+                                   ):
 
     """
     This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
@@ -1698,114 +1711,165 @@ def create_plants_population_scene(scene_information,
     # We get the list of plant positions from the scene_information:
     list_of_positions = scene_information["position"]
 
+    # CREATING THE PLOT:
+    # -------------------
+
+    # # We initialize the different scenes:
+    # new_scene_for_shoot = pgl.Scene()
+    # new_scene_for_root = pgl.Scene()
+    # final_scene = pgl.Scene()
+
     # TREATING THE SCENE FOR SHOOTS:
-    # We cover each plant in the population:
-    for plant_index in range(0, len(list_of_positions)):
+    if len(list_of_shoot_MTG) > 0:
+        # We cover each plant in the population:
+        for plant_index in range(0, len(list_of_positions)):
 
-        # We access the MTG corresponding to the current plant index:
-        new_shoot_MTG = list_of_shoot_MTG[plant_index]
+            # We access the MTG corresponding to the current plant index:
+            new_shoot_MTG = list_of_shoot_MTG[plant_index]
 
-        # We initialize the indexer for the current plant:
-        shapes_indexer_shoot[plant_index] = {}
+            # We first compute the colors of each shoot and root graph to be displayed:
+            my_colormap(new_shoot_MTG, property_name=property_name_shoot, cmap=cmap_shoot, vmin=vmin_shoot, vmax=vmax_shoot,
+                        lognorm=lognorm_shoot)
+            colors_shoot = new_shoot_MTG.property('color')
 
-        # We first define the seed of random, depending on the index of the plant:
-        np.random.seed(int(param.random_choice * plant_index))
-        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-        angle_roll = abs(np.random.normal(180, 180))
-        # We record this rotation in the scene information:
-        scene_information["rotation"].append(angle_roll)
+            # We initialize the indexer for the current plant:
+            shapes_indexer_shoot[plant_index] = {}
 
-        # We reset the turtle:
-        turtle.reset()
-        # And we reposition the turtle from there:
-        turtle.move(list_of_positions[plant_index])
-        turtle.rollL(angle_roll)
+            # We first define the seed of random, depending on the index of the plant:
+            np.random.seed(int(param.random_choice * plant_index))
+            # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
+            angle_roll = abs(np.random.normal(180, 180))
+            # We record this rotation in the scene information:
+            scene_information["rotation"].append(angle_roll)
 
-        # We create a scene for one shoot MTG by moving the turtle along the MTG:
-        scene_shoot = turt.TurtleFrame(new_shoot_MTG,
-                                       visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-                                                                 simplified_shape=simplified_leaf_shape_for_surface_calculation,
-                                                                 upscaling_factor=upscaling_factor),
-                                       turtle=turtle, gc=False)
-        # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene_shoot)
-        # We reindex the different shapes by adding the lag number:
-        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_shoot)
-        # And we increment the lag number to reindex the vid of the next plant:
-        vid_lag += len(new_shoot_MTG)
-        # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
-        for shape_id in reindexed_shapes.keys():
-            # We get the corresponding shape:
-            shape = reindexed_shapes[shape_id]
-            # We access its original id:
-            old_shape_id = shape.id
-            # We modify it with the new id:
-            shape.id = shape_id
-            # We store the correspondence between the new id and the old id:
-            shapes_indexer_shoot[plant_index][shape_id] = old_shape_id
-            # Finally, we add the reindexed shape to the final scene:
-            final_scene += shape
-        # We record the new shapes:
-        scene_information["shapes_shoot"].append(reindexed_shapes)
-        # We record the reindexer:
-        scene_information["new_index_to_old_index_shoot"] = shapes_indexer_shoot
-        # We transform the scene into triangles:
-        triangle_scene = pgl_to_triangles(scene_shoot)
-        # We record the triangles:
-        scene_information["triangles_shoot"].append(triangle_scene)
+            # We reset the turtle:
+            turtle.reset()
+            # And we reposition the turtle from there:
+            turtle.move(list_of_positions[plant_index])
+            turtle.rollL(angle_roll)
+
+            # We create a scene for one shoot MTG by moving the turtle along the MTG:
+            scene_shoot = turt.TurtleFrame(new_shoot_MTG,
+                                           visitor=get_shoot_visitor(leaf_shape=leaf_shape,
+                                                                     simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                                                     upscaling_factor=upscaling_factor),
+                                           turtle=turtle, gc=False)
+            # We get a dictionnary of all shapes in the scene:
+            shapes = dict((sh.id, sh) for sh in scene_shoot)
+
+            # We cover each node of the MTG:
+            for vid in colors_shoot:
+                if vid in shapes:
+                    n = new_shoot_MTG.node(vid)
+                    if single_color_shoot is None:
+                        shapes[vid].appearance = pgl.Material(colors_shoot[vid], transparency=0)
+                    else:
+                        # Otherwise, we can print it with a unique color:
+                        if n.label == "Fallen_leaf":
+                            # If the leaf has fallen, we print in grey, semi-transparent:
+                            shapes[vid].appearance = pgl.Material([0, 0, 0], transparency=0.8)
+                        elif n.type == "Hypocotyl":
+                            # If the leaf has fallen, we print in grey, semi-transparent:
+                            shapes[vid].appearance = pgl.Material([200, 220, 200], transparency=0.2)
+                        else:
+                            # shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
+                            shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0)
+
+            # We reindex the different shapes by adding the lag number:
+            reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_shoot)
+            # And we increment the lag number to reindex the vid of the next plant:
+            vid_lag += len(new_shoot_MTG)
+            # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
+            for shape_id in reindexed_shapes.keys():
+                # We get the corresponding shape:
+                shape = reindexed_shapes[shape_id]
+                # We access its original id:
+                old_shape_id = shape.id
+                # We modify it with the new id:
+                shape.id = shape_id
+                # We store the correspondence between the new id and the old id:
+                shapes_indexer_shoot[plant_index][shape_id] = old_shape_id
+                # Finally, we add the reindexed shape to the final scene:
+                final_scene += shape
+            # We record the new shapes:
+            scene_information["shapes_shoot"].append(reindexed_shapes)
+            # We record the reindexer:
+            scene_information["new_index_to_old_index_shoot"] = shapes_indexer_shoot
+            # We transform the scene into triangles:
+            triangle_scene = pgl_to_triangles(scene_shoot)
+            # We record the triangles:
+            scene_information["triangles_shoot"].append(triangle_scene)
 
     # TREATING THE SCENE FOR ROOTS:
-    # We cover each plant in the population:
-    for plant_index in range(0, len(list_of_positions)):
+    if len(list_of_root_MTG) > 0:
+        # We cover each plant in the population:
+        for plant_index in range(0, len(list_of_positions)):
 
-        # We access the MTG corresponding to the current plant index:
-        new_root_MTG = list_of_root_MTG[plant_index]
-        # We initialize the indexer for the current plant:
-        shapes_indexer_root[plant_index] = {}
+            # We access the MTG corresponding to the current plant index:
+            new_root_MTG = list_of_root_MTG[plant_index]
+            # We initialize the indexer for the current plant:
+            shapes_indexer_root[plant_index] = {}
 
-        # We first define the seed of random, depending on the index of the plant:
-        np.random.seed(int(param.random_choice * plant_index))
-        # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-        angle_roll = abs(np.random.normal(180, 180))
-        # # We record this rotation in the scene information:
-        # scene_information["rotation"].append(angle_roll)
+            # We first compute the colors of each shoot and root graph to be displayed:
+            my_colormap(new_root_MTG, property_name=property_name_root, cmap=cmap_root, vmin=vmin_root, vmax=vmax_root,
+                        lognorm=lognorm_root)
+            colors_root = new_root_MTG.property('color')
 
-        # We reset the turtle:
-        turtle.reset()
-        # And we reposition the turtle from there:
-        turtle.move(list_of_positions[plant_index])
-        turtle.rollL(angle_roll)
+            # We first define the seed of random, depending on the index of the plant:
+            np.random.seed(int(param.random_choice * plant_index))
+            # We then modify the angle of the plant, so that plants are not oriented the same way within the population:
+            angle_roll = abs(np.random.normal(180, 180))
+            # # We record this rotation in the scene information:
+            # scene_information["rotation"].append(angle_roll)
 
-        # We create a scene for one root MTG by moving the turtle along the MTG:
-        scene_root = turt.TurtleFrame(new_root_MTG,
-                                      visitor=get_root_visitor(upscaling_factor=upscaling_factor),
-                                      turtle=turtle, gc=False)
-        # We get a dictionnary of all shapes in the scene:
-        shapes = dict((sh.id, sh) for sh in scene_root)
-        # We reindex the different shapes by adding the lag number:
-        reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_root)
-        # And we increment the lag number to reindex the vid of the next plant:
-        vid_lag += len(new_root_MTG)
-        # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
-        for shape_id in reindexed_shapes.keys():
-            # We get the corresponding shape:
-            shape = reindexed_shapes[shape_id]
-            # We access its original id:
-            old_shape_id = shape.id
-            # We modify it with the new id:
-            shape.id = shape_id
-            # We store the correspondence between the new id and the old id:
-            shapes_indexer_root[plant_index][shape_id] = old_shape_id
-            # Finally, we add the reindexed shape to the final scene:
-            final_scene += shape
-        # We record the new shapes:
-        scene_information["shapes_root"].append(reindexed_shapes)
-        # We record the reindexer:
-        scene_information["new_index_to_old_index_root"] = shapes_indexer_root
-        # We transform the scene into triangles:
-        triangle_scene = pgl_to_triangles(scene_root)
-        # We record the triangles:
-        scene_information["triangles_root"].append(triangle_scene)
+            # We reset the turtle:
+            turtle.reset()
+            # And we reposition the turtle from there:
+            turtle.move(list_of_positions[plant_index])
+            turtle.rollL(angle_roll)
+            # For roots, we need to reverse the direction of the turtle:
+            turtle.down(180)
+            # We create the scene by moving the turtle along the current MTG:
+            root_scene = turt.TurtleFrame(new_root_MTG,
+                                          visitor=get_root_visitor(upscaling_factor=upscaling_factor),
+                                          turtle=turtle,
+                                          gc=False)
+            # We get a dictionnary of all shapes in the scene:
+            shapes = dict((sh.id, sh) for sh in root_scene)
+            # We cover each node of the MTG:
+            for vid in colors_root:
+                if vid in shapes:
+                    n = new_root_MTG.node(vid)
+                    if single_color_root is None:
+                        shapes[vid].appearance = pgl.Material(colors_root[vid], transparency=0.0)
+                    else:
+                        # Otherwise, we can print it with a unique color:
+                        shapes[vid].appearance = pgl.Material(single_color_root, transparency=0.0)
+
+            # We reindex the different shapes by adding the lag number:
+            reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in root_scene)
+            # And we increment the lag number to reindex the vid of the next plant:
+            vid_lag += len(new_root_MTG)
+            # We cover each reindexed shape of the original scene corresponding to the shoot MTG of the current plant:
+            for shape_id in reindexed_shapes.keys():
+                # We get the corresponding shape:
+                shape = reindexed_shapes[shape_id]
+                # We access its original id:
+                old_shape_id = shape.id
+                # We modify it with the new id:
+                shape.id = shape_id
+                # We store the correspondence between the new id and the old id:
+                shapes_indexer_root[plant_index][shape_id] = old_shape_id
+                # Finally, we add the reindexed shape to the final scene:
+                final_scene += shape
+            # We record the new shapes:
+            scene_information["shapes_root"].append(reindexed_shapes)
+            # We record the reindexer:
+            scene_information["new_index_to_old_index_root"] = shapes_indexer_root
+            # We transform the scene into triangles:
+            triangle_scene = pgl_to_triangles(root_scene)
+            # We record the triangles:
+            scene_information["triangles_root"].append(triangle_scene)
 
     return final_scene, scene_information
 #-----------------------------------------------------------------------------------------------------------------------
@@ -2120,6 +2184,83 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
+def plotting_whole_scene(list_of_distinct_plant_types=[],
+                         list_of_distinct_shoot_MTG=[],
+                         list_of_distinct_root_MTG=[],
+                         list_of_numbers_of_plants_per_square_meter=[],
+                         list_of_inter_row_distances=[],
+                         list_of_number_of_rows_to_show=[],
+                         list_of_scene_lengths=[],
+                         list_of_scene_widths=[],
+                         width=1200, height=900,
+                         x_center=0, y_center=-0, z_center=0.,
+                         x_cam=5., y_cam=5., z_cam=-1,
+                         upscaling_factor=1.,
+                         grid=False,
+                         background_color=[94, 76, 64],
+                         displaying_soil_surface=True,
+                         single_color_shoot=None,
+                         single_color_root=None,
+                         property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2, lognorm_shoot=True,
+                         property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
+                         recording_plot=True,
+                         plot_name="plot.png"):
+
+    # CREATING THE SCENE:
+    # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+    scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
+        = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=list_of_distinct_plant_types,
+                                                  list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
+                                                  list_of_distinct_root_MTG=list_of_distinct_root_MTG,
+                                                  list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
+                                                  list_of_inter_row_distances=list_of_inter_row_distances,
+                                                  list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
+                                                  list_of_scene_lengths=list_of_scene_lengths,
+                                                  list_of_scene_widths=list_of_scene_widths,
+                                                  upscaling_factor=upscaling_factor)
+
+    # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+    scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                              list_of_shoot_MTG=list_of_scene_shoot_MTG,
+                                                              list_of_root_MTG=list_of_scene_root_MTG,
+                                                              leaf_shape="diamond_shape",
+                                                              simplified_leaf_shape_for_surface_calculation="diamond_shape",
+                                                              upscaling_factor=upscaling_factor)
+
+    if displaying_soil_surface:
+        scene_length = max(list_of_scene_lengths)
+        scene_width = max(list_of_scene_widths)
+        # We create a "soil surface" corresponding to the limits of the scene:
+        points = [(0, 0, 0),
+                  (scene_length * upscaling_factor, 0, 0),
+                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
+                  (0, scene_width * upscaling_factor, 0)]
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        square = pgl.QuadSet(points, indices, normals, indices)
+        # We define the same color for each of the 4 points:
+        square.colorList = [pgl.Color4(100, 100, 0, 100) for i in range(4)]
+        scene += square
+
+    # SETTING THE VIEWER OPTIONS:
+    setting_PGLViewer(width=width, height=height,
+                      x_center=x_center, y_center=y_center, z_center=z_center,
+                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+                      grid=grid,
+                      background_color=background_color)
+
+    # DISPLAYING THE MTG:
+    pgl.Viewer.display(scene)
+
+    # RECORDING THE MTG:
+    if recording_plot:
+        print("    Saving the PlantGL plot...")
+        pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha=True)
+        # pgl.Viewer.frameGL.saveImage(plot_name)
+        print("    The plot has been saved!")
+
+    return
+
 #-----------------------------------------------------------------------------------------------------------------------
 # Modification of a process according to soil temperature:
 # --------------------------------------------------------

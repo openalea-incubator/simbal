@@ -14,9 +14,9 @@ import openalea.rhizodep.parameters as rhizodep_param
 import openalea.plantgl.all as pgl
 
 from openalea.simbal.tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
-                                   recording_MTG_properties, circle_coordinates, updating_coordinates, plotting_whole_plant,
+                                   recording_MTG_properties, circle_coordinates, updating_coordinates,
                                    prepare_plants_population, prepare_heterogeneous_plants_population,
-                                   create_plants_population_scene)
+                                   create_plants_population_scene, plotting_whole_plant, plotting_whole_scene)
 
 import os
 import pandas as pd
@@ -1426,11 +1426,16 @@ def run_simulation_for_one_plant(my_path=None,
 
 # Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation_for_a_plant_cover(my_path=None,
+                                     list_of_distinct_plant_types= [],
                                      list_of_distinct_shoot_MTG = [],
                                      list_of_distinct_root_MTG = [],
-                                     lists_of_xyz_coordinates_for_the_distinct_plant_MTG=[[[0,0,0],[1,0,0]],
-                                                                                          [[0,1,0],[1,1,0]]],
-                                     list_of_parameter_file_names_for_the_distinct_plant_MTG=["simbal_parameters_1.xlsx", "simbal_parameters_2.xlsx"],
+                                     list_of_parameter_file_names_for_the_distinct_plant_MTG=["simbal_parameters_1.xlsx",
+                                                                                              "simbal_parameters_2.xlsx"],
+                                     list_of_numbers_of_plants_per_square_meter=[33, 16.5],
+                                     list_of_inter_row_distances=[0.20, 0.20],
+                                     list_of_number_of_rows_to_show=[3, 2],
+                                     list_of_scene_lengths=[1, 1],
+                                     list_of_scene_widths=[0.5, 0.5],
                                      simulation_period_in_days=20., time_step_in_days=1/24.,
                                      starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
                                      input_file=None,
@@ -1439,13 +1444,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                      constant_air_temperature_in_Celsius=10, constant_light_irradiation=400,
                                      forcing_constant_belowground_environment=False,
                                      constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
-                                     plant_density_in_square_meter=35,
-                                     inter_row_distance = 0.45,
-                                     row_length=1.,
-                                     scene_width=1.,
                                      simulation_option="shoot_and_roots",
-                                     initial_shoot_labile_C_concentration = 1e-2, # in gC per gram of structural mass
-                                     initial_shoot_labile_N_concentration = 1e-3, # in gN per gram of structural mass
+                                     plotting_option="population",
                                      ):
 
     """
@@ -1488,6 +1488,18 @@ def run_simulation_for_a_plant_cover(my_path=None,
     else:
         # Otherwise, we delete all files that are already present inside:
         for root, dirs, files in os.walk(outputs_directory):
+            for file in files:
+                os.remove(os.path.join(root, file))
+
+    # We consider a general output directory:
+    plot_directory = os.path.join(my_path, "simulation", "outputs", "plots")
+    # If the directory doesn't exist:
+    if not os.path.exists(plot_directory):
+        # Then we create it:
+        os.mkdir(plot_directory)
+    else:
+        # Otherwise, we delete all files that are already present inside:
+        for root, dirs, files in os.walk(plot_directory):
             for file in files:
                 os.remove(os.path.join(root, file))
 
@@ -2094,24 +2106,50 @@ def run_simulation_for_a_plant_cover(my_path=None,
                       "gC and shoot labile N pool is",
                       "{:.2E}".format(Decimal(initial_shoot_labile_N)), "gN.")
 
-                # LIGHT INTERCEPTION:
-                #####################
-                # We calculate light interception based on the shoot architecture, for each organ:
-                total_PAR_intercepted, sum_of_surfacic_PAR = \
-                    AllocF.computing_light_interception(shoot_g,
-                                                        incoming_light_density=light_input,
-                                                        isolated_plant=False,
-                                                        number_of_plants_per_square_meter=plant_density_in_square_meter,
-                                                        inter_row_distance=inter_row_distance,
-                                                        scene_length=row_length,
-                                                        scene_width=scene_width,
-                                                        # leaf_shape=param.plotting_leaf_shape,
-                                                        #  WATCH OUT: here we simplify the shape to reduce computation time!
-                                                        leaf_shape=param.light_interception_leaf_shape,
-                                                        averaging_light_intensity_share=True,
-                                                        period_of_light_intensity_averaging_in_days=0.5,
-                                                        time_step_in_days=time_step_in_days
-                                                        )
+            # LIGHT INTERCEPTION:
+            #####################
+
+            # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+            scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
+                = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=list_of_distinct_plant_types,
+                                                          list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
+                                                          list_of_distinct_root_MTG=[],
+                                                          list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
+                                                          list_of_inter_row_distances=list_of_inter_row_distances,
+                                                          list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
+                                                          list_of_scene_lengths=list_of_scene_lengths,
+                                                          list_of_scene_widths=list_of_scene_widths,
+                                                          upscaling_factor=100)
+
+            # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+            scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                                      list_of_shoot_MTG=list_of_scene_shoot_MTG,
+                                                                      list_of_root_MTG=[],
+                                                                      leaf_shape="diamond_shape",
+                                                                      simplified_leaf_shape_for_surface_calculation="diamond_shape",
+                                                                      upscaling_factor=100)
+            # We compute the light interception on the whole scene, and collect the intercepted PAR for each distinct plant type:
+            list_of_total_PAR_intercepted, list_of_sum_of_surfacic_PAR = \
+                AllocF.computing_light_interception_on_plant_population(scene=scene,
+                                                                        scene_information=scene_information,
+                                                                        list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
+                                                                        list_of_scene_MTG=list_of_scene_shoot_MTG,
+                                                                        incoming_light_density=light_input,
+                                                                        zenithal_light=False,
+                                                                        infinite=False,
+                                                                        averaging_light_intensity_share=True,
+                                                                        period_of_light_intensity_averaging_in_days=0.5,
+                                                                        time_step_in_days=time_step_in_days
+                                                                        )
+
+            # Now we cover again each distinct plant type to be computed:
+            for i in range(0, number_of_distinct_plants):
+
+                # ACCESSING THE CURRENT PLANT:
+                plant = plant_objects_list[i]
+                shoot_g = list_of_distinct_shoot_MTG[i]
+                total_PAR_intercepted = list_of_total_PAR_intercepted[i]
+                sum_of_surfacic_PAR = list_of_sum_of_surfacic_PAR[i]
                 # We record the PAR intercepted in the properties of the plant:
                 plant.total_PAR_intercepted = total_PAR_intercepted
 
@@ -2351,8 +2389,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                 previous_root_N = root_total_N_list[i])
             print("")
 
-        # PLOTTING ONE SINGLE PLANT OVER TIME:
-        ######################################
+        # PLOTTING:
+        ###########
 
         # If the camera is to be moved around the scene, we modify the position of the camera:
         if param.camera_movement is True:
@@ -2374,46 +2412,72 @@ def run_simulation_for_a_plant_cover(my_path=None,
             y_cam = param.y_camera
             z_cam = param.z_camera
 
-        # We cover each distinct plant to be computed:
-        for i in range(0, number_of_distinct_plants):
+        # If the whole scene is to be plotted:
+        if plotting_option == "population":
 
-            print("")
-            print("    C and N balance check on plant", str(i) + "...")
-
-            # ACCESSING THE CURRENT PLANT:
-            shoot_g = list_of_distinct_shoot_MTG[i]
-            root_g = list_of_distinct_root_MTG[i]
-            plot_directory = plot_directories[i]
-
-            # UPDATING PARAMETERS FOR THE CURRENT PLANT
-            scenario = parameter_updates[i]
-            # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
-            param.__dict__.update(scenario)
-
-            zoom_factor = 100.
-            # We display the MTG in its new state:
-            plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
+            zoom_factor=100
+            plotting_whole_scene(list_of_distinct_plant_types=list_of_distinct_plant_types,
+                                 list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
+                                 list_of_distinct_root_MTG=list_of_distinct_root_MTG,
+                                 list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
+                                 list_of_inter_row_distances=list_of_inter_row_distances,
+                                 list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
+                                 list_of_scene_lengths=list_of_scene_lengths,
+                                 list_of_scene_widths=list_of_scene_widths,
                                  width=1200, height=1200,
                                  upscaling_factor=zoom_factor,
-                                 x_center=param.x_center*zoom_factor,
-                                 y_center=param.y_center*zoom_factor,
-                                 z_center=param.z_center*zoom_factor,
-                                 x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
+                                 x_center=0.5*zoom_factor,
+                                 y_center=0.25*zoom_factor,
+                                 z_center=0.*zoom_factor,
+                                 x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
                                  grid=False,
-                                 plant_species=param.plant_species,
-                                 leaf_shape=param.plotting_leaf_shape,
-                                 simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
-                                 background_color=[94, 76, 64],
-                                 # single_color_shoot=[30,120,60],
-                                 single_color_root=[200,200,100],
-                                 single_color_shoot=None,
-                                 # single_color_root=None,
-                                 property_name_shoot='light_intensity_share', cmap_shoot='Greens', vmin_shoot=0.001, vmax_shoot=0.5, lognorm_shoot=False,
-                                 # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
-                                 # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
+                                 background_color=[200, 200, 250],
                                  recording_plot=True,
-                                 plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
-                                 shoots_overlapping_roots=True)
+                                 plot_name=os.path.join(my_path, "simulation", "outputs", "plots",
+                                                        'plot_%.5d.png' % step)
+                                 )
+        # Otherwise, we will plot one single plant for each plant type:
+        else:
+            # We cover each distinct plant to be computed:
+            for i in range(0, number_of_distinct_plants):
+
+                print("")
+                print("    C and N balance check on plant", str(i) + "...")
+
+                # ACCESSING THE CURRENT PLANT:
+                shoot_g = list_of_distinct_shoot_MTG[i]
+                root_g = list_of_distinct_root_MTG[i]
+                plot_directory = plot_directories[i]
+
+                # UPDATING PARAMETERS FOR THE CURRENT PLANT
+                scenario = parameter_updates[i]
+                # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
+                param.__dict__.update(scenario)
+
+                zoom_factor = 100.
+                # We display the MTG in its new state:
+                plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
+                                     width=1200, height=1200,
+                                     upscaling_factor=zoom_factor,
+                                     x_center=param.x_center*zoom_factor,
+                                     y_center=param.y_center*zoom_factor,
+                                     z_center=param.z_center*zoom_factor,
+                                     x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
+                                     grid=False,
+                                     plant_species=param.plant_species,
+                                     leaf_shape=param.plotting_leaf_shape,
+                                     simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
+                                     background_color=[94, 76, 64],
+                                     # single_color_shoot=[30,120,60],
+                                     single_color_root=[200,200,100],
+                                     single_color_shoot=None,
+                                     # single_color_root=None,
+                                     property_name_shoot='light_intensity_share', cmap_shoot='Greens', vmin_shoot=0.001, vmax_shoot=0.5, lognorm_shoot=False,
+                                     # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
+                                     # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
+                                     recording_plot=True,
+                                     plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
+                                     shoots_overlapping_roots=True)
 
         # RECORDING THE CURRENT STATE:
         ##############################
@@ -2448,7 +2512,12 @@ def run_simulation_for_a_plant_cover(my_path=None,
             results_dict["Soil available N (gN per gDW of soil)"] = soil_available_nitrogen
             results_dict["Step"] = step
             new_df = pd.DataFrame([results_dict.values()], columns=results_dict.keys())
+
+            # We get the dataframe where previous results have been recorded:
+            plant_data_frame = plant_data_frame_list[i]
+            # We add the new results:
             plant_data_frame = pd.concat([plant_data_frame, new_df])
+            plant_data_frame_list[i] = plant_data_frame
             # We record the dataframe as a csv file:
             try:
                 plant_data_frame.to_csv(os.path.join(sub_outputs_directory,'plant_results.csv'), na_rep='NA', index=False, header=True)
@@ -2503,100 +2572,91 @@ if __name__ == '__main__':
                                        initial_apex_length=0.001)
     root_g_2 = RootSimple.initiate_mtg(initial_segment_length=0.,
                                        initial_apex_length=0.001)
-    list_1 = [[0,0,0],[1,0,0]]
-    list_2 = [[0,1,0],[1,1,0]]
 
-    # run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
-    #                                  list_of_distinct_shoot_MTG=[shoot_g_1, shoot_g_2],
-    #                                  list_of_distinct_root_MTG=[root_g_1, root_g_2],
-    #                                  lists_of_xyz_coordinates_for_the_distinct_plant_MTG=[list_1, list_2],
-    #                                  list_of_parameter_file_names_for_the_distinct_plant_MTG=[
-    #                                      "simbal_parameters_1.xlsx", "simbal_parameters_2.xlsx"],
-    #                                  simulation_period_in_days=20., time_step_in_days=1 / 24.,
-    #                                  starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
-    #                                  input_file="inputs_over_time.csv",
-    #                                  input_file_time_step_in_days=1.,
-    #                                  forcing_constant_aboveground_environment=False,
-    #                                  constant_air_temperature_in_Celsius=10, constant_light_irradiation=400,
-    #                                  forcing_constant_belowground_environment=False,
-    #                                  constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
-    #                                  plant_density_in_square_meter=35,
-    #                                  inter_row_distance=0.45,
-    #                                  row_length=1.,
-    #                                  scene_width=1.,
-    #                                  simulation_option="shoot_and_roots",
-    #                                  initial_shoot_labile_C_concentration=1e-2,  # in gC per gram of structural mass
-    #                                  initial_shoot_labile_N_concentration=1e-3,  # in gN per gram of structural mass
-    #                                  )
+    run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
+                                     list_of_distinct_shoot_MTG=[shoot_g_1, shoot_g_2],
+                                     list_of_distinct_root_MTG=[root_g_1, root_g_2],
+                                     list_of_parameter_file_names_for_the_distinct_plant_MTG=[
+                                         "simbal_parameters_1.xlsx", "simbal_parameters_2.xlsx"],
+                                     simulation_period_in_days=20., time_step_in_days=1 / 24.,
+                                     starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
+                                     input_file="inputs_over_time.csv",
+                                     input_file_time_step_in_days=1.,
+                                     forcing_constant_aboveground_environment=False,
+                                     constant_air_temperature_in_Celsius=10, constant_light_irradiation=400,
+                                     forcing_constant_belowground_environment=False,
+                                     constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
+                                     simulation_option="shoot_and_roots",
+                                     )
 
-    # HOW TO RUN CARIBU ON A POPULATION OF PLANTS:
-    ##############################################
-
+    # # HOW TO RUN CARIBU ON A POPULATION OF PLANTS:
+    # ##############################################
+    #
     # # We prepare the population of plants from this reference MTG:
     # scene_information, list_of_MTG = prepare_plants_population(list_of_reference_MTG = [shoot_g_1, shoot_g_2],
     #                                                            number_of_plants_per_square_meter=9,
     #                                                            inter_row_distance=0.45,
     #                                                            scene_length=1.,
     #                                                            scene_width=1.)
-
-    upscaling_factor = 10
-    scene_information,list_of_shoot_MTG, list_of_root_MTG\
-        = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1", "2"],
-                                                                 list_of_distinct_shoot_MTG = [shoot_g_1, shoot_g_2],
-                                                                 list_of_distinct_root_MTG=[root_g_1, root_g_2],
-                                                                 list_of_numbers_of_plants_per_square_meter=[33, 16.5],
-                                                                 list_of_inter_row_distances=[0.20, 0.20],
-                                                                 list_of_number_of_rows_to_show=[3,2],
-                                                                 list_of_scene_lengths=[1, 1],
-                                                                 list_of_scene_widths=[0.5, 0.5],
-                                                                 upscaling_factor=3.)
-
-    # We then create the actual scene, with reindexed shapes compared to the original indices in the list of MTG:
-    scene, scene_information = create_plants_population_scene(scene_information=scene_information,
-                                                              list_of_shoot_MTG=list_of_shoot_MTG,
-                                                              list_of_root_MTG=list_of_root_MTG,
-                                                              leaf_shape="diamond_shape",
-                                                              upscaling_factor=100.)
-    grid=True
-    pgl.Viewer.grids.set(grid, grid, grid, grid)
-    pgl.Viewer.display(scene)
-
-    df = pd.DataFrame([scene_information.values()], columns=scene_information.keys())
-    df.to_csv("C:\\Users\\frees\\fspm\\simbal\\scene_information.csv")
-
-    # We create the Caribu scene and run the light interception:
-    from openalea.caribu.CaribuScene import CaribuScene
-    # We define the light parameters:
-    incoming_light_density = 400
-    light_direction = (0, 0, -1)
-    LIGHT = [(incoming_light_density, light_direction)]
-    pattern = None
-
-    # We create the Caribu scene and run the light interception:
-    # from openalea.plantgl.all import Scene as pglScene, Viewer
-    # from alinea.caribu.caributriangleset import AbstractCaribuTriangleSet, CaribuTriangleSet
-    # scene = CaribuTriangleSet(scene_to_cscene(scene))
-    cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #, opt=opts)
-    raw, agg = cs.run(infinite=False, simplify=False, direct=True)
-
-    # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
-    list_of_plant_id = scene_information["plant_id"]
-    # For each plant in the population:
-    for plant_id in list_of_plant_id:
-        # We get the corresponding MTG in the list:
-        g = list_of_shoot_MTG[plant_id]
-        # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
-        reindexer = scene_information["new_index_to_old_index_shoot"][plant_id]
-        # We get the corresponding result of the Caribu-computed intercepted light fo this plant:
-        # TODO: Now there is a strange "default_band" created by Caribu run at the beginning of the agg dictionary - WHY IS IT SO?
-        sub_Ei = {reindexer[id]: agg["default_band"]["Ei"][id] for id in reindexer.keys()}
-        sub_Eabs = {reindexer[id]: agg["default_band"]["Eabs"][id] for id in reindexer.keys()}
-        sub_area = {reindexer[id]: agg["default_band"]["area"][id] for id in reindexer.keys()}
-        # We update the properties of the current MTG with this new property that has been reindexed to correspond to the original vid:
-        g.properties()["Caribu_area"].update(sub_area)
-        g.properties()["Caribu_Ei"].update(sub_Ei)
-        g.properties()["Caribu_Eabs"].update(sub_Eabs)
-        g.properties()["PAR_intercepted"].update(sub_Eabs)
+    #
+    # upscaling_factor = 10
+    # scene_information,list_of_shoot_MTG, list_of_root_MTG\
+    #     = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1", "2"],
+    #                                                              list_of_distinct_shoot_MTG = [shoot_g_1, shoot_g_2],
+    #                                                              list_of_distinct_root_MTG=[root_g_1, root_g_2],
+    #                                                              list_of_numbers_of_plants_per_square_meter=[33, 16.5],
+    #                                                              list_of_inter_row_distances=[0.20, 0.20],
+    #                                                              list_of_number_of_rows_to_show=[3,2],
+    #                                                              list_of_scene_lengths=[1, 1],
+    #                                                              list_of_scene_widths=[0.5, 0.5],
+    #                                                              upscaling_factor=3.)
+    #
+    # # We then create the actual scene, with reindexed shapes compared to the original indices in the list of MTG:
+    # scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+    #                                                           list_of_shoot_MTG=list_of_shoot_MTG,
+    #                                                           list_of_root_MTG=list_of_root_MTG,
+    #                                                           leaf_shape="diamond_shape",
+    #                                                           upscaling_factor=100.)
+    # grid=True
+    # pgl.Viewer.grids.set(grid, grid, grid, grid)
+    # pgl.Viewer.display(scene)
+    #
+    # df = pd.DataFrame([scene_information.values()], columns=scene_information.keys())
+    # df.to_csv("C:\\Users\\frees\\fspm\\simbal\\scene_information.csv")
+    #
+    # # We create the Caribu scene and run the light interception:
+    # from openalea.caribu.CaribuScene import CaribuScene
+    # # We define the light parameters:
+    # incoming_light_density = 400
+    # light_direction = (0, 0, -1)
+    # LIGHT = [(incoming_light_density, light_direction)]
+    # pattern = None
+    #
+    # # We create the Caribu scene and run the light interception:
+    # # from openalea.plantgl.all import Scene as pglScene, Viewer
+    # # from alinea.caribu.caributriangleset import AbstractCaribuTriangleSet, CaribuTriangleSet
+    # # scene = CaribuTriangleSet(scene_to_cscene(scene))
+    # cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #, opt=opts)
+    # raw, agg = cs.run(infinite=False, simplify=False, direct=True)
+    #
+    # # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
+    # list_of_plant_id = scene_information["plant_id"]
+    # # For each plant in the population:
+    # for plant_id in list_of_plant_id:
+    #     # We get the corresponding MTG in the list:
+    #     g = list_of_shoot_MTG[plant_id]
+    #     # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
+    #     reindexer = scene_information["new_index_to_old_index_shoot"][plant_id]
+    #     # We get the corresponding result of the Caribu-computed intercepted light fo this plant:
+    #     # TODO: Now there is a strange "default_band" created by Caribu run at the beginning of the agg dictionary - WHY IS IT SO?
+    #     sub_Ei = {reindexer[id]: agg["default_band"]["Ei"][id] for id in reindexer.keys()}
+    #     sub_Eabs = {reindexer[id]: agg["default_band"]["Eabs"][id] for id in reindexer.keys()}
+    #     sub_area = {reindexer[id]: agg["default_band"]["area"][id] for id in reindexer.keys()}
+    #     # We update the properties of the current MTG with this new property that has been reindexed to correspond to the original vid:
+    #     g.properties()["Caribu_area"].update(sub_area)
+    #     g.properties()["Caribu_Ei"].update(sub_Ei)
+    #     g.properties()["Caribu_Eabs"].update(sub_Eabs)
+    #     g.properties()["PAR_intercepted"].update(sub_Eabs)
 
     print("Simulation done!")
 
