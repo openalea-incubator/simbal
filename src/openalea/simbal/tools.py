@@ -33,7 +33,7 @@ except ImportError:
 ########################################################################################################################
 
 # Function for moving the turtle and create specific shapes for stems and leaves:
-def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape", simplified_shape="diamond_shape",
+def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simplified_shape="diamond_shape",
                       upscaling_factor=1, petiole_showing=False):
     """
     This function describes the movement of the 'turtle' along the shoot MTG for creating a scene for Caribu or PlantGL.
@@ -740,7 +740,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
                     # The total length of the whole petiole is computed:
                     total_petiole_length = length
                     # The upper surface of the cylinder of the petiole is calculated and withdrawn from the total leaf surface:
-                    upper_petiole_surface = total_petiole_length * total_petiole_length * param.fababean_petiole_width_to_length_ratio * pi / 2.
+                    upper_petiole_surface = total_petiole_length * (length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio) * pi / 2.
                     total_leaflet_surface = leaf_surface - upper_petiole_surface
                     # We assume that leaf surface is distributed equally between each leaflet:
                     leaflet_surface = total_leaflet_surface / param.number_of_leaflets
@@ -772,13 +772,13 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
                     petiole_leaflet_length_1 = total_petiole_length * 0.4
                     petiole_leaflet_length_2 = total_petiole_length * 0.3
                     # We create a cylinder corresponding to the whole petiole:
-                    petiole = pgl.Cylinder(radius=length * param.fababean_petiole_width_to_length_ratio,
+                    petiole = pgl.Cylinder(radius=length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio,
                                            height=total_petiole_length)
                     # We reorientate the leaflet, either to the left or to the right of the petiole axis,
                     # by performing two successive rotations along the z-axis, then the y-axis:
-                    leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.fababean_leaflet_angle * pi / 180, geometry=leaflet)
+                    leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.leaflet_angle * pi / 180, geometry=leaflet)
                     leaflet_left = pgl.AxisRotated(axis=(0, 1, 0), angle = -90 * pi / 180, geometry=leaflet_left)
-                    leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.fababean_leaflet_angle * pi / 180, geometry=leaflet)
+                    leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.leaflet_angle * pi / 180, geometry=leaflet)
                     leaflet_right = pgl.AxisRotated(axis=(0, 1, 0), angle= -90 * pi / 180, geometry=leaflet_right)
                     # We initiate a list that will contain the petiole and all leaflets:
                     leaflets = [petiole]
@@ -810,8 +810,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
 
                 # 1d) FOR OTHER PLANT SPECIES, ESPECIALLY RAPESEED:
                 #""""""""""""""""""""""""""""""""""""""""""""""""""
-                else:
-                    # Below, only one leaf shape will be displayed, (no leaflets).
+                elif plant_species == "rapeseed":
 
                     # OPTION WITH OVAL SHAPE:
                     if leaf_shape == "oval_shape":
@@ -857,7 +856,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="rapeseed_leaf_shape"
                         turtle.customGeometry(typical_leaf_shape(length=length))
 
                     # OPTION WITH RAPESEED LEAF SHAPE:
-                    elif leaf_shape == "rapeseed_leaf_shape":
+                    elif leaf_shape == "complex_shape":
 
                         # We need to start the leaf from the side wall of the parent internode.
                         # We first get the parent internode:
@@ -1708,7 +1707,8 @@ def create_plants_population_scene(scene_information,
     # We initialize the final scene:
     final_scene = pgl.Scene()
 
-    # We get the list of plant positions from the scene_information:
+    # We get the list of plant genotypes and positions from the scene_information:
+    list_of_genotypes = scene_information["plant_type"]
     list_of_positions = scene_information["position"]
 
     # CREATING THE PLOT:
@@ -1750,9 +1750,11 @@ def create_plants_population_scene(scene_information,
 
             # We create a scene for one shoot MTG by moving the turtle along the MTG:
             scene_shoot = turt.TurtleFrame(new_shoot_MTG,
-                                           visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-                                                                     simplified_shape=simplified_leaf_shape_for_surface_calculation,
-                                                                     upscaling_factor=upscaling_factor),
+                                           visitor=get_shoot_visitor(
+                                               plant_species=list_of_genotypes[plant_index],
+                                               leaf_shape=leaf_shape,
+                                               simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                               upscaling_factor=upscaling_factor),
                                            turtle=turtle, gc=False)
             # We get a dictionnary of all shapes in the scene:
             shapes = dict((sh.id, sh) for sh in scene_shoot)
@@ -2197,12 +2199,16 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
                          x_cam=5., y_cam=5., z_cam=-1,
                          upscaling_factor=1.,
                          grid=False,
-                         background_color=[94, 76, 64],
-                         displaying_soil_surface=True,
+                         background_color=[255, 255, 255],
                          single_color_shoot=None,
                          single_color_root=None,
-                         property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2, lognorm_shoot=True,
-                         property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
+                         plotting_leaf_shape="complex_shape",
+                         simplified_leaf_shape_for_surface_calculation="diamond_shape",
+                         # property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2,
+                         # lognorm_shoot=True,
+                         # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2,
+                         # lognorm_root=True,
+                         displaying_soil_surface=True,
                          recording_plot=True,
                          plot_name="plot.png"):
 
@@ -2223,8 +2229,10 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
     scene, scene_information = create_plants_population_scene(scene_information=scene_information,
                                                               list_of_shoot_MTG=list_of_scene_shoot_MTG,
                                                               list_of_root_MTG=list_of_scene_root_MTG,
-                                                              leaf_shape="diamond_shape",
-                                                              simplified_leaf_shape_for_surface_calculation="diamond_shape",
+                                                              leaf_shape=plotting_leaf_shape,
+                                                              simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
+                                                              single_color_shoot=single_color_shoot,
+                                                              single_color_root=single_color_root,
                                                               upscaling_factor=upscaling_factor)
 
     if displaying_soil_surface:

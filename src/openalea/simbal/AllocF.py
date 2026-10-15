@@ -163,9 +163,11 @@ def ADDING_A_PHYTOMER(parent_element,
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     internode.light_intensity_share = 0.
+    internode.surfacic_PAR_averaged_over_time =  0.
     # We initialize a list of previously recorded light intensity shares
     # (used to calculate the average share over a certain period):
     internode.previous_light_intensity_shares = []
+    internode.previous_PAR_intercepted_values = []
 
     # 2) We then create a new leaf that is actually a "branch" on the previous internode:
     # ------------------------------------------------------------------------------------
@@ -196,9 +198,11 @@ def ADDING_A_PHYTOMER(parent_element,
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     leaf.light_intensity_share = 0.
+    leaf.surfacic_PAR_averaged_over_time
     # We initialize a list of previously recorded light intensity shares
     # (used to calculate the average share over a certain period):
     leaf.previous_light_intensity_shares = []
+    leaf.previous_PAR_intercepted_values = []
 
     # 3) We finally create an axilliary bud that is actually a "branch" on the previous internode:
     # ---------------------------------------------------------------------------------------------
@@ -231,9 +235,11 @@ def ADDING_A_PHYTOMER(parent_element,
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     bud.light_intensity_share = 0.
+    bud.surfacic_PAR_averaged_over_time = 0.
     # We initialize a list of previously recorded light intensity shares
     # (used to calculate the average share over a certain period):
     bud.previous_light_intensity_shares = []
+    bud.previous_PAR_intercepted_values = []
 
     # Eventually, we redefine the starting coordinates of the internode, leaf and bud as the last point of the parent:
     for element in [internode, leaf, bud]:
@@ -396,8 +402,11 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               net_shoot_N_immobilization_rate = 0.,
                               # Other attributes:
                               senescence_status = False,
-                              PAR_intercepted=100.,
-                              light_intensity_share=1.,
+                              PAR_intercepted=1.,
+                              surfacic_PAR_intercepted=100.,
+                              surfacic_PAR_averaged_over_time=0.,
+                              previous_PAR_intercepted_values=[],
+                              light_intensity_share=0.,
                               previous_light_intensity_shares=[],
                               Caribu_Eabs = 0.,
                               Caribu_Ei = 0.,
@@ -446,7 +455,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_internode.labile_N = 0.
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
-        new_leaf.surface_max = param.cotyledon_surface_max
+        new_leaf.surface_max = param.cotyledon_area_max
         # We set the bud diameter to 0, so that it will never be able to emerge:
         new_bud.radius = 0.
 
@@ -483,6 +492,12 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                     label="Apex",
                                     nil_properties=True)
     new_apex.length = 0.
+
+    # Eventually, we add special properties specific to the base of the shoot system that are not expected elsewhere
+    # in the shoot system:
+    base = g.node(0)
+    # The following property will allow ramification to start:
+    base.ramification_allowed = False
 
     return g
 #-----------------------------------------------------------------------------------------------------------------------
@@ -531,11 +546,13 @@ def geometry_evolution(shoot_MTG, plant_thermal_age_in_degree_days):
         n = shoot_MTG.node(vid)
         # If the organ is a leaf:
         if n.label == "Leaf":
+            leaf_age = n.thermal_time_since_formation / (24. * 60. * 60.) * param.T_ref_growth
             if n.type != "Cotyledon":
-                leaf_age = n.thermal_time_since_formation / (24.*60.*60.) * param.T_ref_growth
                 # We compute the evolution of the insertion angle of this leaf on the stem, and modify the angle accordingly:
                 n.angle_down = leaf_insertion_angle_evolution(plant_thermal_age_in_degree_days=plant_thermal_age_in_degree_days,
                                                               leaf_age_in_degree_days = leaf_age)
+            else:
+                n.angle_down = 75
     return shoot_MTG
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception(shoot_MTG,
@@ -606,6 +623,25 @@ def computing_light_interception(shoot_MTG,
     else:
         # Otherwise, we simulate a population of plants, from which the central plant will be the one on which Caribu
         # will compute the light interception:
+
+        # # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+        # scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
+        #     = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["plant"],
+        #                                               list_of_distinct_shoot_MTG=[shoot_g],
+        #                                               list_of_distinct_root_MTG=[],
+        #                                               list_of_numbers_of_plants_per_square_meter=[number_of_plants_per_square_meter],
+        #                                               list_of_inter_row_distances=[inter_row_distance],
+        #                                               list_of_number_of_rows_to_show=[5],
+        #                                               list_of_scene_lengths=[scene_length],
+        #                                               list_of_scene_widths=[scene_width],
+        #                                               upscaling_factor=100)
+        # # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+        # my_scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+        #                                                              list_of_shoot_MTG=list_of_scene_shoot_MTG,
+        #                                                              list_of_root_MTG=[],
+        #                                                              leaf_shape=leaf_shape,
+        #                                                              simplified_leaf_shape_for_surface_calculation="diamond_shape",
+        #                                                              upscaling_factor=100)
         my_scene = create_a_scene_with_plants_popuplation(g,
                                                           number_of_plants_per_square_meter=number_of_plants_per_square_meter,
                                                           inter_row_distance=inter_row_distance,
@@ -698,8 +734,8 @@ def computing_light_interception(shoot_MTG,
             n.PAR_intercepted = 0.
             n.surfacic_PAR_intercepted = 0.
 
-    # COMPUTING LIGHT INTENSITY SHARE:
-    ##################################
+    # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE OVER TIME:
+    #######################################################
 
     # If we need to consider previous light intensity shares:
     if averaging_light_intensity_share:
@@ -736,16 +772,21 @@ def computing_light_interception(shoot_MTG,
                 if len(n.previous_light_intensity_shares) < number_of_previous_shares:
                     # Then we just add the current actual share to the list:
                     n.previous_light_intensity_shares.append(new_light_intensity_share)
+                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
                 else:
                     # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
                     n.previous_light_intensity_shares.pop(0)
+                    n.previous_PAR_intercepted_values.pop(0)
                     # And we add at the end of the list the new actual share of light intensity for this time step:
                     n.previous_light_intensity_shares.append(new_light_intensity_share)
+                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
             # Finally, we calculate the new average light intensity share based on previously computed shares:
             if len(n.previous_light_intensity_shares) > 0.:
                 n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
+                n.surfacic_PAR_averaged_over_time = np.mean(n.previous_PAR_intercepted_values)
             else:
                 n.light_intensity_share = new_light_intensity_share
+                n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
 
         # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
         sum_of_light_fractions += n.light_intensity_share
@@ -902,8 +943,8 @@ def computing_light_interception_on_plant_population(scene,
                 n.PAR_intercepted = 0.
                 n.surfacic_PAR_intercepted = 0.
 
-        # COMPUTING LIGHT INTENSITY SHARE:
-        ##################################
+        # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE SURFACIC PAR OVER TIME:
+        #####################################################################
 
         # If we need to consider previous light intensity shares:
         if averaging_light_intensity_share:
@@ -931,25 +972,35 @@ def computing_light_interception_on_plant_population(scene,
                 # Then the light intensity share is directly the one that has just been determined
                 # based on the light intercepted at this time step:
                 n.light_intensity_share = new_light_intensity_share
+                n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
             # Otherwise, if we need to consider previous light intensity shares:
             else:
-                # If light was intercepted at this time step, then we add the share of light intensity for this organ
-                # to the list of previous light intensity shares:
-                if sum_of_surfacic_PAR > 0.:
-                    # If the previously recorded list does not contain yet the right number of shares to be averaged:
-                    if len(n.previous_light_intensity_shares) < number_of_previous_shares:
+                # If the previously recorded list does not contain yet the right number of shares to be averaged:
+                if len(n.previous_light_intensity_shares) < number_of_previous_shares:
+                    # If light was intercepted at this time step:
+                    if sum_of_surfacic_PAR > 0.:
                         # Then we just add the current actual share to the list:
                         n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    else:
+                    # Whether light was present or not at this time step:
+                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
+                else:
+                    # If light was intercepted at this time step:
+                    if sum_of_surfacic_PAR > 0.:
                         # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
                         n.previous_light_intensity_shares.pop(0)
                         # And we add at the end of the list the new actual share of light intensity for this time step:
                         n.previous_light_intensity_shares.append(new_light_intensity_share)
+                    # Whether light was present or not at this time step:
+                    n.previous_PAR_intercepted_values.pop(0)
+                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
+
                 # Finally, we calculate the new average light intensity share based on previously computed shares:
                 if len(n.previous_light_intensity_shares) > 0.:
                     n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
+                    n.surfacic_PAR_averaged_over_time = np.mean(n.previous_PAR_intercepted_values)
                 else:
                     n.light_intensity_share = new_light_intensity_share
+                    n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
 
             # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
             sum_of_light_fractions += n.light_intensity_share
@@ -1010,9 +1061,12 @@ def computing_photosynthesis_rate(shoot_system, shoot_MTG, air_temperature_in_de
     # We correct the specific carbon assimilation according to mean shoot labile C concentration (possible inhibition):
     shoot_C_conc = (shoot_system.shoot_labile_C_pool - shoot_system.shoot_labile_C_deficit) / shoot_system.shoot_struct_mass
     inhibiting_labile_C_concentration = 0.1
-    corrected_SCA = corrected_SCA * (1 - shoot_C_conc / inhibiting_labile_C_concentration)
-    if corrected_SCA < 0.:
-        corrected_SCA = 0.
+
+    #TODO: WATCH OUT BELOW - NO PHOTOSYNTHESIS INHIBITION!
+    # corrected_SCA = corrected_SCA * (1 - shoot_C_conc / inhibiting_labile_C_concentration)
+    # if corrected_SCA < 0.:
+    #     corrected_SCA = 0.
+    #     print("WATCH OUT: photosynthesis was inhibited because of a too high shoot labile C concentration!")
 
     # We cover each organ n of the shoot:
     for vid in shoot_MTG.vertices_iter(scale=1):
@@ -1021,10 +1075,10 @@ def computing_photosynthesis_rate(shoot_system, shoot_MTG, air_temperature_in_de
             continue
         n.photosynthetic_area = n.surface
         # We calculate the photosynthesis rate for this organ:
-        n.photosynthesized_C_rate = corrected_SCA * n.PAR_intercepted * n.photosynthetic_area
+        n.photosynthesized_C_rate = corrected_SCA * n.surfacic_PAR_intercepted * n.photosynthetic_area
         #TODO: have the SCA vary with the level of "green" within the leaf? with the level of N? with the senescence status?
         # We increment the total PAR intercepted by the plant:
-        total_PAR_intercepted += n.PAR_intercepted * n.photosynthetic_area
+        total_PAR_intercepted += n.surfacic_PAR_intercepted * n.photosynthetic_area
         total_photosynthesis_rate +=  n.photosynthesized_C_rate
 
     return total_PAR_intercepted, total_photosynthesis_rate
@@ -1390,13 +1444,23 @@ def potential_shoot_growth(shoot_MTG,
         # CASE 1: the shoot element is a leaf
         #------------------------------------
         if n.label == "Leaf":
-            # We calculate the potential surface based on the available N in the leaf:
-            potential_leaf_surface = SFQN * n.labile_N
+
+            #TODO: WATCH OUT - here we remove SFQN law and make a direct relationship with light interception
+            # # We calculate the potential surface based on the available N in the leaf:
+            # potential_leaf_surface = SFQN * n.labile_N
+            # We define a coefficient of surface increase per day at 20°C as a function of PAR:
+            SIP = 0.00005 / 400. # We assume an increase by 100% per day for a PAR of 400 µmol m-2 s-1
+            # potential_leaf_surface = n.surface * (1 + SIP * n.surfacic_PAR_intercepted * thermal_time_step_in_days/1.)
+            potential_leaf_surface = n.surface + SIP * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days/1.
             # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
+
             # We calculate the maximal surface increase (m2), knowing that the surface increase cannot become higher
             # than the maximal increase rate allowed:
-            maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day * thermal_time_step_in_days
+            if n.type != "Cotyledon":
+                maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day * thermal_time_step_in_days
+            else:
+                maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day/3. * thermal_time_step_in_days
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
             # TODO: what happens if the leaf has already a thickness higher than the minimal one?
@@ -1877,23 +1941,41 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     # We rename the shoot_MTG for simplification:
     g = shoot_MTG
 
+    # We get the special property "ramification_allowed" at the base of the shoot system:
+    base = g.node(0)
+    ramification_allowed = base.ramification_allowed
+
+    # To cover the MTG in a specific order, we need to define its "root":
+    root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
+    root = next(root_gen)
+
     # DEFINING THE CONDITIONS OF TURNING DORMANT BUDS INTO ACTIVE BUDS:
-    for vid in g.vertices_iter(scale=1):
+    # We cover a first time each organ n of the shoot, from the base to the tip:
+    for vid in pre_order(g, root):
         if g.node(vid).label != "Bud":
             continue
         else:
             bud = g.node(vid)
-            # We get the leaf below the bud (as the bud has been defined as the child of the leaf):
-            leaf_index = g.Father(vid, EdgeType='+')
-            leaf = g.node(leaf_index)
-            # We calculate the density of light intercepted by this leaf (micromoles of photons per second per square meter of leaf):
-            light_interception = leaf.PAR_intercepted / leaf.surface
-            # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
-            if (light_interception >= param.bud_light_threshold
-                    and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
-                    and bud.ramification_order <= 1):
-                bud.emergence_possibility = True
-                print("> A new ramification should emerge from bud", vid)
+            # If no ramification has occured until now, we check if one bud somewhere in the shoot system meets the
+            # conditions for triggering ramification for this bud and the bud above it:
+            if not ramification_allowed:
+                # We get the leaf below the bud (as the bud has been defined as the child of the leaf):
+                leaf_index = g.Father(vid, EdgeType='+')
+                leaf = g.node(leaf_index)
+                # We calculate the density of light intercepted by this leaf (micromoles of photons per second per square meter of leaf):
+                light_interception = leaf.PAR_intercepted / leaf.surface
+                # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
+                if (light_interception >= param.bud_light_threshold
+                        and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
+                        and bud.ramification_order <= 1):
+                    bud.emergence_possibility = True
+                    print("> The first ramification should emerge from bud", vid)
+                    # We modify the general property "ramification_allowed" for the shoot system:
+                    base.ramification_allowed = True
+            else:
+                # We define the conditions of bud emergence according to its thermal age only:
+                if bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period:
+                    bud.emergence_possibility = True
 
     # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
     # We initialize the total costs of phytomer production:

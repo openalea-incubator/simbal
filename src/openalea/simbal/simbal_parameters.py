@@ -18,7 +18,7 @@ random_choice = 2
 ###############
 
 # Name of the plant species:
-plant_species = "faba_bean"
+plant_genotype = "faba_bean"
 
 # We define the shape of the leaves to be used for plotting:
 plotting_leaf_shape = "faba_bean_leaf_shape"
@@ -67,6 +67,9 @@ leaf_insertion_angle = 75
 # Angle formed by the direction of a bud (possibly a future branch) and the direction of its supporting stem (degrees):
 bud_insertion_angle	= 30
 
+# Initial radius of the internode:
+initial_internode_radius = 0.001
+
 # Ratio of radius between the parent stem and the lateral bud:
 bud_radius_ratio = 0.6
 
@@ -82,7 +85,7 @@ bud_light_threshold = 350
 LA_max = 0.1
 
 # Maximal area of a cotyledon (square meter):
-cotyledon_surface_max = 0.0002
+cotyledon_area_max = 0.0002
 
 # Maximal rate of relative increase in leaf surface area (m2 per m2 per day):
 LA_max_relative_increase_per_day = 0.5
@@ -116,9 +119,6 @@ petiole_to_cotyledon_length_ratio = 0.38
 # Allometric coefficient defining the width of the petiole relatively to the width of the leaf (meter per meter):
 petiole_to_leaf_width_ratio = 0.10
 
-# Allometric coefficient defining the width of the petiole relatively to its length (meter per meter):
-fababean_petiole_width_to_length_ratio = 0.02
-
 # Allometric coefficient defining the width of the petiole relatively to the width of the cotyledon (meter per meter):
 petiole_to_cotyledon_width_ratio = 0.10
 
@@ -129,10 +129,10 @@ blade_length_to_radius_ratio = 1.
 cotyledon_blade_length_to_radius_ratio = 0.2
 
 # (Odd) Number of leaflets to display along the petiole of a faba bean leaf:
-number_of_leaflets = 5
+number_of_leaflets = 3
 
 # Angle of insertion of the leaflet on the main petiole of one faba bean leaf (degrees):
-fababean_leaflet_angle = 60
+leaflet_angle = 60
 
 # Potential rate of internode elongation (meter per second):
 elong_internode = 2.89351851851852E-07

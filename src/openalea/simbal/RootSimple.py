@@ -217,7 +217,7 @@ def computing_N_uptake_rate(root_system, root_MTG, N_soil = 1e-6, soil_temperatu
 
     # We also correct the maximal rate of N uptake according to root labile N (possible inhibition):
     root_N_conc = (root_system.root_labile_N_pool - root_system.root_labile_N_deficit) / root_system.root_struct_mass
-    inhibiting_labile_N_concentration = 0.01
+    inhibiting_labile_N_concentration = 0.1
     corrected_Vmax = corrected_Vmax * (1 - root_N_conc / inhibiting_labile_N_concentration)
     if corrected_Vmax < 0.:
         corrected_Vmax = 0.
@@ -634,6 +634,10 @@ def ArchiSimple_growth_with_C_and_N(root_system, root_MTG,
     This function computes the growth of the root system according to ArchiSimple's rules, but limits the growth
     by the amount of available labile C and N.
     """
+
+    # We make sure that both C & N resources are available for growth:
+    if satisf_for_C <= 0. or satisf_for_N <= 0.:
+        return
 
     # We initialize the root biomass that will be produced from the labile pool of C & N:
     total_mass_produced = 0.
