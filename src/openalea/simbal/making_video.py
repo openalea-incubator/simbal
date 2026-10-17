@@ -352,8 +352,8 @@ if __name__ == "__main__":
     #                          time_step_in_days=1./24., sampling_frequency=1, fps=24)
 
     # FROM ORIGINAL GRAPHS - classic:
-    resizing_and_film_making(outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/outputs_1/',
-                             images_folder='plots',
+    resizing_and_film_making(outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/',
+                             images_folder='population_plots',
                              resized_images_folder='plots_resized',
                              film_making=True,
                              film_name="plant_movie.gif",

@@ -739,70 +739,74 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                         leaf_surface = length / 2. * radius / 2. # Here the radius is the width, not the curving...
                     # The total length of the whole petiole is computed:
                     total_petiole_length = length
-                    # The upper surface of the cylinder of the petiole is calculated and withdrawn from the total leaf surface:
-                    upper_petiole_surface = total_petiole_length * (length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio) * pi / 2.
-                    total_leaflet_surface = leaf_surface - upper_petiole_surface
-                    # We assume that leaf surface is distributed equally between each leaflet:
-                    leaflet_surface = total_leaflet_surface / param.number_of_leaflets
-                    # Now we can calculate the length and width of each leaflet based on the simplified shape used for calculations:
-                    if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
-                        leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
-                    else:
-                        leaflet_length = 2 * (leaflet_surface / param.leaflet_width_to_length_ratio) ** (0.5)
-                    leaflet_width = leaflet_length * param.leaflet_width_to_length_ratio
-                    # We define a single shape for one leaflet.
-                    # If "diamond_shape" has been specified:
-                    if leaf_shape == "diamond_shape":
-                        # Then one leaflet will equal one diamond:
-                        leaflet = leaflet_shape(base_shape="diamond_shape",
-                                                leaflet_length=leaflet_length,
-                                                leaflet_width=leaflet_width)
-                    # Otherwise, we use the specifically-customized leaflet form:
-                    else:
-                        # Here one leaflet will be made as a Bezier patch:
-                        leaflet = leaflet_shape(base_shape="Bezier",
-                                                leaflet_length=leaflet_length,
-                                                leaflet_width=leaflet_width)
-                    # We compute the number of distinct petiole zones to be shown (one for each pair of leaflets):
-                    if param.number_of_leaflets <= 1:
-                        number_of_petioles = 1
-                    else:
-                        number_of_petioles = param.number_of_leaflets // 2
-                    # We defined the length between two pairs of leaflets:
-                    petiole_leaflet_length_1 = total_petiole_length * 0.4
-                    petiole_leaflet_length_2 = total_petiole_length * 0.3
                     # We create a cylinder corresponding to the whole petiole:
                     petiole = pgl.Cylinder(radius=length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio,
                                            height=total_petiole_length)
-                    # We reorientate the leaflet, either to the left or to the right of the petiole axis,
-                    # by performing two successive rotations along the z-axis, then the y-axis:
-                    leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.leaflet_angle * pi / 180, geometry=leaflet)
-                    leaflet_left = pgl.AxisRotated(axis=(0, 1, 0), angle = -90 * pi / 180, geometry=leaflet_left)
-                    leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.leaflet_angle * pi / 180, geometry=leaflet)
-                    leaflet_right = pgl.AxisRotated(axis=(0, 1, 0), angle= -90 * pi / 180, geometry=leaflet_right)
                     # We initiate a list that will contain the petiole and all leaflets:
                     leaflets = [petiole]
-                    # We define a translation vector:
-                    translate = [0, 0, petiole_leaflet_length_1]
-                    # We initiate a counter for leaflets to handle:
-                    count_leaflets = param.number_of_leaflets
-                    # We add the first two leaflefts:
-                    leaflets.append(pgl.Translated(translate, leaflet_left))
-                    leaflets.append(pgl.Translated(translate, leaflet_right))
-                    # We cover the rest of the pairs of leaflets:
-                    for i in range(number_of_petioles):
+                    # The upper surface of the cylinder of the petiole is calculated and withdrawn from the total leaf surface:
+                    upper_petiole_surface = total_petiole_length * (length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio) * pi / 2.
+                    if upper_petiole_surface >= leaf_surface:
+                        print("WATCH OUT: no leaflet can be made as the simulated petiole already has a higher upper"
+                              " surface than the computed leaf surface!")
+                    else:
+                        total_leaflet_surface = leaf_surface - upper_petiole_surface
+                        # We assume that leaf surface is distributed equally between each leaflet:
+                        leaflet_surface = total_leaflet_surface / param.number_of_leaflets
+                        # Now we can calculate the length and width of each leaflet based on the simplified shape used for calculations:
+                        if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
+                            leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
+                        else:
+                            leaflet_length = 2 * (leaflet_surface / param.leaflet_width_to_length_ratio) ** (0.5)
+                        leaflet_width = leaflet_length * param.leaflet_width_to_length_ratio
+                        # We define a single shape for one leaflet.
+                        # If "diamond_shape" has been specified:
+                        if leaf_shape == "diamond_shape":
+                            # Then one leaflet will equal one diamond:
+                            leaflet = leaflet_shape(base_shape="diamond_shape",
+                                                    leaflet_length=leaflet_length,
+                                                    leaflet_width=leaflet_width)
+                        # Otherwise, we use the specifically-customized leaflet form:
+                        else:
+                            # Here one leaflet will be made as a Bezier patch:
+                            leaflet = leaflet_shape(base_shape="Bezier",
+                                                    leaflet_length=leaflet_length,
+                                                    leaflet_width=leaflet_width)
+                        # We compute the number of distinct petiole zones to be shown (one for each pair of leaflets):
+                        if param.number_of_leaflets <= 1:
+                            number_of_petioles = 1
+                        else:
+                            number_of_petioles = param.number_of_leaflets // 2
+                        # We defined the length between two pairs of leaflets:
+                        petiole_leaflet_length_1 = total_petiole_length * 0.4
+                        petiole_leaflet_length_2 = total_petiole_length * 0.3
+                        # We reorientate the leaflet, either to the left or to the right of the petiole axis,
+                        # by performing two successive rotations along the z-axis, then the y-axis:
+                        leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.leaflet_angle * pi / 180, geometry=leaflet)
+                        leaflet_left = pgl.AxisRotated(axis=(0, 1, 0), angle = -90 * pi / 180, geometry=leaflet_left)
+                        leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.leaflet_angle * pi / 180, geometry=leaflet)
+                        leaflet_right = pgl.AxisRotated(axis=(0, 1, 0), angle= -90 * pi / 180, geometry=leaflet_right)
+                        # We define a translation vector:
+                        translate = [0, 0, petiole_leaflet_length_1]
+                        # We initiate a counter for leaflets to handle:
+                        count_leaflets = param.number_of_leaflets
+                        # We add the first two leaflefts:
                         leaflets.append(pgl.Translated(translate, leaflet_left))
                         leaflets.append(pgl.Translated(translate, leaflet_right))
-                        translate[2] += petiole_leaflet_length_2
-                        count_leaflets -= 2
-                    # Once we reach the last leaflet:
-                    if count_leaflets == 1:
-                        # We create the last leaflet by reorientating it:
-                        last_leaflet = pgl.AxisRotated(axis=(0, 1, 0), angle=-90 * pi / 180, geometry=leaflet)
-                        # Then we move it to the tip of the petiole:
-                        last_leaflet = pgl.Translated((0, 0, total_petiole_length), last_leaflet)
-                        # And we add this leaflet to the list of leaflets:
-                        leaflets.append(last_leaflet)
+                        # We cover the rest of the pairs of leaflets:
+                        for i in range(number_of_petioles):
+                            leaflets.append(pgl.Translated(translate, leaflet_left))
+                            leaflets.append(pgl.Translated(translate, leaflet_right))
+                            translate[2] += petiole_leaflet_length_2
+                            count_leaflets -= 2
+                        # Once we reach the last leaflet:
+                        if count_leaflets == 1:
+                            # We create the last leaflet by reorientating it:
+                            last_leaflet = pgl.AxisRotated(axis=(0, 1, 0), angle=-90 * pi / 180, geometry=leaflet)
+                            # Then we move it to the tip of the petiole:
+                            last_leaflet = pgl.Translated((0, 0, total_petiole_length), last_leaflet)
+                            # And we add this leaflet to the list of leaflets:
+                            leaflets.append(last_leaflet)
                     # Finally, we group the petiole and all the leaflefts into a single shape:
                     leafshape_fababean = pgl.Group(leaflets)
                     # And we move the turtle accordingly:
@@ -1646,9 +1650,10 @@ def plotting_shoot_MTG(g,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a scene with uniques shapes ID:
-def create_plants_population_scene(scene_information,
-                                   list_of_shoot_MTG,
-                                   list_of_root_MTG,
+def create_plants_population_scene(scene_information={},
+                                   list_of_shoot_MTG=[],
+                                   list_of_root_MTG=[],
+                                   parameter_scenarios={},
                                    upscaling_factor=1,
                                    leaf_shape="oval_shape",
                                    simplified_leaf_shape_for_surface_calculation="ellipse_shape",
@@ -1711,18 +1716,17 @@ def create_plants_population_scene(scene_information,
     list_of_genotypes = scene_information["plant_type"]
     list_of_positions = scene_information["position"]
 
-    # CREATING THE PLOT:
-    # -------------------
-
-    # # We initialize the different scenes:
-    # new_scene_for_shoot = pgl.Scene()
-    # new_scene_for_root = pgl.Scene()
-    # final_scene = pgl.Scene()
-
     # TREATING THE SCENE FOR SHOOTS:
     if len(list_of_shoot_MTG) > 0:
         # We cover each plant in the population:
         for plant_index in range(0, len(list_of_positions)):
+
+            # We get the name of the genotype corresponding to the current MTG:
+            plant_genotype = list_of_genotypes[plant_index]
+            # We get the parameters corresponding to this genotype:
+            scenario_parameters = parameter_scenarios[plant_genotype]
+            # And we update the parameters of the model with those for that particular genotype:
+            param.__dict__.update(scenario_parameters)
 
             # We access the MTG corresponding to the current plant index:
             new_shoot_MTG = list_of_shoot_MTG[plant_index]
@@ -1806,6 +1810,14 @@ def create_plants_population_scene(scene_information,
     if len(list_of_root_MTG) > 0:
         # We cover each plant in the population:
         for plant_index in range(0, len(list_of_positions)):
+
+            # We get the name of the genotype corresponding to the current MTG:
+            plant_genotype = list_of_genotypes[plant_index]
+            # We get the parameters corresponding to this genotype:
+            scenario_parameters = parameter_scenarios[plant_genotype]
+            # And we update the parameters of the model with those for that particular genotype:
+            param.__dict__.update(scenario_parameters)
+            rhizodep_param.__dict__.update(scenario_parameters)
 
             # We access the MTG corresponding to the current plant index:
             new_root_MTG = list_of_root_MTG[plant_index]
@@ -2189,6 +2201,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
 def plotting_whole_scene(list_of_distinct_plant_types=[],
                          list_of_distinct_shoot_MTG=[],
                          list_of_distinct_root_MTG=[],
+                         parameter_scenarios={},
                          list_of_numbers_of_plants_per_square_meter=[],
                          list_of_inter_row_distances=[],
                          list_of_number_of_rows_to_show=[],
@@ -2212,7 +2225,26 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
                          recording_plot=True,
                          plot_name="plot.png"):
 
-    # CREATING THE SCENE:
+    # We initialize the final scene:
+    final_scene = pgl.Scene()
+
+    # If a soil surface is to be displayed in the scene, we add it first:
+    if displaying_soil_surface:
+        scene_length = max(list_of_scene_lengths)
+        scene_width = max(list_of_scene_widths)
+        # We create a "soil surface" corresponding to the limits of the scene:
+        points = [(0, 0, 0),
+                  (scene_length * upscaling_factor, 0, 0),
+                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
+                  (0, scene_width * upscaling_factor, 0)]
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        square = pgl.QuadSet(points, indices, normals, indices)
+        # We define the same color for each of the 4 points:
+        square.colorList = [pgl.Color4(96, 76, 64, 0) for i in range(4)]
+        final_scene += square
+
+    # ADDING THE PLANTS:
     # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
     scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
         = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=list_of_distinct_plant_types,
@@ -2229,26 +2261,43 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
     scene, scene_information = create_plants_population_scene(scene_information=scene_information,
                                                               list_of_shoot_MTG=list_of_scene_shoot_MTG,
                                                               list_of_root_MTG=list_of_scene_root_MTG,
+                                                              parameter_scenarios=parameter_scenarios,
                                                               leaf_shape=plotting_leaf_shape,
                                                               simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
                                                               single_color_shoot=single_color_shoot,
                                                               single_color_root=single_color_root,
                                                               upscaling_factor=upscaling_factor)
 
-    if displaying_soil_surface:
-        scene_length = max(list_of_scene_lengths)
-        scene_width = max(list_of_scene_widths)
-        # We create a "soil surface" corresponding to the limits of the scene:
-        points = [(0, 0, 0),
-                  (scene_length * upscaling_factor, 0, 0),
-                  (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-                  (0, scene_width * upscaling_factor, 0)]
-        normals = [(0, 0, 1) for i in range(4)]
-        indices = [(0, 1, 2, 3)]
-        square = pgl.QuadSet(points, indices, normals, indices)
-        # We define the same color for each of the 4 points:
-        square.colorList = [pgl.Color4(100, 100, 0, 100) for i in range(4)]
-        scene += square
+    # # We sort the shapes, so that they are ordered according to the position of the camera.
+    # # We get a dictionnary of all shapes in the scene:
+    # shapes = dict((sh.id, sh) for sh in scene)
+    # shapes_id_list=[]
+    # shapes_distance_list=[]
+    #
+    # # We cover each shape of the current MTG:
+    # for shape in scene:
+    #     primary = shape.geometry.geometry.primary
+    #     secondary = shape.geometry.geometry.secondary
+    #     center_coordinates=[]
+    #     for i in range(0,3):
+    #         center_coordinates.append((primary[i] + secondary[i])/2.)
+    #     # We compute the distance between the middle of this shape and the camera:
+    #     shape.distance = sqrt((x_cam - center_coordinates[0])**2 + (y_cam - center_coordinates[1])**2 + (z_cam - center_coordinates[2])**2)
+    #     shapes_id_list.append(shape.id)
+    #     shapes_distance_list.append(shape.distance)
+    # # We create a dataframe from the two lists:
+    # df=pd.DataFrame({"id": shapes_id_list, "distance": shapes_distance_list})
+    # df.sort_values(by=["distance"], ascending=True, inplace=True)
+    # # # We reorder the shapes so that the shapes closest to the camera are displayed first:
+    # # reordered_shapes = {id: shapes[id] for id in df["id"]}
+    #
+    # # We add the plant shapes to the final scene, by selecting the proper order of shapes:
+    # for id in df["id"]:
+    #     reordered_shape = shapes[id]
+    #     final_scene += reordered_shape
+
+    # We add the plant scene to the final scene:
+    final_scene += scene
 
     # SETTING THE VIEWER OPTIONS:
     setting_PGLViewer(width=width, height=height,
@@ -2258,7 +2307,7 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
                       background_color=background_color)
 
     # DISPLAYING THE MTG:
-    pgl.Viewer.display(scene)
+    pgl.Viewer.display(final_scene)
 
     # RECORDING THE MTG:
     if recording_plot:
@@ -2377,10 +2426,10 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
     new_scenarios_df = pd.read_csv(os.path.join(outputs_path, 'scenarios_list.csv'), index_col='Scenario', header=0)
     # We convert the dataframe into a dictionnary:
     scenario = new_scenarios_df.to_dict(orient='records')[0]
-    # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
-    param.__dict__.update(scenario)
-    # We do the same with the parameters of rhizodep:
-    rhizodep_param.__dict__.update(scenario)
+    # # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
+    # param.__dict__.update(scenario)
+    # # We do the same with the parameters of rhizodep:
+    # rhizodep_param.__dict__.update(scenario)
 
     return scenario
 #-----------------------------------------------------------------------------------------------------------------------

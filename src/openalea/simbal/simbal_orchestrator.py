@@ -808,7 +808,7 @@ def run_simulation_for_one_plant(my_path=None,
         [x_coordinates, y_coordinates, z_coordinates] = circle_coordinates(x_center=param.x_center,
                                                                            y_center=param.y_center,
                                                                            z_center=param.z_camera,
-                                                                           radius=sqrt((param.x_camera**2 + param.y_camera**2)),
+                                                                           radius=sqrt((param.x_camera-param.x_center)**2 + (param.y_camera-param.y_center)**2),
                                                                            n_points=param.camera_rotation_n_points,
                                                                            n_loops=number_of_loops,
                                                                            step_back_coefficient=param.step_back_coefficient,
@@ -1449,6 +1449,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                      list_of_distinct_plant_types= [],
                                      list_of_distinct_shoot_MTG = [],
                                      list_of_distinct_root_MTG = [],
+                                     parameter_scenarios={},
                                      list_of_parameter_file_names_for_the_distinct_plant_MTG=["simbal_parameters_1.xlsx",
                                                                                               "simbal_parameters_2.xlsx"],
                                      list_of_numbers_of_plants_per_square_meter=[33, 16.5],
@@ -1493,7 +1494,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
     plot_directories=[]
     shoot_MTG_directories=[]
     root_MTG_directories=[]
-    parameter_genotype_specific=[]
+    parameters=[]
     plant_objects_list=[]
     plant_data_frame_list=[]
     shoot_total_C_list=[]
@@ -1517,8 +1518,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
             for file in files:
                 os.remove(os.path.join(root, file))
 
-    # We consider a general output directory:
-    plot_directory = os.path.join(my_path, "simulation", "outputs", "plots")
+    # We consider a plot directory for showing the whole population:
+    plot_directory = os.path.join(my_path, "simulation", "outputs", "population_plots")
     # If the directory doesn't exist:
     if not os.path.exists(plot_directory):
         # Then we create it:
@@ -1528,8 +1529,10 @@ def run_simulation_for_a_plant_cover(my_path=None,
         for root, dirs, files in os.walk(plot_directory):
             for file in files:
                 os.remove(os.path.join(root, file))
+    # We add this plot directory to the list of plot directories:
+    plot_directories.append(plot_directory)
 
-    # For each distinct MTG to be created:
+    # For each distinct plant genotype to be simulated:
     for i in range(1,number_of_distinct_plants+1):
 
         # We consider the outputs directory for the current MTG type:
@@ -1587,16 +1590,15 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # LOADING PARAMETERS AND INSTRUCTIONS:
     #-------------------------------------
 
-    # First we update the standard parameters from 'simbal_parameters.py' with generic parameters from the Excel file,
-    # without distinction between plant types:
-    scenario = loading_parameters_from_file(
+    # First we update the standard parameters from 'simbal_parameters.py' with generic parameters from the Excel file
+    # "simbal_parameters.xlsx", without distinction between plant types:
+    scenario_parameters_main = loading_parameters_from_file(
         parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
         outputs_path = os.path.join(outputs_directory))
-    # We create a dictionary containing the parameters and instructions specified in the scenario:
-    scenario_parameters_main = buildDic(scenario)
+    # We add the parameters for handling the population to the list of parameters:
+    parameters.append(scenario_parameters_main)
     # And we update the parameters from the original python file with the parameters read in the Excel file:
     param.__dict__.update(scenario_parameters_main)
-
     # Then for each distinct MTG to be created, we register the respective dictionnaries made to update parameters:
     for i in range(0, number_of_distinct_plants):
         # The values of the parameters in the simulation for the given MTG will be later updated according to the values
@@ -1604,7 +1606,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
         scenario_parameters_species = loading_parameters_from_file(
             parameters_filepath = os.path.join(my_path, "simulation", "inputs", list_of_parameter_file_names_for_the_distinct_plant_MTG[i]),
             outputs_path = os.path.join(outputs_directory, "outputs_" + str(i+1)))
-        parameter_genotype_specific.append(scenario_parameters_species)
+        parameters.append(scenario_parameters_species)
 
     # We read the other specific instructions of the scenario that do not correspond to the parameters in the list
     # (Note: The following function "get" looks if the first argument is present in the scenario parameters.
@@ -1645,7 +1647,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
     # INITIALIZING PLANT OBJECT:
     # For each distinct plant objects to be created:
-    for i in range(0, number_of_distinct_plants):
+    for i in range(1, number_of_distinct_plants+1):
         # INITIALIZING THE WHOLE PLANT:
         # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
         plant_objects_list.append(whole_plant())
@@ -1806,38 +1808,11 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # CONSIDERING CAMERA ROTATION WHEN PLOTTING:
     #-------------------------------------------
 
-    # We first consider the rotation of the camera for the whole population scene:
-    if param.camera_movement is True and plotting_population is True:
-        # In case the camera needs to rotate around the target and/or to move away from it or to move up/down:
-        if param.step_back_coefficient != 0. or param.step_up_coefficient != 0.:
-            # If the required number of positions around the target is positive:
-            if param.camera_rotation_n_points > 0:
-                # We calculate the number of loops required around the target to go up to the end of the simulation,
-                # knowing that the camera will progressively move away or down at each time step while rotating:
-                number_of_loops = int(ceil(n_steps / param.camera_rotation_n_points))
-            # Otherwise, the number of coordinates required will be directly the number of steps of the simulation:
-            else:
-                number_of_loops =  n_steps
-        # Otherwise, only one loop is necessary, and the camera will reuse the same coordinates after one complete rotation:
-        else:
-            number_of_loops = 1
-        # We calculate the x,y,z coordinates of the different positions of the camera.
-        [x_coordinates, y_coordinates, z_coordinates] = circle_coordinates(x_center=param.x_center,
-                                                                           y_center=param.y_center,
-                                                                           z_center=param.z_camera,
-                                                                           radius=sqrt((param.x_camera**2 + param.y_camera**2)),
-                                                                           n_points=param.camera_rotation_n_points,
-                                                                           n_loops=number_of_loops,
-                                                                           step_back_coefficient=param.step_back_coefficient,
-                                                                           step_up_coefficient=param.step_up_coefficient)
-        # We initialize the index in the list of the coordinates:
-        index_camera = 0
-
-    # We now do the same consideration for each plant genotype:
-    for i in range(0, number_of_distinct_plants):
+    # We consider camera movements for the population, then for each individual plant genotype:
+    for i in range(0, number_of_distinct_plants+1):
         # We update the parameters from the original python file with the parameters read in the Excel file:
-        param.__dict__.update(parameter_genotype_specific[i])
-        if param.camera_movement is True and plotting_single_plants is True:
+        param.__dict__.update(parameters[i])
+        if param.camera_movement is True:
             # In case the camera needs to rotate around the target and/or to move away from it or to move up/down:
             if param.step_back_coefficient != 0. or param.step_up_coefficient != 0.:
                 # If the required number of positions around the target is positive:
@@ -1853,14 +1828,13 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 number_of_loops = 1
             # We calculate the x,y,z coordinates of the different positions of the camera.
             [x,y,z] = circle_coordinates(x_center=param.x_center,
-                                                                y_center=param.y_center,
-                                                                z_center=param.z_camera,
-                                                                radius=sqrt((
-                                                                        param.x_camera ** 2 + param.y_camera ** 2)),
-                                                                n_points=param.camera_rotation_n_points,
-                                                                n_loops=number_of_loops,
-                                                                step_back_coefficient=param.step_back_coefficient,
-                                                                step_up_coefficient=param.step_up_coefficient)
+                                         y_center=param.y_center,
+                                         z_center=param.z_camera,
+                                         radius=sqrt((param.x_camera-param.x_center)**2 + (param.y_camera-param.y_center)**2),
+                                         n_points=param.camera_rotation_n_points,
+                                         n_loops=number_of_loops,
+                                         step_back_coefficient=param.step_back_coefficient,
+                                         step_up_coefficient=param.step_up_coefficient)
             cam_x.append(x)
             cam_y.append(y)
             cam_z.append(z)
@@ -1930,6 +1904,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                                                     C=param.root_growth_C)
         # We calculate the equivalent time step in thermal time:
         thermal_time_step_in_seconds_shoots = time_step_in_seconds * temperature_time_adjustment_shoot
+        thermal_time_step_in_seconds_roots = time_step_in_seconds * temperature_time_adjustment_soil
         # TODO in the future: consider a vertical gradient of temperature, and hence a vertical modification of the adjustments
 
         # We eventually compute the final and actual thermal time for this time step:
@@ -1943,7 +1918,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
             plant = plant_objects_list[i]
 
             # UPDATING PARAMETERS FOR THE CURRENT PLANT
-            scenario = parameter_genotype_specific[i]
+            scenario = parameters[i]
             # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
             param.__dict__.update(scenario)
 
@@ -2063,7 +2038,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 root_g = list_of_distinct_root_MTG[i]
 
                 # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameter_genotype_specific[i]
+                scenario = parameters[i+1]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
                 # We update the parameters from the original python file of RhizoDep with the parameters taken from this dictionnary:
@@ -2159,7 +2134,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 shoot_g = list_of_distinct_shoot_MTG[i]
 
                 # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameter_genotype_specific[i]
+                scenario = parameters[i+1]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
 
@@ -2190,6 +2165,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
             # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
             scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                                      parameter_scenarios=parameter_scenarios,
                                                                       list_of_shoot_MTG=list_of_scene_shoot_MTG,
                                                                       list_of_root_MTG=[],
                                                                       leaf_shape="diamond_shape",
@@ -2222,7 +2198,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 plant.total_PAR_intercepted = total_PAR_intercepted
 
                 # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameter_genotype_specific[i]
+                scenario = parameters[i+1]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
 
@@ -2446,7 +2422,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
             plant = plant_objects_list[i]
 
             # UPDATING PARAMETERS FOR THE CURRENT PLANT
-            scenario = parameter_genotype_specific[i]
+            scenario = parameters[i+1]
             # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
             param.__dict__.update(scenario)
 
@@ -2463,79 +2439,31 @@ def run_simulation_for_a_plant_cover(my_path=None,
         # PLOTTING:
         ###########
 
-        # If the whole scene is to be plotted:
-        if plotting_population:
+        if plotting_single_plants or plotting_population:
 
-            # UPDATING PARAMETERS:
-            param.__dict__.update(scenario_parameters_main)
+            # We open the Viewer a first time so that the next plots will appear OK:
+            pgl.Viewer.display(pgl.Scene())
 
-            # If the camera is to be moved around the scene, we modify the position of the camera:
-            if param.camera_movement is True:
-                x_cam = x_coordinates[index_camera]
-                y_cam = y_coordinates[index_camera]
-                z_cam = z_coordinates[index_camera]
-                # We define the index of the coordinates to read at the next step:
-                index_camera = index_camera + 1
-                # If this index is higher than the number of coordinates in each vector and if no other movement
-                # of the camera (away or down) has been set over time:
-                if (index_camera >= param.camera_rotation_n_points
-                        and param.step_back_coefficient == 0. and param.step_up_coefficient == 0.):
-                    # Then we reset the index to 0, so that the camera goes back to the same locations as previously stored:
-                    index_camera = 0
-                # If "distancing" is required, the camera will continue to read the further coordinates already calculated.
-            # Otherwise, we simply use the parameters specified for the camera:
-            else:
-                x_cam = param.x_camera
-                y_cam = param.y_camera
-                z_cam = param.z_camera
+            # We consider successively a plot for the population, then for each distinct plant to be computed:
+            for i in range(0, number_of_distinct_plants+1):
 
-            plotting_whole_scene(list_of_distinct_plant_types=list_of_distinct_plant_types,
-                                 list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
-                                 list_of_distinct_root_MTG=list_of_distinct_root_MTG,
-                                 list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
-                                 list_of_inter_row_distances=list_of_inter_row_distances,
-                                 list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
-                                 list_of_scene_lengths=list_of_scene_lengths,
-                                 list_of_scene_widths=list_of_scene_widths,
-                                 width=1200, height=1200,
-                                 upscaling_factor=zoom_factor,
-                                 x_center=0.5*zoom_factor,
-                                 y_center=0.25*zoom_factor,
-                                 z_center=0.*zoom_factor,
-                                 x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
-                                 grid=False,
-                                 background_color=[255, 255, 255],
-                                 single_color_shoot=[60, 100, 40],
-                                 single_color_root=[250, 150, 100],
-                                 plotting_leaf_shape=param.plotting_leaf_shape,
-                                 simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
-                                 displaying_soil_surface=False,
-                                 recording_plot=True,
-                                 plot_name=os.path.join(my_path, "simulation", "outputs", "plots",
-                                                        'plot_%.5d.png' % step)
-                                 )
-        # Otherwise, we will plot one single plant for each plant type:
-        if plotting_single_plants:
-            # We cover each distinct plant to be computed:
-            for i in range(0, number_of_distinct_plants):
-
-                # ACCESSING THE CURRENT PLANT:
-                shoot_g = list_of_distinct_shoot_MTG[i]
-                root_g = list_of_distinct_root_MTG[i]
+                # ACCESSING THE PLOT DIRECTORY AND UPDATING PARAMETERS:
                 plot_directory = plot_directories[i]
-
-                # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameter_genotype_specific[i]
+                scenario = parameters[i]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
 
                 # If the camera is to be moved around the scene, we modify the position of the camera:
                 if param.camera_movement is True:
+                    x_center = param.x_center
+                    y_center = param.y_center
+                    z_center = param.z_center
+                    index_camera = cam_index[i]
                     x_cam = cam_x[i][index_camera]
                     y_cam = cam_y[i][index_camera]
                     z_cam = cam_z[i][index_camera]
                     # We define the index of the coordinates to read at the next step:
-                    cam_index[i] = cam_index[i] + 1
+                    cam_index[i] = index_camera + 1
                     # If this index is higher than the number of coordinates in each vector and if no other movement
                     # of the camera (away or down) has been set over time:
                     if (cam_index[i] >= param.camera_rotation_n_points
@@ -2545,34 +2473,69 @@ def run_simulation_for_a_plant_cover(my_path=None,
                     # If "distancing" is required, the camera will continue to read the further coordinates already calculated.
                 # Otherwise, we simply use the parameters specified for the camera:
                 else:
+                    x_center = param.x_center
+                    y_center = param.y_center
+                    z_center = param.z_center
                     x_cam = param.x_camera
                     y_cam = param.y_camera
                     z_cam = param.z_camera
 
-                # We display the MTG in its new state:
-                plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
-                                     width=1200, height=1200,
-                                     upscaling_factor=zoom_factor,
-                                     x_center=param.x_center*zoom_factor,
-                                     y_center=param.y_center*zoom_factor,
-                                     z_center=param.z_center*zoom_factor,
-                                     x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
-                                     grid=False,
-                                     plant_species=param.plant_genotype,
-                                     leaf_shape=param.plotting_leaf_shape,
-                                     simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
-                                     # background_color=[94, 76, 64],
-                                     background_color=[255, 255, 255],
-                                     single_color_shoot=[70,100,35],
-                                     single_color_root=[250, 150, 100],
-                                     # single_color_shoot=None,
-                                     # single_color_root=None,
-                                     property_name_shoot='surfacic_PAR_intercepted', cmap_shoot='summer', vmin_shoot=0., vmax_shoot=1000, lognorm_shoot=False,
-                                     # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
-                                     # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
-                                     recording_plot=True,
-                                     plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
-                                     shoots_overlapping_roots=True)
+                # PLOTTING THE POPULATION:
+                if i == 0 and plotting_population:
+                    plotting_whole_scene(list_of_distinct_plant_types=list_of_distinct_plant_types,
+                                         parameter_scenarios=parameter_scenarios,
+                                         list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
+                                         list_of_distinct_root_MTG=list_of_distinct_root_MTG,
+                                         list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
+                                         list_of_inter_row_distances=list_of_inter_row_distances,
+                                         list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
+                                         list_of_scene_lengths=list_of_scene_lengths,
+                                         list_of_scene_widths=list_of_scene_widths,
+                                         width=1200, height=1200,
+                                         upscaling_factor=zoom_factor,
+                                         x_center=param.x_center * zoom_factor,
+                                         y_center=param.y_center * zoom_factor,
+                                         z_center=param.z_center * zoom_factor,
+                                         x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor,
+                                         z_cam=z_cam * zoom_factor,
+                                         grid=False,
+                                         background_color=[255, 255, 255],
+                                         single_color_shoot=[60, 100, 40],
+                                         single_color_root=[250, 150, 100],
+                                         plotting_leaf_shape=param.plotting_leaf_shape,
+                                         simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
+                                         displaying_soil_surface=True,
+                                         recording_plot=True,
+                                         plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step)
+                                         )
+
+                # PLOTTING ONE SINGLE PLANT:
+                if i > 0 and plotting_single_plants:
+                    shoot_g = list_of_distinct_shoot_MTG[i-1]
+                    root_g = list_of_distinct_root_MTG[i-1]
+
+                    # We display the MTG in its new state:
+                    plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
+                                         width=1200, height=1200,
+                                         upscaling_factor=zoom_factor,
+                                         x_center=x_center*zoom_factor, y_center=y_center*zoom_factor, z_center=z_center*zoom_factor,
+                                         x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
+                                         grid=False,
+                                         plant_species=param.plant_genotype,
+                                         leaf_shape=param.plotting_leaf_shape,
+                                         simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
+                                         # background_color=[94, 76, 64],
+                                         background_color=[255, 255, 255],
+                                         single_color_shoot=[70,100,35],
+                                         single_color_root=[250, 150, 100],
+                                         # single_color_shoot=None,
+                                         # single_color_root=None,
+                                         property_name_shoot='surfacic_PAR_intercepted', cmap_shoot='summer', vmin_shoot=0., vmax_shoot=1000, lognorm_shoot=False,
+                                         # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
+                                         # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
+                                         recording_plot=True,
+                                         plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
+                                         shoots_overlapping_roots=True)
 
         # RECORDING THE CURRENT STATE:
         ##############################
@@ -2647,12 +2610,21 @@ if __name__ == '__main__':
 
     # RUNNING SIMULATION ON A HETEROGENEOUS PLANT COVER:
     ####################################################
+    ####################################################
+
+    # Preparation of the MTG files and the population:
+    #-------------------------------------------------
+
+    # We initalize a dictionnary that will contain the parameters for the population and each genotype:
+    parameter_scenarios = {}
 
     # FIRST PLANT GENOTYPE:
     # The values of the parameters in the simulation for the given MTG are updated:
     scenario_parameters_1 = loading_parameters_from_file(
         parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_1.xlsx"),
         outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_1"))
+    # We store the scenario under the name "rapeseed" in the dictionary of parameter_scenarios:
+    parameter_scenarios["rapeseed"]=scenario_parameters_1
     # And we update the parameters from the original python file with the parameters read in the Excel file:
     param.__dict__.update(scenario_parameters_1)
     rhizodep_param.__dict__.update(scenario_parameters_1)
@@ -2667,7 +2639,7 @@ if __name__ == '__main__':
                                         initial_labile_C_concentration=0.001,
                                         initial_labile_N_concentration=0.0001
                                         )
-    # We create the root MTG:
+    # We create the corresponding root MTG:
     root_g_1 = RootSimple.initiate_mtg(initial_segment_length=0.,
                                        initial_apex_length=0.001)
 
@@ -2675,7 +2647,9 @@ if __name__ == '__main__':
     # The values of the parameters in the simulation for the given MTG are updated:
     scenario_parameters_2 = loading_parameters_from_file(
         parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_2.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_1"))
+        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_2"))
+    # We store the scenario under the name "rapeseed" in the dictionary of parameter_scenarios:
+    parameter_scenarios["faba_bean"] = scenario_parameters_2
     # And we update the parameters from the original python file with the parameters read in the Excel file:
     param.__dict__.update(scenario_parameters_2)
     rhizodep_param.__dict__.update(scenario_parameters_2)
@@ -2690,17 +2664,26 @@ if __name__ == '__main__':
                                         initial_labile_C_concentration=0.001,
                                         initial_labile_N_concentration=0.0001
                                         )
-    # We create the root MTG:
+    # We create the corresponding root MTG:
     root_g_2 = RootSimple.initiate_mtg(initial_segment_length=0.,
                                        initial_apex_length=0.001)
+
+    # Simulation of the plant population:
+    # -----------------------------------
 
     # We run the simulation for the heterogeneous plant cover:
     run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
                                      list_of_distinct_plant_types=["rapeseed", "faba_bean"],
+                                     parameter_scenarios=parameter_scenarios,
                                      list_of_distinct_shoot_MTG=[shoot_g_1, shoot_g_2],
                                      list_of_distinct_root_MTG=[root_g_1, root_g_2],
                                      list_of_parameter_file_names_for_the_distinct_plant_MTG=[
                                          "simbal_parameters_1.xlsx", "simbal_parameters_2.xlsx"],
+                                     list_of_numbers_of_plants_per_square_meter=[33, 16.5],
+                                     list_of_inter_row_distances=[0.20, 0.20],
+                                     list_of_number_of_rows_to_show=[3, 2],
+                                     list_of_scene_lengths=[1, 1],
+                                     list_of_scene_widths=[0.5, 0.5],
                                      simulation_period_in_days=20., time_step_in_days=1 / 24.,
                                      starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
                                      input_file="inputs_over_time.csv",
