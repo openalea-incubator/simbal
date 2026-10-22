@@ -23,7 +23,7 @@ import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
 
-from src.openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
+from openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
 
 try:
     import pyvista as pv
@@ -1162,14 +1162,16 @@ def prepare_plants_population(list_of_reference_MTG=[],
 #-----------------------------------------------------------------------------------------------------------------------
 
 # Function that distributes distinct plants within a framework:
-def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2"],
-                                            list_of_distinct_shoot_MTG=[],
-                                            list_of_distinct_root_MTG=[],
-                                            list_of_numbers_of_plants_per_square_meter=[33, 16.5],
-                                            list_of_inter_row_distances=[0.45, 0.675],
-                                            list_of_number_of_rows_to_show=[3,2],
-                                            list_of_scene_lengths=[1, 1],
-                                            list_of_scene_widths=[1, 1],
+def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "faba_bean"],
+                                            parameters_dict={},
+                                            shoot_MTG_dict={},
+                                            root_MTG_dict={},
+                                            option="shoots_and_roots",
+                                            numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
+                                            inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
+                                            number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
+                                            scene_lengths_dict={"rapeseed": 1., "faba_bean": 1.},
+                                            scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
                                             upscaling_factor=1):
 
     """
@@ -1196,37 +1198,31 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
     """
 
     # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
-    list_of_shoot_MTG = []
-    list_of_root_MTG = []
+    list_of_all_shoot_MTG = []
+    list_of_all_root_MTG = []
     scene_information = {}
     scene_information["plant_id"] = []
     scene_information["plant_type"] = []
     scene_information["position"] = []
     scene_information["middle_plants"]=[]
 
-    # We define the number of distinct plants based on the maximal length of the lists provided as inputs:
-    number_of_distinct_plants = max(len(list_of_distinct_plant_names),
-                                    len(list_of_distinct_shoot_MTG),
-                                    len(list_of_distinct_root_MTG),
-                                    len(list_of_numbers_of_plants_per_square_meter),
-                                    len(list_of_inter_row_distances))
-
     # We initialize the plant index:
     plant_index = 0
 
     # For each original plant with distinct properties:
-    for i in range(0, number_of_distinct_plants):
+    for genotype_name in genotype_names_list:
 
         # We create a special field in the scene information for recording the ID of the middle plant of the scene:
-        middle_id_field = "middle_plant_id_" + str(i)
+        middle_id_field = "middle_plant_id_" + genotype_name
+        # We initialize the id of the middle plant for this genotype
         scene_information[middle_id_field] = []
         scene_information[middle_id_field].append(0)
 
-        number_of_plants_per_square_meter = list_of_numbers_of_plants_per_square_meter[i]
-        inter_row_distance = list_of_inter_row_distances[i]
-        scene_length = list_of_scene_lengths[i]
-        scene_width = list_of_scene_widths[i]
-        number_of_rows_to_show = list_of_number_of_rows_to_show[i]
+        number_of_plants_per_square_meter = numbers_of_plants_per_square_meter_dict[genotype_name]
+        inter_row_distance = inter_row_distances_dict[genotype_name]
+        scene_length = scene_lengths_dict[genotype_name]
+        scene_width = scene_widths_dict[genotype_name]
+        number_of_rows_to_show = number_of_rows_to_show_dict[genotype_name]
 
         number_of_rows_per_meter = 1 / inter_row_distance
         number_of_plants_per_row_per_meter = number_of_plants_per_square_meter / number_of_rows_per_meter
@@ -1257,12 +1253,12 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
 
             # If a reference MTG or a list of reference MTG has been given, we copy the corresponding MTG and add it
             # to the list of MTG:
-            if len(list_of_distinct_shoot_MTG) > 0:
-                reference_g = list_of_distinct_shoot_MTG[i]
-                list_of_shoot_MTG.append(reference_g.copy())
-            if len(list_of_distinct_root_MTG) > 0:
-                reference_g = list_of_distinct_root_MTG[i]
-                list_of_root_MTG.append(reference_g.copy())
+            if len(shoot_MTG_dict) > 0 and option != "roots_only":
+                reference_g = shoot_MTG_dict[genotype_name]
+                list_of_all_shoot_MTG.append(reference_g.copy())
+            if len(root_MTG_dict) > 0 and option != "shoots_only":
+                reference_g = root_MTG_dict[genotype_name]
+                list_of_all_root_MTG.append(reference_g.copy())
 
             # We add the current plant ID to the list of plant ID:
             scene_information["plant_id"].append(plant_index)
@@ -1283,8 +1279,7 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
                 scene_information["middle_plants"].append("False")
 
             # We add the current plant type:
-            if len(list_of_distinct_plant_names)>= i+1:
-                scene_information["plant_type"].append(list_of_distinct_plant_names[i])
+            scene_information["plant_type"].append(genotype_name)
 
             # We record the new position (x,y,z)
             scene_information["position"].append((x, y, z))
@@ -1301,159 +1296,8 @@ def prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["1","2
                 # And we start at the beginning of the new row:
                 x = lateral_border_length * upscaling_factor
 
-    return scene_information, list_of_shoot_MTG, list_of_root_MTG
+    return scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG
 #-----------------------------------------------------------------------------------------------------------------------
-# #-----------------------------------------------------------------------------------------------------------------------
-# def create_a_scene_with_plants_population(g,
-#                                           number_of_plants_per_square_meter=9,
-#                                           inter_row_distance=0.45,
-#                                           scene_length=1.,
-#                                           scene_width=1.,
-#                                           true_color=True,
-#                                           surrounding_plants_transparency=0.,
-#                                           leaf_shape="oval_shape",
-#                                           simplified_leaf_shape_for_surface_calculation="ellipse_shape",
-#                                           upscaling_factor=1):
-#     """
-#     This function generates a scene containing a population of plants, all cloned from the same plant MTG "g",
-#     and distributed within rows with a random orientation. The plant in the middle of the scene is the last set of shapes
-#     given by the scene. The surrounding plants can be displayed as (semi-) transparent or not.
-#
-#     Parameters
-#     ----------
-#     g: the MTG corresponding to the shoot system
-#     number_of_plants_per_square_meter: plant density (plants per m2)
-#     inter_row_distance: distance between two rows (m)
-#     scene_length: length of the rows (m)
-#     scene_width: width of the scene (m)
-#     true_color: if so, ...
-#     surrounding_plants_transparency: level of transparency of plants adjacent to the central one in the scene (0 = non transparency, 1 = full transparency)
-#     leaf_shape: ...
-#     upscaling_factor: a factor by which all dimensions should be multiplied (e.g. useful to convert dimensions from meters to centimeters)
-#
-#     Returns
-#     -------
-#     final_scene: the final scene with the population of plants
-#
-#     """
-#
-#     # 1.COMPUTING PLANT POSITIONS:
-#     ##############################
-#
-#     # We calculate the number of rows and plants to be show in the scene:
-#     number_of_rows = floor(scene_width / float(inter_row_distance)) + 1
-#     number_of_plants = int(number_of_plants_per_square_meter * (scene_length * scene_width))
-#     # We make sure that there is a least one row containing plants:
-#     if number_of_plants < number_of_rows:
-#         number_of_rows = number_of_plants
-#
-#     # We calculate the number of plants per row:
-#     number_of_plants_per_row = floor(number_of_plants / float(number_of_rows))
-#     # We calculate the distance between two plants within a row (in meters):
-#     inter_plant_distance = float(scene_length) / float(number_of_plants_per_row)
-#     # We finally calculate the length and width of the lateral borders, so that the population of plants is centered
-#     # within the square scene:
-#     lateral_border_width = (scene_width - (number_of_rows - 1) * inter_row_distance) / 2.
-#     lateral_border_length = (scene_length - (number_of_plants_per_row - 1) * inter_plant_distance) / 2.
-#
-#     # We initialize the list that will contain the x,y,z coordinates of each plant in the scene:
-#     list_of_positions = []
-#     # We move to the position of the first plant:
-#     x = lateral_border_length * upscaling_factor
-#     y = lateral_border_width * upscaling_factor
-#     z = 0. * upscaling_factor
-#     # We cover each plant of the scene:
-#     for plant_index in range(0, number_of_plants):
-#         # We add the new position (x,y,z) to the list:
-#         list_of_positions.append((x, y, z))
-#         # And we move from one plant to another on the same row:
-#         x += inter_plant_distance * upscaling_factor
-#         # If we have reached the maximal length of a given row:
-#         if x > scene_length * upscaling_factor:
-#             # Then we switch to the next row:
-#             y += inter_row_distance * upscaling_factor
-#             # And we start at the beginning of the new row:
-#             x = lateral_border_length * upscaling_factor
-#     # We define the index of the position of the plant that stays in the middle of the scene :
-#     index_middle_plant = floor(number_of_plants / 2.)
-#     # And we move the position of the middle plant to the last position of the list, so that it is easily recognizable:
-#     list_of_positions.append(list_of_positions[index_middle_plant])
-#     list_of_positions.remove(list_of_positions[index_middle_plant])
-#
-#     # CREATING THE FINAL SCENE:
-#     ###########################
-#
-#     # We initialize a turtle in PlantGL:
-#     turtle = turt.PglTurtle()
-#     # We initialize the final scene:
-#     final_scene = pgl.Scene()
-#
-#     # We create a "soil surface" corresponding to the limits of the scene:
-#     points = [(0, 0, 0),
-#               (scene_length * upscaling_factor, 0, 0),
-#               (scene_length * upscaling_factor, scene_width * upscaling_factor, 0),
-#               (0, scene_width * upscaling_factor, 0)]
-#     normals = [(0, 0, 1) for i in range(4)]
-#     indices = [(0, 1, 2, 3)]
-#     square = pgl.QuadSet(points, indices, normals, indices)
-#     # We define the same color for each of the 4 points:
-#     square.colorList = [pgl.Color4(100, 100, 0, 200) for i in range(4)]
-#     final_scene += square
-#
-#     # If the option "true_color" has been required:
-#     if true_color:
-#         # We try to access the dictionnary containing the colors of each vertex:
-#         colors = g.property('color')
-#         # However, if the dictionnary is empty, we reset the option to False:
-#         if colors == {}:
-#             true_color = False
-#
-#     # We cover each plant in the population:
-#     for plant_index in range(0, len(list_of_positions)):
-#
-#         # We first define the seed of random, depending on the index of the plant:
-#         np.random.seed(int(param.random_choice * plant_index))
-#         # We then modify the angle of the plant, so that leaves are not oriented the same way within the population:
-#         angle_roll = abs(np.random.normal(180, 180))
-#
-#         # We reset the turtle:
-#         turtle.reset()
-#         # And we reposition the turtle from there:
-#         turtle.move(list_of_positions[plant_index])
-#         turtle.rollL(angle_roll)
-#         # We create a scene for one plant by moving the turtle along the MTG:
-#         scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(leaf_shape=leaf_shape,
-#                                                               simplified_shape=simplified_leaf_shape_for_surface_calculation,
-#                                                               upscaling_factor=upscaling_factor),
-#                                  turtle=turtle, gc=False)
-#
-#         # We get a dictionnary of all shapes in the scene:
-#         shapes = dict((sh.id, sh) for sh in scene)
-#
-#         # We cover each shape of the current MTG:
-#         for shape in scene:
-#             # If the true color has to be activated:
-#             if true_color:
-#                 # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-#                 if plant_index == len(list_of_positions) - 1:
-#                     # Then we add the color of the corresponding vertex, with no transparency:
-#                     shape.appearance = pgl.Material(colors[shape.id], transparency=0.0)
-#                 else:
-#                     # Then we add the color of the corresponding vertex, with semi-transparency:
-#                     shape.appearance = pgl.Material(colors[shape.id], transparency=surrounding_plants_transparency)
-#             else:
-#                 # If the plant corresponds to the central plant (which we have moved to the last position in the list):
-#                 if plant_index == len(list_of_positions) - 1:
-#                     # Then we add the color of the corresponding vertex, with no transparency:
-#                     shape.appearance = pgl.Material([0, 250, 0], transparency=0.0)
-#                 else:
-#                     # For all other plants, we set nearly transparent plants with greenish colors:
-#                     shape.appearance = pgl.Material([50, 200, 50], transparency=surrounding_plants_transparency)
-#             # Finally, we add the shape to the final scene:
-#             final_scene += shape
-#
-#     return final_scene
-# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a color map for a MTG:
 def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
@@ -1526,6 +1370,10 @@ def setting_PGLViewer(width=1200, height=1200,
     pgl.Viewer.frameGL.setBgColor(background_color[0], background_color[1], background_color[2])
     # We define whether grids are displayed or not:
     pgl.Viewer.grids.set(grid, grid, grid, grid)
+
+    # pgl.Viewer.light=None
+    # pgl.Viewer.threaded=True
+    # pgl.Viewer.redrawPolicy = True
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1653,7 +1501,9 @@ def plotting_shoot_MTG(g,
 def create_plants_population_scene(scene_information={},
                                    list_of_shoot_MTG=[],
                                    list_of_root_MTG=[],
-                                   parameter_scenarios={},
+                                   option="shoots_and_roots",
+                                   genotype_names_list=["rapeseed", "faba_bean"],
+                                   parameters_dict={},
                                    upscaling_factor=1,
                                    leaf_shape="oval_shape",
                                    simplified_leaf_shape_for_surface_calculation="ellipse_shape",
@@ -1717,14 +1567,14 @@ def create_plants_population_scene(scene_information={},
     list_of_positions = scene_information["position"]
 
     # TREATING THE SCENE FOR SHOOTS:
-    if len(list_of_shoot_MTG) > 0:
+    if len(list_of_shoot_MTG) > 0 and option != "roots_only":
         # We cover each plant in the population:
         for plant_index in range(0, len(list_of_positions)):
 
             # We get the name of the genotype corresponding to the current MTG:
             plant_genotype = list_of_genotypes[plant_index]
             # We get the parameters corresponding to this genotype:
-            scenario_parameters = parameter_scenarios[plant_genotype]
+            scenario_parameters = parameters_dict[plant_genotype]
             # And we update the parameters of the model with those for that particular genotype:
             param.__dict__.update(scenario_parameters)
 
@@ -1807,14 +1657,14 @@ def create_plants_population_scene(scene_information={},
             scene_information["triangles_shoot"].append(triangle_scene)
 
     # TREATING THE SCENE FOR ROOTS:
-    if len(list_of_root_MTG) > 0:
+    if len(list_of_root_MTG) > 0 and option != "shoots_only":
         # We cover each plant in the population:
         for plant_index in range(0, len(list_of_positions)):
 
             # We get the name of the genotype corresponding to the current MTG:
             plant_genotype = list_of_genotypes[plant_index]
             # We get the parameters corresponding to this genotype:
-            scenario_parameters = parameter_scenarios[plant_genotype]
+            scenario_parameters = parameters_dict[plant_genotype]
             # And we update the parameters of the model with those for that particular genotype:
             param.__dict__.update(scenario_parameters)
             rhizodep_param.__dict__.update(scenario_parameters)
@@ -2198,15 +2048,15 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
-def plotting_whole_scene(list_of_distinct_plant_types=[],
-                         list_of_distinct_shoot_MTG=[],
-                         list_of_distinct_root_MTG=[],
-                         parameter_scenarios={},
-                         list_of_numbers_of_plants_per_square_meter=[],
-                         list_of_inter_row_distances=[],
-                         list_of_number_of_rows_to_show=[],
-                         list_of_scene_lengths=[],
-                         list_of_scene_widths=[],
+def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
+                         parameters_dict={},
+                         shoot_MTG_dict={},
+                         root_MTG_dict={},
+                         numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
+                         inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
+                         number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
+                         scene_lengths_dict={"rapeseed": 1., "faba_bean": 1.},
+                         scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
                          width=1200, height=900,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
@@ -2230,8 +2080,8 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
 
     # If a soil surface is to be displayed in the scene, we add it first:
     if displaying_soil_surface:
-        scene_length = max(list_of_scene_lengths)
-        scene_width = max(list_of_scene_widths)
+        scene_length = max(scene_lengths_dict.values())
+        scene_width = max(scene_widths_dict.values())
         # We create a "soil surface" corresponding to the limits of the scene:
         points = [(0, 0, 0),
                   (scene_length * upscaling_factor, 0, 0),
@@ -2246,34 +2096,37 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
 
     # ADDING THE PLANTS:
     # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
-    scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
-        = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=list_of_distinct_plant_types,
-                                                  list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
-                                                  list_of_distinct_root_MTG=list_of_distinct_root_MTG,
-                                                  list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
-                                                  list_of_inter_row_distances=list_of_inter_row_distances,
-                                                  list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
-                                                  list_of_scene_lengths=list_of_scene_lengths,
-                                                  list_of_scene_widths=list_of_scene_widths,
-                                                  upscaling_factor=upscaling_factor)
+        # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+        scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG = prepare_heterogeneous_plants_population(
+            genotype_names_list=genotype_names_list,
+            parameters_dict=parameters_dict,
+            shoot_MTG_dict=shoot_MTG_dict,
+            root_MTG_dict=root_MTG_dict,
+            numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+            inter_row_distances_dict=inter_row_distances_dict,
+            number_of_rows_to_show_dict=number_of_rows_to_show_dict,
+            scene_lengths_dict=scene_lengths_dict,
+            scene_widths_dict=scene_widths_dict,
+            upscaling_factor=upscaling_factor)
 
-    # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
-    scene, scene_information = create_plants_population_scene(scene_information=scene_information,
-                                                              list_of_shoot_MTG=list_of_scene_shoot_MTG,
-                                                              list_of_root_MTG=list_of_scene_root_MTG,
-                                                              parameter_scenarios=parameter_scenarios,
-                                                              leaf_shape=plotting_leaf_shape,
-                                                              simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
-                                                              single_color_shoot=single_color_shoot,
-                                                              single_color_root=single_color_root,
-                                                              upscaling_factor=upscaling_factor)
+        # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+        scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                                  genotype_names_list=genotype_names_list,
+                                                                  parameters_dict=parameters_dict,
+                                                                  list_of_shoot_MTG=list_of_all_shoot_MTG,
+                                                                  list_of_root_MTG=list_of_all_root_MTG,
+                                                                  leaf_shape=plotting_leaf_shape,
+                                                                  simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
+                                                                  single_color_shoot=single_color_shoot,
+                                                                  single_color_root=single_color_root,
+                                                                  upscaling_factor=upscaling_factor)
 
+    # IF NEEDED - SORTING SHAPES ACCORDING TO THE DISTANCE FROM THE CAMERA:
     # # We sort the shapes, so that they are ordered according to the position of the camera.
     # # We get a dictionnary of all shapes in the scene:
     # shapes = dict((sh.id, sh) for sh in scene)
     # shapes_id_list=[]
-    # shapes_distance_list=[]
-    #
+    # shapes_distance_list=[]    #
     # # We cover each shape of the current MTG:
     # for shape in scene:
     #     primary = shape.geometry.geometry.primary
@@ -2290,7 +2143,6 @@ def plotting_whole_scene(list_of_distinct_plant_types=[],
     # df.sort_values(by=["distance"], ascending=True, inplace=True)
     # # # We reorder the shapes so that the shapes closest to the camera are displayed first:
     # # reordered_shapes = {id: shapes[id] for id in df["id"]}
-    #
     # # We add the plant shapes to the final scene, by selecting the proper order of shapes:
     # for id in df["id"]:
     #     reordered_shape = shapes[id]

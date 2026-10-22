@@ -177,7 +177,7 @@ def computing_shoot_root_exchange_rates(plant,
         elif expected_C_exchange < 0. and abs(expected_C_exchange) > net_root_C:
             # Then the amount of C exchanged is limited to the amount of C available in roots:
             net_final_C_exchange = - net_root_C
-            print("WATCH OUT: a net transfer of C from roots to shoots of", -net_root_C, "gC has occured!")
+            print("WATCH OUT: a net transfer of C from roots to shoots of", "{:.2E}".format(Decimal(-net_root_C)), "gC has occured!")
         # CASE 3: There is enough C in the source compartment to sustain the transfer, so the rate is unaltered:
         else:
             net_final_C_exchange = expected_C_exchange
@@ -251,7 +251,7 @@ def computing_shoot_root_exchange_rates(plant,
         elif expected_N_exchange < 0. and -expected_N_exchange > -net_shoot_N:
             # Then the amount of N exchanged is limited to the amount of N available in shoots:
             net_final_N_exchange = - net_shoot_N
-            print("WATCH OUT: a net transfer of N from shoots to roots of", -net_shoot_N, "gN has occured!")
+            print("WATCH OUT: a net transfer of N from shoots to roots of", "{:.2E}".format(Decimal(-net_shoot_N)), "gN has occured!")
         # CASE 3: There is enough N in the source compartment to sustain the transfer, so the rate is unaltered:
         else:
             net_final_N_exchange = expected_N_exchange
@@ -282,7 +282,7 @@ def computing_shoot_root_exchange_rates(plant,
 # Function for recording the properties of the plant:
 def recording_main_plant_properties(plant, shoot_MTG, root_MTG, final_time_in_days, thermal_time_in_degree_days):
     """
-    This function records the current properties of the plant object and returns them in a dictionnary.
+    This function records the current properties of the plant object and returns them in a dictionary.
 
     Parameters
     ----------
@@ -291,7 +291,7 @@ def recording_main_plant_properties(plant, shoot_MTG, root_MTG, final_time_in_da
 
     Returns
     -------
-    A dictionnary containing the main properties of the plant object (e.g. labile C and N pools, structural mass
+    A dictionary containing the main properties of the plant object (e.g. labile C and N pools, structural mass
     and rates in shoots and roots
     """
     results_dict = {"Final time (days)": final_time_in_days,
@@ -392,7 +392,7 @@ def recording_main_plant_properties(plant, shoot_MTG, root_MTG, final_time_in_da
     return results_dict
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def balance_check(plant, time_step_in_seconds = 60.*60.,
+def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
                   previous_shoot_C=0., previous_root_C=0., previous_shoot_N=0., previous_root_N=0.):
     """
     This function controls whether the information stored in the plant object are coherent in terms of C and N balance,
@@ -427,7 +427,7 @@ def balance_check(plant, time_step_in_seconds = 60.*60.,
     shoot_C_inputs = (plant.photosynthesized_C_rate
                       + plant.C_supply_from_seed_rate) * time_step_in_seconds
     shoot_C_outputs = (plant.shoot_maintenance_respiration_rate
-                       + plant.actual_C_consumption_rate_by_shoot_growth * (1 - param.yield_growth)
+                       + plant.actual_C_consumption_rate_by_shoot_growth * (1 - param.yield_growth) # i.e. growth respiration rate
                        + plant.struct_C_loss_rate_by_leaf_fall
                        + plant.labile_C_loss_rate_by_leaf_fall
                        + plant.net_C_transfer_from_shoot_to_root_rate) * time_step_in_seconds
@@ -443,13 +443,20 @@ def balance_check(plant, time_step_in_seconds = 60.*60.,
                      + (shoot_C_inputs + root_C_inputs)
                      - (shoot_C_outputs + root_C_outputs)))
     if abs(difference) > 1e-16:
-        print("!!! ERROR: the C balance in the whole plant is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+        if genotype_name == "":
+            print("!!! ERROR: the C balance in the whole plant is wrong!",
+                  "The net difference between the current state and the expected state is",
+                  "{:.2E}".format(Decimal(difference)), "gC!")
+        else:
+            print("!!! ERROR: the C balance in the whole plant of", genotype_name,
+                  "is wrong! The net difference between the current state and the expected state is",
+                  "{:.2E}".format(Decimal(difference)), "gC!")
     difference = shoot_total_C - (previous_shoot_C + shoot_C_inputs - shoot_C_outputs)
     if abs(difference) > 1e-16:
-        print("!!! ERROR: the C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+        print("    > The C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
     difference = root_total_C - (previous_root_C + root_C_inputs - root_C_outputs)
     if abs(difference) > 1e-16:
-        print("!!! ERROR: the C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+        print("    > The C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
 
     # CHECKING N BALANCE:
     #--------------------
@@ -475,13 +482,20 @@ def balance_check(plant, time_step_in_seconds = 60.*60.,
                      + (shoot_N_inputs + root_N_inputs)
                      - (shoot_N_outputs + root_N_outputs)))
     if abs(difference) > 1e-15:
-        print("!!! ERROR: the N balance in the whole plant is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+        if genotype_name == "":
+            print("!!! ERROR: the N balance in the whole plant is wrong!",
+                  "The net difference between the current state and the expected state is",
+                  "{:.2E}".format(Decimal(difference)), "gN!")
+        else:
+            print("!!! ERROR: the N balance in the whole plant of", genotype_name,
+                  "is wrong! The net difference between the current state and the expected state is",
+                  "{:.2E}".format(Decimal(difference)), "gN!")
     difference = shoot_total_N - (previous_shoot_N + shoot_N_inputs - shoot_N_outputs)
     if abs(difference) > 1e-15:
-        print("!!! ERROR: the N balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+        print("    > The N balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
     difference = root_total_N - (previous_root_N + root_N_inputs - root_N_outputs)
     if abs(difference) > 1e-15:
-        print("!!! ERROR: the N balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
+        print("    > The N balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
 
     # We finally return the current amounts of C and N in the shoots and the roots:
     return shoot_total_C, root_total_C, shoot_total_N, root_total_N
@@ -946,6 +960,7 @@ def run_simulation_for_one_plant(my_path=None,
             if SIMULATION_OPTION != "shoot_only":
                 plant.root_labile_C_pool += expected_C_exchange
         print("    ... The net transfer of C was eventually", "{:.2E}".format(Decimal(final_C_exchange)), "gC.")
+
         # TRANSFER OF N FROM ROOTS TO SHOOTS:
         #####################################
 
@@ -1082,8 +1097,8 @@ def run_simulation_for_one_plant(my_path=None,
             initial_shoot_labile_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
             initial_shoot_labile_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
 
-            print("    The shoot system initially contains", shoot_g.nb_vertices()-1, "elements.")
-            print("\n    Shoot labile C pool is initially",
+            print("\n    The shoot system of initially contains", shoot_g.nb_vertices()-1, "elements.")
+            print("    Shoot labile C pool is initially",
                   "{:.2E}".format(Decimal(initial_shoot_labile_C)),
                   "gC and shoot labile N pool is",
                   "{:.2E}".format(Decimal(initial_shoot_labile_N)), "gN.")
@@ -1188,7 +1203,6 @@ def run_simulation_for_one_plant(my_path=None,
             # The total amount of labile C to redistribute into the shoot organs is defined as:
             shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
             if shoot_available_C <= 0.:
-                print("WATCH OUT: there is no labile C left in the shoot to be redistributed!")
                 # We cover each organ n of the shoot:
                 for vid in shoot_g.vertices_iter(scale=1):
                     # We access the current organ "n":
@@ -1234,7 +1248,7 @@ def run_simulation_for_one_plant(my_path=None,
 
             # POSSIBILE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
             # If time is lower than the prescribed duration of supply from the seed:
-            if final_time_in_days * (60.*60.*24.) <= param.seed_supply_duration * temperature_time_adjustment_shoot:
+            if thermal_time_in_degree_days * (60.*60.*24.) <= param.seed_supply_duration * param.T_ref_growth:
                 # Then we allow to compute the supply of C and N resources from the germinating seed to the new seedling:
                 AllocF.computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius = air_temperature)
 
@@ -1334,6 +1348,10 @@ def run_simulation_for_one_plant(my_path=None,
                 = (N_consumption_rate_for_extension
                    + (N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds)
 
+            if plant.actual_C_consumption_rate_by_shoot_growth > 0.:
+                print("...")
+
+
             # We perform the C&N balance both within each organ and at the shoot system scale:
             AllocF.shoot_CN_balance_at_organ_and_system_scales(shoot_system=plant,
                                                                shoot_MTG=shoot_g,
@@ -1421,6 +1439,9 @@ def run_simulation_for_one_plant(my_path=None,
         # We can record the main properties of the plant:
         recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
 
+        if plant.actual_C_consumption_rate_by_shoot_growth > 0.:
+            print("...")
+
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
         results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
                                                        final_time_in_days=actual_time_in_days,
@@ -1446,17 +1467,15 @@ def run_simulation_for_one_plant(my_path=None,
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation_for_a_plant_cover(my_path=None,
-                                     list_of_distinct_plant_types= [],
-                                     list_of_distinct_shoot_MTG = [],
-                                     list_of_distinct_root_MTG = [],
-                                     parameter_scenarios={},
-                                     list_of_parameter_file_names_for_the_distinct_plant_MTG=["simbal_parameters_1.xlsx",
-                                                                                              "simbal_parameters_2.xlsx"],
-                                     list_of_numbers_of_plants_per_square_meter=[33, 16.5],
-                                     list_of_inter_row_distances=[0.20, 0.20],
-                                     list_of_number_of_rows_to_show=[3, 2],
-                                     list_of_scene_lengths=[1, 1],
-                                     list_of_scene_widths=[0.5, 0.5],
+                                     genotype_names_list=[],
+                                     parameters_dict={},
+                                     shoot_MTG_dict={},
+                                     root_MTG_dict={},
+                                     numbers_of_plants_per_square_meter_dict={},
+                                     inter_row_distances_dict={},
+                                     number_of_rows_to_show_dict={},
+                                     scene_lengths_dict={},
+                                     scene_widths_dict={},
                                      zoom_factor=100.,
                                      simulation_period_in_days=20., time_step_in_days=1/24.,
                                      starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
@@ -1476,10 +1495,29 @@ def run_simulation_for_a_plant_cover(my_path=None,
     -------
     """
 
-    # We define the number of distinct shoot MTG, root MTG and plant objects to be used in the simulation:
-    number_of_shoot_MTG = len(list_of_distinct_shoot_MTG)
-    number_of_root_MTG = len(list_of_distinct_root_MTG)
-    number_of_distinct_plants = max(number_of_shoot_MTG, number_of_root_MTG)
+    # We create a list of names containing first the population, then the names of each genotype:
+    population_and_genotypes_names_list = ["population"]
+    population_and_genotypes_names_list.extend(genotype_names_list)
+
+    # We define the number of distinct shoot MTG, root MTG and distinct plants to be used in the simulation:
+    number_of_shoot_MTG = len(shoot_MTG_dict)
+    number_of_root_MTG = len(root_MTG_dict)
+
+    # We initiate dictionaries that will contain items for each of the distinct genotype to be treated:
+    outputs_directories = {}
+    plot_directories = {}
+    shoot_MTG_directories = {}
+    root_MTG_directories = {}
+    plant_objects = {}
+    plant_data_frame_dict = {}
+    shoot_total_C_dict = {}
+    root_total_C_dict = {}
+    shoot_total_N_dict = {}
+    root_total_N_dict = {}
+    cam_x_dict = {}
+    cam_y_dict = {}
+    cam_z_dict = {}
+    cam_index_dict = {}
 
     # SETTING FILE PATHS AND FOLDERS:
     #--------------------------------
@@ -1489,25 +1527,10 @@ def run_simulation_for_a_plant_cover(my_path=None,
         # We first define the path and the file to read as a .csv:
         my_path = os.path.join('../../..', os.getcwd())
 
-    # We initiate lists that will contain items for each of the distinct plant objects to be treated:
-    outputs_directories=[]
-    plot_directories=[]
-    shoot_MTG_directories=[]
-    root_MTG_directories=[]
-    parameters=[]
-    plant_objects_list=[]
-    plant_data_frame_list=[]
-    shoot_total_C_list=[]
-    root_total_C_list=[]
-    shoot_total_N_list=[]
-    root_total_N_list=[]
-    cam_x=[]
-    cam_y=[]
-    cam_z=[]
-    cam_index=[]
-
     # We consider a general output directory:
     outputs_directory = os.path.join(my_path, "simulation", "outputs")
+    # We add this output directory to the dictionary of output directories:
+    outputs_directories["population"] = outputs_directory
     # If the directory doesn't exist:
     if not os.path.exists(outputs_directory):
         # Then we create it:
@@ -1520,6 +1543,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
     # We consider a plot directory for showing the whole population:
     plot_directory = os.path.join(my_path, "simulation", "outputs", "population_plots")
+    # We add this plot directory to the dictionary of plot directories:
+    plot_directories["population"] = plot_directory
     # If the directory doesn't exist:
     if not os.path.exists(plot_directory):
         # Then we create it:
@@ -1529,15 +1554,13 @@ def run_simulation_for_a_plant_cover(my_path=None,
         for root, dirs, files in os.walk(plot_directory):
             for file in files:
                 os.remove(os.path.join(root, file))
-    # We add this plot directory to the list of plot directories:
-    plot_directories.append(plot_directory)
 
     # For each distinct plant genotype to be simulated:
-    for i in range(1,number_of_distinct_plants+1):
+    for genotype_name in genotype_names_list:
 
         # We consider the outputs directory for the current MTG type:
-        sub_outputs_directory = os.path.join(outputs_directory, "outputs_" + str(i))
-        outputs_directories.append(sub_outputs_directory)
+        sub_outputs_directory = os.path.join(outputs_directory, "outputs_" + genotype_name)
+        outputs_directories[genotype_name]=sub_outputs_directory
         # If the directory doesn't exist:
         if not os.path.exists(sub_outputs_directory):
             # Then we create it:
@@ -1550,7 +1573,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
         # We consider the plot subdirectory:
         plot_directory = os.path.join(sub_outputs_directory, "plots")
-        plot_directories.append(plot_directory)
+        plot_directories[genotype_name]=plot_directory
         # If the directory doesn't exist:
         if not os.path.exists(plot_directory):
             # Then we create it:
@@ -1563,7 +1586,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
         # We consider the directory containing the attributes of shoot properties over time:
         shoot_MTG_directory = os.path.join(sub_outputs_directory, "shoot_MTG_properties")
-        shoot_MTG_directories.append(shoot_MTG_directory)
+        shoot_MTG_directories[genotype_name] = shoot_MTG_directory
         # If this directory doesn't exist:
         if not os.path.exists(shoot_MTG_directory):
             # Then we create it:
@@ -1576,7 +1599,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
         # We consider the directory containing the attributes of root properties over time:
         root_MTG_directory = os.path.join(sub_outputs_directory, "root_MTG_properties")
-        root_MTG_directories.append(root_MTG_directory)
+        root_MTG_directories[genotype_name] = root_MTG_directory
         # If this directory doesn't exist:
         if not os.path.exists(root_MTG_directory):
             # Then we create it:
@@ -1590,104 +1613,89 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # LOADING PARAMETERS AND INSTRUCTIONS:
     #-------------------------------------
 
-    # First we update the standard parameters from 'simbal_parameters.py' with generic parameters from the Excel file
-    # "simbal_parameters.xlsx", without distinction between plant types:
-    scenario_parameters_main = loading_parameters_from_file(
-        parameters_filepath = os.path.join(my_path, "simulation", "inputs", "simbal_parameters.xlsx"),
-        outputs_path = os.path.join(outputs_directory))
-    # We add the parameters for handling the population to the list of parameters:
-    parameters.append(scenario_parameters_main)
-    # And we update the parameters from the original python file with the parameters read in the Excel file:
-    param.__dict__.update(scenario_parameters_main)
-    # Then for each distinct MTG to be created, we register the respective dictionnaries made to update parameters:
-    for i in range(0, number_of_distinct_plants):
-        # The values of the parameters in the simulation for the given MTG will be later updated according to the values
-        # in the parameter file corresponding to the current MTG:
-        scenario_parameters_species = loading_parameters_from_file(
-            parameters_filepath = os.path.join(my_path, "simulation", "inputs", list_of_parameter_file_names_for_the_distinct_plant_MTG[i]),
-            outputs_path = os.path.join(outputs_directory, "outputs_" + str(i+1)))
-        parameters.append(scenario_parameters_species)
+    # (In case it has not been done before:) We update the general parameters defined for the population:
+    parameters_pop = parameters_dict["population"]
+    param.__dict__.update()
 
     # We read the other specific instructions of the scenario that do not correspond to the parameters in the list
     # (Note: The following function "get" looks if the first argument is present in the scenario parameters.
     # If not, it returns the default value indicated in the second argument, which may be the default argument
     # of the function 'run_simulation' itself):
-    SIMULATION_OPTION = scenario_parameters_main.get('simulation_option',
-                                                simulation_option)
-    SIMULATION_PERIOD_IN_DAYS = scenario_parameters_main.get('simulation_period_in_days',
-                                                        simulation_period_in_days)
-    TIME_STEP_IN_DAYS = scenario_parameters_main.get('time_step_in_days',
-                                                time_step_in_days)
-    STARTING_TIME_IN_DAYS = scenario_parameters_main.get('starting_time_in_days',
-                                                starting_time_in_days)
-    STARTING_THERMAL_TIME_IN_DAYS = scenario_parameters_main.get('starting_thermal_time_in_degree_days',
-                                                starting_thermal_time_in_degree_days)
+    SIMULATION_OPTION = parameters_pop.get('simulation_option',
+                                           simulation_option)
+    SIMULATION_PERIOD_IN_DAYS = parameters_pop.get('simulation_period_in_days',
+                                                   simulation_period_in_days)
+    TIME_STEP_IN_DAYS = parameters_pop.get('time_step_in_days',
+                                           time_step_in_days)
+    STARTING_TIME_IN_DAYS = parameters_pop.get('starting_time_in_days',
+                                               starting_time_in_days)
+    STARTING_THERMAL_TIME_IN_DAYS = parameters_pop.get('starting_thermal_time_in_degree_days',
+                                                       starting_thermal_time_in_degree_days)
     if input_file is None:
-        INPUT_FILE = scenario_parameters_main.get('input_file',
-                                             input_file)
+        INPUT_FILE = parameters_pop.get('input_file',
+                                        input_file)
     else:
         INPUT_FILE = input_file
-    INPUT_FILE_TIME_STEP_IN_DAYS = scenario_parameters_main.get('input_file_time_step_in_days',
-                                                           input_file_time_step_in_days)
-    FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT = scenario_parameters_main.get('forcing_constant_aboveground_environment',
-                                                                       forcing_constant_aboveground_environment)
-    CONSTANT_LIGHT_IRRADIATION = scenario_parameters_main.get('constant_light_irradiation',
-                                                         constant_light_irradiation)
-    CONSTANT_AIR_TEMPERATURE = scenario_parameters_main.get('constant_air_temperature_in_Celsius',
-                                                       constant_air_temperature_in_Celsius)
-    FORCING_CONSTANT_BELOWGROUND_ENVIRONMENT = scenario_parameters_main.get('forcing_constant_belowground_environment',
-                                                                       forcing_constant_belowground_environment)
-    CONSTANT_SOIL_TEMPERATURE = scenario_parameters_main.get('constant_soil_temperature_in_Celsius',
-                                                        constant_soil_temperature_in_Celsius)
-    CONSTANT_SOIL_AVAILABLE_N = scenario_parameters_main.get('constant_soil_available_nitrogen',
-                                                        constant_soil_available_nitrogen)
+    INPUT_FILE_TIME_STEP_IN_DAYS = parameters_pop.get('input_file_time_step_in_days',
+                                                      input_file_time_step_in_days)
+    FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT = parameters_pop.get('forcing_constant_aboveground_environment',
+                                                                  forcing_constant_aboveground_environment)
+    CONSTANT_LIGHT_IRRADIATION = parameters_pop.get('constant_light_irradiation',
+                                                    constant_light_irradiation)
+    CONSTANT_AIR_TEMPERATURE = parameters_pop.get('constant_air_temperature_in_Celsius',
+                                                  constant_air_temperature_in_Celsius)
+    FORCING_CONSTANT_BELOWGROUND_ENVIRONMENT = parameters_pop.get('forcing_constant_belowground_environment',
+                                                                  forcing_constant_belowground_environment)
+    CONSTANT_SOIL_TEMPERATURE = parameters_pop.get('constant_soil_temperature_in_Celsius',
+                                                   constant_soil_temperature_in_Celsius)
+    CONSTANT_SOIL_AVAILABLE_N = parameters_pop.get('constant_soil_available_nitrogen',
+                                                   constant_soil_available_nitrogen)
 
     # SETTING INITIAL CONDITIONS
     #---------------------------
 
     # INITIALIZING PLANT OBJECT:
-    # For each distinct plant objects to be created:
-    for i in range(1, number_of_distinct_plants+1):
+    # For each distinct plant genotype to be simulated:
+    for genotype_name in genotype_names_list:
         # INITIALIZING THE WHOLE PLANT:
         # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
-        plant_objects_list.append(whole_plant())
+        plant_objects[genotype_name]=whole_plant()
 
     # INITIALIZING SHOOT STRUCTURE:
     # In case we only want to simulate the behavior of the roots, keeping the shoot properties constant over time:
     if SIMULATION_OPTION == "roots_only":
-        # We (re)initialize the list of shoot MTG:
-        list_of_distinct_shoot_MTG=[]
-        # For each root MTG in the list:
-        for i in range(0, number_of_root_MTG):
-
+        # We (re)initialize the dictionary of shoot MTG:
+        shoot_MTG_dict={}
+        # For each distinct plant genotype:
+        for genotype_name in genotype_names_list:
             # We create a corresponding simple shoot MTG, without any dimensions (it will not be shown in the graph):
-            list_of_distinct_shoot_MTG.append(AllocF.create_shoot_MTG(number_of_phytomers=1,
-                                                                      initial_internode_height=0.,
-                                                                      initial_internode_radius=0.,
-                                                                      initial_leaf_length=0.,
-                                                                      leaf_surface_max=0.,
-                                                                      initial_labile_C_concentration=0,
-                                                                      initial_labile_N_concentration=0
-                                                                      ))
+            shoot_MTG_dict[genotype_name] = AllocF.create_shoot_MTG(number_of_cotyledons=2,
+                                                       number_of_phytomers=0,
+                                                       initial_internode_height=0.,
+                                                       initial_internode_radius=0.,
+                                                       initial_leaf_length=0.,
+                                                       leaf_surface_max=0.,
+                                                       initial_labile_C_concentration=0.,
+                                                       initial_labile_N_concentration=0.
+                                                       )
             # We define an arbitrary shoot structural mass (gram), which will remain constant over the simulation:
-            plant = plant_objects_list[i]
+            plant = plant_objects[genotype_name]
             plant.shoot_struct_mass = 0.1
             plant.shoot_labile_C_pool = 0.
             plant.shoot_labile_N_pool = 0.
     else:
         # Otherwise, shoot MTG should have been provided in the input list, so we just have to update the properties
         # of the corresponding whole plant objects.
-        # For each shoot MTG in the list:
-        for i in range(0, number_of_shoot_MTG):
-
-            shoot_g = list_of_distinct_shoot_MTG[i]
-            shoot_MTG_directory = shoot_MTG_directories[i]
-
+        # For each distinct plant genotype:
+        for genotype_name in genotype_names_list:
+            # We get the plant object, the shoot MTG and the directory of the outputs:
+            plant = plant_objects[genotype_name]
+            shoot_g = shoot_MTG_dict[genotype_name]
+            shoot_MTG_directory = shoot_MTG_directories[genotype_name]
             # We update the shoot system general properties based on the shoot MTG:
             for vid in shoot_g.vertices_iter(scale=1):
                 n = shoot_g.node(vid)
                 try:
-                    plant = plant_objects_list[i]
                     plant.shoot_struct_mass += n.struct_mass
                     plant.shoot_labile_C_pool += n.labile_C
                     plant.shoot_labile_C_deficit += n.labile_C_deficit
@@ -1704,25 +1712,24 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # INITIALIZING ROOT STRUCTURE:
     # In case we only want to simulate the behavior of the shoot, keeping the root properties constant over time:
     if SIMULATION_OPTION == "shoot_only":
-        # We (re)initialize the list of root MTG:
-        list_of_distinct_root_MTG = []
-        # For each shoot MTG in the list:
-        for i in range(0, number_of_shoot_MTG):
+        # We (re)initialize the dictionary of root MTG:
+        root_MTG_dict = {}
+        # For each distinct plant genotype:
+        for genotype_name in genotype_names_list:
             # We create a corresponding simple root MTG, without any dimensions (it will not be shown in the graph):
-            list_of_distinct_root_MTG.append(RootSimple.initiate_mtg(initial_segment_length=0.))
+            root_MTG_dict[genotype_name] = RootSimple.initiate_mtg(initial_segment_length=0.)
             # We define an arbitrary initial root mass (gram) that will remain constant over the simulation:
-            plant = plant_objects_list[i]
+            plant = plant_objects[genotype_name]
             plant.root_struct_mass = 0.01
     else:
         # Otherwise, root MTG should have been provided in the input list, so we just have to update the properties
         # of the corresponding whole plant objects.
-        # For each root MTG in the list:
-        for i in range(0, number_of_root_MTG):
-
-            plant = plant_objects_list[i]
-            root_g = list_of_distinct_root_MTG[i]
-            root_MTG_directory = shoot_MTG_directories[i]
-
+        # For each distinct plant genotype:
+        for genotype_name in genotype_names_list:
+            # We access the plant object, root MTG and root MTG directory in the outputs:
+            plant = plant_objects[genotype_name]
+            root_g = root_MTG_dict[genotype_name]
+            root_MTG_directory = root_MTG_directories[genotype_name]
             # We update the distance from tip for each root element in each root axis:
             RootSimple.update_distance_from_tip(root_g)
             # We update the surfaces and volumes of each root element:
@@ -1736,12 +1743,14 @@ def run_simulation_for_a_plant_cover(my_path=None,
             # We record the properties in the initial state of the root MTG in an external file:
             recording_MTG_properties(root_g, os.path.join(root_MTG_directory, 'MTG_00000.csv'))
 
-    # For each distinct plant to be treated:
-    for i in range(0, number_of_distinct_plants):
+    # INITIALIZING RESULTS AND C&N BALANCE:
+    # For each distinct plant genotype:
+    for genotype_name in genotype_names_list:
 
-        plant = plant_objects_list[i]
-        shoot_g = list_of_distinct_shoot_MTG[i]
-        root_g = list_of_distinct_root_MTG[i]
+        # We get the corresponding plant object and MTG:
+        plant = plant_objects[genotype_name]
+        shoot_g = shoot_MTG_dict[genotype_name]
+        root_g = root_MTG_dict[genotype_name]
 
         # We initialize the dictionary containing the general properties of the plant:
         results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days=0., thermal_time_in_degree_days=0.)
@@ -1753,21 +1762,21 @@ def run_simulation_for_a_plant_cover(my_path=None,
         results_dict["Step"] = 0
 
         # We initialize a dataframe containing these properties for each time step:
-        plant_data_frame_list.append(pd.DataFrame(results_dict, index=[0]))
+        plant_data_frame_dict[genotype_name] = pd.DataFrame(results_dict, index=[0])
 
         # And we initialize the C and N balance by computing the initial amounts of C and N in the shoots and roots:
-        shoot_total_C_list.append((plant.shoot_struct_mass * param.structural_C_content
-                                   + (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
-                                   + plant.shoot_reserve_C_pool))
-        root_total_C_list.append((plant.root_struct_mass * param.structural_C_content
-                                  + (plant.root_labile_C_pool - plant.root_labile_C_deficit)
-                                  + plant.root_reserve_C_pool))
-        shoot_total_N_list.append((plant.shoot_struct_mass * param.structural_N_content
-                                   + (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
-                                   + plant.shoot_reserve_N_pool))
-        root_total_N_list.append((plant.root_struct_mass * param.structural_N_content
-                                  + (plant.root_labile_N_pool - plant.root_labile_N_deficit)
-                                  + plant.root_reserve_N_pool))
+        shoot_total_C_dict[genotype_name] = (plant.shoot_struct_mass * param.structural_C_content
+                                             + (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
+                                             + plant.shoot_reserve_C_pool)
+        root_total_C_dict[genotype_name] = (plant.root_struct_mass * param.structural_C_content
+                                            + (plant.root_labile_C_pool - plant.root_labile_C_deficit)
+                                            + plant.root_reserve_C_pool)
+        shoot_total_N_dict[genotype_name] = (plant.shoot_struct_mass * param.structural_N_content
+                                             + (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
+                                             + plant.shoot_reserve_N_pool)
+        root_total_N_dict[genotype_name] = (plant.root_struct_mass * param.structural_N_content
+                                            + (plant.root_labile_N_pool - plant.root_labile_N_deficit)
+                                            + plant.root_reserve_N_pool)
 
     # DEFINING THE PERIOD OF SIMULATION:
     # ----------------------------------
@@ -1808,10 +1817,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # CONSIDERING CAMERA ROTATION WHEN PLOTTING:
     #-------------------------------------------
 
-    # We consider camera movements for the population, then for each individual plant genotype:
-    for i in range(0, number_of_distinct_plants+1):
+    for name in population_and_genotypes_names_list:
         # We update the parameters from the original python file with the parameters read in the Excel file:
-        param.__dict__.update(parameters[i])
+        param.__dict__.update(parameters_dict[name])
         if param.camera_movement is True:
             # In case the camera needs to rotate around the target and/or to move away from it or to move up/down:
             if param.step_back_coefficient != 0. or param.step_up_coefficient != 0.:
@@ -1826,7 +1834,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
             # Otherwise, only one loop is necessary, and the camera will reuse the same coordinates after one complete rotation:
             else:
                 number_of_loops = 1
-            # We calculate the x,y,z coordinates of the different positions of the camera.
+            # We calculate the x,y,z coordinates of the different positions of the camera:
             [x,y,z] = circle_coordinates(x_center=param.x_center,
                                          y_center=param.y_center,
                                          z_center=param.z_camera,
@@ -1835,11 +1843,11 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          n_loops=number_of_loops,
                                          step_back_coefficient=param.step_back_coefficient,
                                          step_up_coefficient=param.step_up_coefficient)
-            cam_x.append(x)
-            cam_y.append(y)
-            cam_z.append(z)
-            # We initialize the index in the list of the coordinates:
-            cam_index.append(0)
+            cam_x_dict[name] = x
+            cam_y_dict[name] = y
+            cam_z_dict[name] = z
+            # We initialize the index of the camera, so that it will get the first coordinate of x, y or z vectors:
+            cam_index_dict[name] = 0
 
     ####################################################################################################################
 
@@ -1884,7 +1892,6 @@ def run_simulation_for_a_plant_cover(my_path=None,
               "{:.2f}".format(Decimal(soil_temperature)), "degree Celsius.")
         print("    Incoming light is", "{:.0f}".format(Decimal(light_input)), "micromol of photons per square meter per second.")
         print("    Soil available N is", "{:.2E}".format(Decimal(soil_available_nitrogen)), "gN per gram of dry soil.")
-        print("")
 
         # CALCULATING AN EQUIVALENT OF THERMAL TIME:
         # ------------------------------------------
@@ -1912,13 +1919,13 @@ def run_simulation_for_a_plant_cover(my_path=None,
         thermal_time_in_degree_days += (thermal_time_step_in_seconds_shoots)/(24.*60.*60.) * param.T_ref_growth
 
         # We cover each distinct plant to be computed:
-        for i in range(0, number_of_distinct_plants):
+        for genotype_name in genotype_names_list:
 
             # ACCESSING THE CURRENT PLANT:
-            plant = plant_objects_list[i]
+            plant = plant_objects[genotype_name]
 
             # UPDATING PARAMETERS FOR THE CURRENT PLANT
-            scenario = parameters[i]
+            scenario = parameters_dict[genotype_name]
             # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
             param.__dict__.update(scenario)
 
@@ -1945,12 +1952,12 @@ def run_simulation_for_a_plant_cover(my_path=None,
             # TRANSFER OF C FROM SHOOTS TO ROOTS:
             #####################################
 
-            print("    > Computing shoot-to-root C transfer...")
+            print("\n    > Computing shoot-to-root C transfer for", genotype_name + "...")
             # We compute the rate of net C transfer from shoots to roots:
             computing_shoot_root_exchange_rates(plant, computing_C_exchange=True, computing_N_exchange=False,
                                                 time_step_in_seconds=time_step_in_seconds,
                                                 C_option="by_diffusion")
-            print("    > The net transfer of C should be",
+            print("      The net transfer of C should be",
                   "{:.2E}".format(Decimal(plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds)), "gC.")
             # Note that only the rate has been computed here, the labile C pools have not been updated yet!
             # We limit the transfer of C from shoots to roots (or from roots to shoots) to the maximal amount of labile C
@@ -1986,12 +1993,12 @@ def run_simulation_for_a_plant_cover(my_path=None,
             # TRANSFER OF N FROM ROOTS TO SHOOTS:
             #####################################
 
-            print("    > Computing root-to-shoot N transfer...")
+            print("    > Computing root-to-shoot N transfer for", genotype_name + "...")
             # We compute the rate of net N transfer from roots to shoots:
             computing_shoot_root_exchange_rates(plant, computing_C_exchange=False, computing_N_exchange=True,
                                                 time_step_in_seconds=time_step_in_seconds,
                                                 N_option="by_diffusion")
-            print("    > The net transfer of N should be",
+            print("      The net transfer of N should be",
                   "{:.2E}".format(Decimal(plant.net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds)),
                   "gN.")
             # We then limit the transfer of N from roots to shoots (or from shoots to roots) to the maximal amount of N
@@ -2032,19 +2039,19 @@ def run_simulation_for_a_plant_cover(my_path=None,
         if SIMULATION_OPTION != "shoot_only":
 
             # We cover each distinct plant to be computed:
-            for i in range(0, number_of_distinct_plants):
+            for genotype_name in genotype_names_list:
                 # ACCESSING THE CURRENT PLANT:
-                plant = plant_objects_list[i]
-                root_g = list_of_distinct_root_MTG[i]
+                plant = plant_objects[genotype_name]
+                root_g = root_MTG_dict[genotype_name]
 
                 # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameters[i+1]
+                scenario = parameters_dict[genotype_name]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
                 # We update the parameters from the original python file of RhizoDep with the parameters taken from this dictionnary:
                 rhizodep_param.__dict__.update(scenario)
 
-                print("    For plant", i+1, "root labile C pool is initially",
+                print("\n    For", genotype_name, "root labile C pool is initially",
                       "{:.2E}".format(Decimal(plant.root_labile_C_pool - plant.root_labile_C_deficit)),
                       "gram of C, and labile N pool is",
                       "{:.2E}".format(Decimal(plant.root_labile_N_pool - plant.root_labile_N_deficit)), "gram of N.")
@@ -2070,6 +2077,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 # We compute the rate of maintenance respiration (gC per plant per second):
                 RootSimple.computing_maintenance_rate(root_system=plant,
                                                       soil_temperature_in_degree_Celsius=soil_temperature)
+                #TODO: WATCH OUT BELOW
                 # # We compute the rate of C exchange with reserve (gC per plant per second):
                 # RootSimple.computing_exchange_rates_with_reserve(root_system=plant,
                 #                                                  soil_temperature_in_degree_Celsius=soil_temperature)
@@ -2089,7 +2097,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 print("    The satisfaction coefficient for C is", "{:.2f}".format(Decimal(satisf_for_C)),
                       "and the one for N is", "{:.2f}".format(Decimal(satisf_for_N)))
                 # We use the function ArchiSimple_growth to adapt the potential growth to the available labile C and N,
-                # and we calculate the consumption rates for C & N, without updating the labile pools of C and N:
+                # update the new root structure, and calculate the consumption rates for C & N,
+                # without updating the labile pools of C and N:
                 RootSimple.ArchiSimple_growth_with_C_and_N(plant, root_g,
                                                            satisf_for_C, satisf_for_N,
                                                            time_step_in_seconds=time_step_in_seconds)
@@ -2127,96 +2136,112 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
         if SIMULATION_OPTION != "roots_only":
 
-            # We cover each distinct plant to be computed:
-            for i in range(0, number_of_distinct_plants):
+            # TODO: WATCH OUT BELOW!
+            # REINITIALIZING SHOOT MTG VARIABLES:
+            # We cover each distinct plant type to be computed:
+            for genotype_name in genotype_names_list:
                 # ACCESSING THE CURRENT PLANT:
-                plant = plant_objects_list[i]
-                shoot_g = list_of_distinct_shoot_MTG[i]
+                shoot_g = shoot_MTG_dict[genotype_name]
+                # We reset all local properties to 0:
+                AllocF.shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=True)
 
-                # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameters[i+1]
-                # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
+            # LIGHT INTERCEPTION:
+            #####################
+
+            print("\n    Preparing the scene...")
+
+            # We create a dictionary of scene details and an updated list containing one shoot MTG of each genotype
+            # copied and distributed over the scene:
+            scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG = prepare_heterogeneous_plants_population(
+                genotype_names_list=genotype_names_list,
+                parameters_dict=parameters_dict,
+                shoot_MTG_dict=shoot_MTG_dict,
+                root_MTG_dict=root_MTG_dict,
+                option="shoots_only",
+                numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+                inter_row_distances_dict=inter_row_distances_dict,
+                number_of_rows_to_show_dict=number_of_rows_to_show_dict,
+                scene_lengths_dict=scene_lengths_dict,
+                scene_widths_dict=scene_widths_dict,
+                upscaling_factor=zoom_factor)
+
+            # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+            scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                                      genotype_names_list=genotype_names_list,
+                                                                      parameters_dict=parameters_dict,
+                                                                      list_of_shoot_MTG=list_of_all_shoot_MTG,
+                                                                      list_of_root_MTG=[],
+                                                                      option="shoots_only",
+                                                                      leaf_shape=param.light_interception_leaf_shape,
+                                                                      simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
+                                                                      upscaling_factor=zoom_factor)
+
+            print("    Intercepting light...")
+
+            # We compute the light interception on the whole scene, and collect the intercepted PAR for each distinct plant type:
+            total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict = \
+                AllocF.computing_light_interception_on_plant_population(scene=scene,
+                                                                        scene_information=scene_information,
+                                                                        genotype_names_list=genotype_names_list,
+                                                                        shoot_MTG_dict=shoot_MTG_dict,
+                                                                        list_of_scene_MTG=list_of_all_shoot_MTG,
+                                                                        incoming_light_density=light_input,
+                                                                        zenithal_light=False,
+                                                                        infinite=False,
+                                                                        averaging_light_intensity_share=True,
+                                                                        period_of_light_intensity_averaging_in_days=1.,
+                                                                        time_step_in_days=time_step_in_days
+                                                                        )
+
+            # We cover each distinct plant type to be computed:
+            for genotype_name in genotype_names_list:
+                # ACCESSING THE CURRENT PLANT:
+                plant = plant_objects[genotype_name]
+                shoot_g = shoot_MTG_dict[genotype_name]
+
+                # UPDATING PARAMETERS FOR THE CURRENT PLANT:
+                # We get the set of parameters for this genotype:
+                scenario = parameters_dict[genotype_name]
+                # We update the parameters from the original python file of SIMBAL with this set of parameters:
                 param.__dict__.update(scenario)
 
                 # We register the initial state of the labile C & N pools in the shoot:
                 initial_shoot_labile_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
                 initial_shoot_labile_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
 
-                print("    The shoot system initially contains", shoot_g.nb_vertices()-1, "elements.")
-                print("\n    Shoot labile C pool is initially",
+                print("\n    The shoot system of", genotype_name, "initially contains", shoot_g.nb_vertices() - 1,
+                      "elements.")
+                print("    Its shoot labile C pool is initially",
                       "{:.2E}".format(Decimal(initial_shoot_labile_C)),
-                      "gC and shoot labile N pool is",
+                      "gC and its shoot labile N pool is",
                       "{:.2E}".format(Decimal(initial_shoot_labile_N)), "gN.")
 
-            # LIGHT INTERCEPTION:
-            #####################
-
-            # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
-            scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
-                = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=list_of_distinct_plant_types,
-                                                          list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
-                                                          list_of_distinct_root_MTG=[],
-                                                          list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
-                                                          list_of_inter_row_distances=list_of_inter_row_distances,
-                                                          list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
-                                                          list_of_scene_lengths=list_of_scene_lengths,
-                                                          list_of_scene_widths=list_of_scene_widths,
-                                                          upscaling_factor=zoom_factor)
-
-            # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
-            scene, scene_information = create_plants_population_scene(scene_information=scene_information,
-                                                                      parameter_scenarios=parameter_scenarios,
-                                                                      list_of_shoot_MTG=list_of_scene_shoot_MTG,
-                                                                      list_of_root_MTG=[],
-                                                                      leaf_shape="diamond_shape",
-                                                                      simplified_leaf_shape_for_surface_calculation="diamond_shape",
-                                                                      upscaling_factor=zoom_factor)
-
-            # We compute the light interception on the whole scene, and collect the intercepted PAR for each distinct plant type:
-            list_of_total_PAR_intercepted, list_of_sum_of_surfacic_PAR = \
-                AllocF.computing_light_interception_on_plant_population(scene=scene,
-                                                                        scene_information=scene_information,
-                                                                        list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
-                                                                        list_of_scene_MTG=list_of_scene_shoot_MTG,
-                                                                        incoming_light_density=light_input,
-                                                                        zenithal_light=False,
-                                                                        infinite=False,
-                                                                        averaging_light_intensity_share=True,
-                                                                        period_of_light_intensity_averaging_in_days=0.5,
-                                                                        time_step_in_days=time_step_in_days
-                                                                        )
-
-            # Now we cover again each distinct plant type to be computed:
-            for i in range(0, number_of_distinct_plants):
-
-                # ACCESSING THE CURRENT PLANT:
-                plant = plant_objects_list[i]
-                shoot_g = list_of_distinct_shoot_MTG[i]
-                total_PAR_intercepted = list_of_total_PAR_intercepted[i]
-                sum_of_surfacic_PAR = list_of_sum_of_surfacic_PAR[i]
-                # We record the PAR intercepted in the properties of the plant:
+                total_PAR_intercepted = total_PAR_intercepted_dict[genotype_name]
+                sum_of_surfacic_PAR = sum_of_surfacic_PAR_dict[genotype_name]
+                # We record the PAR intercepted as a property of the whole plant:
                 plant.total_PAR_intercepted = total_PAR_intercepted
-
-                # UPDATING PARAMETERS FOR THE CURRENT PLANT
-                scenario = parameters[i+1]
-                # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
-                param.__dict__.update(scenario)
 
                 # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
                 #########################################
 
-                # Reallocating labile N within each shoot organ:
-                #-----------------------------------------------
+                # If the distribution of labile C and N is based on PAR intercepted and if no light interception
+                # has been computed so far:
+                if len(n.previous_PAR_intercepted_values) == 0:
+                    total_shoot_struct_mass = sum(shoot_g.properties()["struct_mass"].values())
+
+                # Redistributing labile N within each shoot organ:
+                #-------------------------------------------------
+
                 # The total amount of labile N to redistribute into the shoot organs is defined as:
                 shoot_available_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
-                if shoot_available_N <= 0.:
-                    print("WATCH OUT: there is no labile N left in the shoot to be redistributed!")
-                    # We cover each organ of the shoot:
-                    for vid in shoot_g.vertices_iter(scale=1):
-                        # We access the current organ "n":
-                        n = shoot_g.node(vid)
-                        if n.surface <= 0.:
-                            continue
+                # We cover each organ of the shoot:
+                for vid in shoot_g.vertices_iter(scale=1):
+                    # We access the current organ "n":
+                    n = shoot_g.node(vid)
+                    if n.surface <= 0.:
+                        continue
+                    # If there is no labile N to be distributed, the shoot labile N will remain 0:
+                    if shoot_available_N <= 0.:
                         labile_N_target = 0.
                         # We calculate the rate of net N input to this organ corresponding from this redistribution:
                         n.shoot_N_distribution_rate = (labile_N_target - (
@@ -2224,21 +2249,24 @@ def run_simulation_for_a_plant_cover(my_path=None,
                         # We now redefine the local pool of labile N according to this target level:
                         n.labile_N = 0.
                         n.labile_N_deficit = -labile_N_target
-                else:
-                    # We cover each organ of the shoot:
-                    for vid in shoot_g.vertices_iter(scale=1):
-                        # We access the current organ "n":
-                        n = shoot_g.node(vid)
-                        if n.surface <= 0.:
-                            continue
+                    # Otherwise, if there is labile N in the shoot:
+                    else:
+                        #TODO: WATCH OUT BELOW
                         # We define the fraction of shoot available N allocated to this organ based on the previously
-                        # computed light intensity share:
-                        fraction = n.light_intensity_share
+                        # computed light intensity share.
+                        # If no light interception was computed so far:
+                        if len(n.previous_PAR_intercepted_values) == 0:
+                            # Then the fraction of labile N allocated to this organ will be based on its structural mass:
+                            fraction =  n.struct_mass / total_shoot_struct_mass
+                        else:
+                            fraction = n.light_intensity_share
+                        # The eventual shoot labile N to be targeted after redistribution is:
                         labile_N_target = shoot_available_N * fraction
                         # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                        n.shoot_N_distribution_rate = (labile_N_target - (
-                                n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                        n.shoot_N_distribution_rate = (labile_N_target - (n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
                         # We now redefine the local pool of labile N according to this target level:
+                        # n.labile_N = 0.
+                        # n.labile_N_deficit = -labile_N_target
                         n.labile_N = labile_N_target
                         n.labile_N_deficit = 0.
 
@@ -2246,14 +2274,14 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 #-----------------------------------------------
                 # The total amount of labile C to redistribute into the shoot organs is defined as:
                 shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
-                if shoot_available_C <= 0.:
-                    print("WATCH OUT: there is no labile C left in the shoot to be redistributed!")
-                    # We cover each organ n of the shoot:
-                    for vid in shoot_g.vertices_iter(scale=1):
-                        # We access the current organ "n":
-                        n = shoot_g.node(vid)
-                        if n.surface <= 0.:
-                            continue
+                # We cover each organ n of the shoot:
+                for vid in shoot_g.vertices_iter(scale=1):
+                    # We access the current organ "n":
+                    n = shoot_g.node(vid)
+                    if n.surface <= 0.:
+                        continue
+                    # If there is no labile C to be distributed, the shoot labile C will remain 0:
+                    if shoot_available_C <= 0.:
                         labile_C_target = 0.
                         # We calculate the rate of net N input to this organ corresponding from this redistribution:
                         n.shoot_C_distribution_rate = (labile_C_target - (
@@ -2261,23 +2289,37 @@ def run_simulation_for_a_plant_cover(my_path=None,
                         # We now redefine the local pool of labile C according to this target level:
                         n.labile_C_deficit = -labile_C_target
                         n.labile_C = 0.
-                else:
-                    # We cover each organ n of the shoot:
-                    for vid in shoot_g.vertices_iter(scale=1):
-                        # We access the current organ "n":
-                        n = shoot_g.node(vid)
-                        if n.surface <= 0.:
-                            continue
-                        # We define the fraction of shoot available N allocated to this organ based on the previously
+                    # Otherwise, if there is labile C in the shoot:
+                    else:
+                        #TODO: WATCH OUT BELOW
+                        # We define the fraction of shoot available C allocated to this organ based on the previously
                         # computed light intensity share:
-                        fraction = n.light_intensity_share
+                        # If no light interception was computed so far:
+                        if len(n.previous_PAR_intercepted_values) == 0:
+                            # Then the fraction of labile N allocated to this organ will be based on its structural mass:
+                            fraction = n.struct_mass / total_shoot_struct_mass
+                        else:
+                            fraction = n.light_intensity_share
+                        # The eventual shoot labile C to be targeted after redistribution is:
                         labile_C_target = shoot_available_C * fraction
                         # We calculate the rate of net N input to this organ corresponding from this redistribution:
                         n.shoot_C_distribution_rate = (labile_C_target - (
                                 n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
                         # We now redefine the local pool of labile C according to this target level:
+                        # n.labile_C_deficit = -labile_C_target
+                        # n.labile_C = 0.
                         n.labile_C = labile_C_target
                         n.labile_C_deficit = 0.
+
+                # POSSIBLE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
+                # If the elapsed thermal time is lower than the prescribed duration of supply from the seed:
+                if thermal_time_in_degree_days * (60.*60.*24.) <= param.seed_supply_duration * param.T_ref_growth:
+                    # Then we allow to compute the supply of C and N resources from the germinating seed to the new seedling:
+                    AllocF.computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius = air_temperature)
+                    print("    The seed will generate",
+                          "{:.2E}".format(Decimal(plant.C_supply_from_seed_rate*time_step_in_seconds)), "gC and",
+                          "{:.2E}".format(Decimal(plant.N_supply_from_seed_rate*time_step_in_seconds)),"gN over this time step...")
+                    # Note: at this stage, the labile C and N amounts have not been updated in the organs or at the scale of the plant!
 
                 # PHOTOSYNTHESIS:
                 # We calculate the rate of C production of each organ based on the PAR intercepted by the plant:
@@ -2291,25 +2333,19 @@ def run_simulation_for_a_plant_cover(my_path=None,
                       "gC over this time step...")
                 # Note: at this stage, the labile C amounts have not been updated in the organs or at the scale of the plant!
 
-                # POSSIBILE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
-                # If time is lower than the prescribed duration of supply from the seed:
-                if final_time_in_days * (60.*60.*24.) <= param.seed_supply_duration * temperature_time_adjustment_shoot:
-                    # Then we allow to compute the supply of C and N resources from the germinating seed to the new seedling:
-                    AllocF.computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius = air_temperature)
-
                 # MAINTENANCE IN THE SHOOT ORGANS:
                 # We calculate the C respiration cost associated to maintenance in each organ:
                 total_maintenance_rate = AllocF.computing_maintenance_rate(shoot_g,
                                                                            air_temperature_in_degree_Celsius=air_temperature)
                 plant.shoot_maintenance_respiration_rate = total_maintenance_rate
-                # print("    The maintenance will consume",
-                #       "{:.2E}".format(Decimal(total_maintenance_rate*time_step_in_seconds)),
-                #       "gC over the shoot system...")
+                print("    The maintenance will consume",
+                      "{:.2E}".format(Decimal(total_maintenance_rate*time_step_in_seconds)),
+                      "gC over the shoot system...")
 
                 # GROWTH IN THE SHOOT ORGANS:
                 #############################
 
-                # ORGAN EXTENSION; We calculate the possible increase in volume of each organ:
+                # ORGAN EXTENSION; We calculate the possible increase in volume for each organ:
                 AllocF.potential_shoot_growth(shoot_g,
                                               SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                               leaf_minimal_thickness=param.leaf_minimal_thickness,
@@ -2410,46 +2446,93 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 AllocF.geometry_evolution(shoot_MTG = shoot_g,
                                           plant_thermal_age_in_degree_days = thermal_time_in_degree_days)
 
-        # CHECKING C & N BALANCE:
-        #########################
+                # CHECKING C & N BALANCE:
+                #########################
 
-        # We cover each distinct plant to be computed:
-        for i in range(0, number_of_distinct_plants):
+                print("    C and N balance check on", genotype_name + "...")
 
-            print("    C and N balance check on plant", str(i) + "...")
+                # ACCESSING THE CURRENT PLANT:
+                plant = plant_objects[genotype_name]
 
-            # ACCESSING THE CURRENT PLANT:
-            plant = plant_objects_list[i]
+                # UPDATING PARAMETERS FOR THE CURRENT PLANT
+                scenario = parameters_dict[genotype_name]
+                # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
+                param.__dict__.update(scenario)
 
-            # UPDATING PARAMETERS FOR THE CURRENT PLANT
-            scenario = parameters[i+1]
-            # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
-            param.__dict__.update(scenario)
+                # We compute the current amounts of total C and N in the shoots and roots, and compare it with the previous ones
+                # when altered by the new inputs and outputs computed at this time step:
+                (shoot_total_C_dict[genotype_name], root_total_C_dict[genotype_name],
+                 shoot_total_N_dict[genotype_name], root_total_N_dict[genotype_name]) \
+                    = balance_check(plant,
+                                    genotype_name=genotype_name,
+                                    time_step_in_seconds = time_step_in_seconds,
+                                    previous_shoot_C = shoot_total_C_dict[genotype_name],
+                                    previous_root_C = root_total_C_dict[genotype_name],
+                                    previous_shoot_N = shoot_total_N_dict[genotype_name],
+                                    previous_root_N = root_total_N_dict[genotype_name])
 
-            # We compute the current amounts of total C and N in the shoots and roots, and compare it with the previous ones
-            # when altered by the new inputs and outputs computed at this time step:
-            shoot_total_C_list[i], root_total_C_list[i], shoot_total_N_list[i], root_total_N_list[i] \
-                = balance_check(plant,
-                                time_step_in_seconds = time_step_in_seconds,
-                                previous_shoot_C = shoot_total_C_list[i],
-                                previous_root_C = root_total_C_list[i],
-                                previous_shoot_N = shoot_total_N_list[i],
-                                previous_root_N = root_total_N_list[i])
+                # RECORDING THE CURRENT STATE:
+                ##############################
+
+                print("\n    Recording the results...")
+
+                # ACCESSING THE CURRENT PLANT:
+                plant = plant_objects[genotype_name]
+                shoot_g = shoot_MTG_dict[genotype_name]
+                root_g = root_MTG_dict[genotype_name]
+                shoot_MTG_directory = shoot_MTG_directories[genotype_name]
+                root_MTG_directory = root_MTG_directories[genotype_name]
+                sub_outputs_directory = outputs_directories[genotype_name]
+
+                # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
+                # We can record the main properties of the plant:
+                recording_MTG_properties(shoot_g, file_name=os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
+
+                # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
+                # We can record the main properties of the plant:
+                recording_MTG_properties(root_g, file_name=os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
+
+                # RECORDING THE FINAL RESULTS AT PLANT SCALE:
+                results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
+                                                               final_time_in_days=actual_time_in_days,
+                                                               thermal_time_in_degree_days=thermal_time_in_degree_days)
+                results_dict["Air temperature (degree_Celsius)"] = air_temperature
+                results_dict["Soil temperature (degree_Celsius)"] = soil_temperature
+                results_dict["Light irradiation (micromol of photons per m2 per second)"] = light_input
+                results_dict["Soil available N (gN per gDW of soil)"] = soil_available_nitrogen
+                results_dict["Step"] = step
+                new_df = pd.DataFrame([results_dict.values()], columns=results_dict.keys())
+
+                # We get the dataframe where previous results have been recorded:
+                plant_data_frame = plant_data_frame_dict[genotype_name]
+                # We add the new results:
+                plant_data_frame = pd.concat([plant_data_frame, new_df])
+                plant_data_frame_dict[genotype_name] = plant_data_frame
+                # We record the dataframe as a csv file:
+                try:
+                    plant_data_frame.to_csv(os.path.join(sub_outputs_directory, 'plant_results.csv'), na_rep='NA',
+                                            index=False, header=True)
+                except:
+                    plant_data_frame.to_csv(os.path.join(sub_outputs_directory, 'plant_results_BACKUP.csv'),
+                                            na_rep='NA', index=False, header=True)
 
         # PLOTTING:
         ###########
 
+        print("\n    Plotting...")
+
         if plotting_single_plants or plotting_population:
+            print("")
 
             # We open the Viewer a first time so that the next plots will appear OK:
             pgl.Viewer.display(pgl.Scene())
 
             # We consider successively a plot for the population, then for each distinct plant to be computed:
-            for i in range(0, number_of_distinct_plants+1):
+            for name in population_and_genotypes_names_list:
 
                 # ACCESSING THE PLOT DIRECTORY AND UPDATING PARAMETERS:
-                plot_directory = plot_directories[i]
-                scenario = parameters[i]
+                plot_directory = plot_directories[name]
+                scenario = parameters_dict[name]
                 # We update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
                 param.__dict__.update(scenario)
 
@@ -2458,18 +2541,18 @@ def run_simulation_for_a_plant_cover(my_path=None,
                     x_center = param.x_center
                     y_center = param.y_center
                     z_center = param.z_center
-                    index_camera = cam_index[i]
-                    x_cam = cam_x[i][index_camera]
-                    y_cam = cam_y[i][index_camera]
-                    z_cam = cam_z[i][index_camera]
+                    index_camera = cam_index_dict[name]
+                    x_cam = cam_x_dict[name][index_camera]
+                    y_cam = cam_y_dict[name][index_camera]
+                    z_cam = cam_z_dict[name][index_camera]
                     # We define the index of the coordinates to read at the next step:
-                    cam_index[i] = index_camera + 1
+                    cam_index_dict[name] = index_camera + 1
                     # If this index is higher than the number of coordinates in each vector and if no other movement
                     # of the camera (away or down) has been set over time:
-                    if (cam_index[i] >= param.camera_rotation_n_points
+                    if (cam_index_dict[name] >= param.camera_rotation_n_points
                             and param.step_back_coefficient == 0. and param.step_up_coefficient == 0.):
                         # Then we reset the index to 0, so that the camera goes back to the same locations as previously stored:
-                        cam_index[i] = 0
+                        cam_index_dict[name] = 0
                     # If "distancing" is required, the camera will continue to read the further coordinates already calculated.
                 # Otherwise, we simply use the parameters specified for the camera:
                 else:
@@ -2481,21 +2564,21 @@ def run_simulation_for_a_plant_cover(my_path=None,
                     z_cam = param.z_camera
 
                 # PLOTTING THE POPULATION:
-                if i == 0 and plotting_population:
-                    plotting_whole_scene(list_of_distinct_plant_types=list_of_distinct_plant_types,
-                                         parameter_scenarios=parameter_scenarios,
-                                         list_of_distinct_shoot_MTG=list_of_distinct_shoot_MTG,
-                                         list_of_distinct_root_MTG=list_of_distinct_root_MTG,
-                                         list_of_numbers_of_plants_per_square_meter=list_of_numbers_of_plants_per_square_meter,
-                                         list_of_inter_row_distances=list_of_inter_row_distances,
-                                         list_of_number_of_rows_to_show=list_of_number_of_rows_to_show,
-                                         list_of_scene_lengths=list_of_scene_lengths,
-                                         list_of_scene_widths=list_of_scene_widths,
+                if name == "population" and plotting_population:
+                    plotting_whole_scene(genotype_names_list=genotype_names_list,
+                                         parameters_dict=parameters_dict,
+                                         shoot_MTG_dict=shoot_MTG_dict,
+                                         root_MTG_dict=root_MTG_dict,
+                                         numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+                                         inter_row_distances_dict=inter_row_distances_dict,
+                                         number_of_rows_to_show_dict=number_of_rows_to_show_dict,
+                                         scene_lengths_dict=scene_lengths_dict,
+                                         scene_widths_dict=scene_widths_dict,
                                          width=1200, height=1200,
                                          upscaling_factor=zoom_factor,
-                                         x_center=param.x_center * zoom_factor,
-                                         y_center=param.y_center * zoom_factor,
-                                         z_center=param.z_center * zoom_factor,
+                                         x_center=x_center * zoom_factor,
+                                         y_center=y_center * zoom_factor,
+                                         z_center=z_center * zoom_factor,
                                          x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor,
                                          z_cam=z_cam * zoom_factor,
                                          grid=False,
@@ -2510,9 +2593,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          )
 
                 # PLOTTING ONE SINGLE PLANT:
-                if i > 0 and plotting_single_plants:
-                    shoot_g = list_of_distinct_shoot_MTG[i-1]
-                    root_g = list_of_distinct_root_MTG[i-1]
+                if name != "population" and plotting_single_plants:
+                    shoot_g = shoot_MTG_dict[name]
+                    root_g = root_MTG_dict[name]
 
                     # We display the MTG in its new state:
                     plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
@@ -2537,50 +2620,8 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
                                          shoots_overlapping_roots=True)
 
-        # RECORDING THE CURRENT STATE:
-        ##############################
-
-        # We cover each distinct plant to be computed:
-        for i in range(0, number_of_distinct_plants):
-
-            # ACCESSING THE CURRENT PLANT:
-            plant = plant_objects_list[i]
-            shoot_g = list_of_distinct_shoot_MTG[i]
-            root_g = list_of_distinct_root_MTG[i]
-            shoot_MTG_directory = shoot_MTG_directories[i]
-            root_MTG_directory = root_MTG_directories[i]
-            sub_outputs_directory = outputs_directories[i]
-            plant_data_frame = plant_data_frame_list[i]
-
-            # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
-            # We can record the main properties of the plant:
-            recording_MTG_properties(shoot_g, file_name = os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
-
-            # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
-            # We can record the main properties of the plant:
-            recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
-
-            # RECORDING THE FINAL RESULTS AT PLANT SCALE:
-            results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
-                                                           final_time_in_days=actual_time_in_days,
-                                                           thermal_time_in_degree_days=thermal_time_in_degree_days)
-            results_dict["Air temperature (degree_Celsius)"] = air_temperature
-            results_dict["Soil temperature (degree_Celsius)"] = soil_temperature
-            results_dict["Light irradiation (micromol of photons per m2 per second)"] = light_input
-            results_dict["Soil available N (gN per gDW of soil)"] = soil_available_nitrogen
-            results_dict["Step"] = step
-            new_df = pd.DataFrame([results_dict.values()], columns=results_dict.keys())
-
-            # We get the dataframe where previous results have been recorded:
-            plant_data_frame = plant_data_frame_list[i]
-            # We add the new results:
-            plant_data_frame = pd.concat([plant_data_frame, new_df])
-            plant_data_frame_list[i] = plant_data_frame
-            # We record the dataframe as a csv file:
-            try:
-                plant_data_frame.to_csv(os.path.join(sub_outputs_directory,'plant_results.csv'), na_rep='NA', index=False, header=True)
-            except:
-                plant_data_frame.to_csv(os.path.join(sub_outputs_directory,'plant_results_BACKUP.csv'), na_rep='NA', index=False, header=True)
+                if step ==1:
+                    print("ADJUSTING PLANTGL...")
 
     print("")
     print("Simulation is done!")
@@ -2615,19 +2656,31 @@ if __name__ == '__main__':
     # Preparation of the MTG files and the population:
     #-------------------------------------------------
 
-    # We initalize a dictionnary that will contain the parameters for the population and each genotype:
-    parameter_scenarios = {}
+    # We define two distinct species to be computed:
+    list_of_species_name = []
+    # We initialize a dictionary that will contain the parameters for the population and for each genotype:
+    parameters_dict = {}
+
+    # POPULATION:
+    # We load the parameters used at the population scale (i.e., not genotype-specific):
+    parameters = loading_parameters_from_file(
+        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters.xlsx"),
+        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs"))
+    # We store this set of parameters in the parameters dictionary:
+    parameters_dict["population"] = parameters
 
     # FIRST PLANT GENOTYPE:
+    # We add the name of the genotype to the list:
+    list_of_species_name.append("rapeseed")
     # The values of the parameters in the simulation for the given MTG are updated:
-    scenario_parameters_1 = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_1.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_1"))
-    # We store the scenario under the name "rapeseed" in the dictionary of parameter_scenarios:
-    parameter_scenarios["rapeseed"]=scenario_parameters_1
+    parameters_1 = loading_parameters_from_file(
+        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_rapeseed.xlsx"),
+        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_rapeseed"))
+    # We store this set of parameters in the parameters dictionary:
+    parameters_dict["rapeseed"]=parameters_1
     # And we update the parameters from the original python file with the parameters read in the Excel file:
-    param.__dict__.update(scenario_parameters_1)
-    rhizodep_param.__dict__.update(scenario_parameters_1)
+    param.__dict__.update(parameters_1)
+    rhizodep_param.__dict__.update(parameters_1)
     # We create the shoot MTG:
     shoot_g_1 = AllocF.create_shoot_MTG(number_of_cotyledons=2,  # We define two cotyledons
                                         number_of_phytomers=0,
@@ -2636,33 +2689,35 @@ if __name__ == '__main__':
                                         initial_internode_height=param.initial_internode_length,
                                         initial_cotyledon_length=param.initial_cotyledon_length,
                                         initial_leaf_length=param.initial_leaf_length,
-                                        initial_labile_C_concentration=0.001,
-                                        initial_labile_N_concentration=0.0001
+                                        initial_labile_C_concentration=0.,
+                                        initial_labile_N_concentration=0.
                                         )
     # We create the corresponding root MTG:
     root_g_1 = RootSimple.initiate_mtg(initial_segment_length=0.,
                                        initial_apex_length=0.001)
 
     # SECOND PLANT GENOTYPE:
+    # We add the name of the genotype to the list:
+    list_of_species_name.append("faba_bean")
     # The values of the parameters in the simulation for the given MTG are updated:
-    scenario_parameters_2 = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_2.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_2"))
-    # We store the scenario under the name "rapeseed" in the dictionary of parameter_scenarios:
-    parameter_scenarios["faba_bean"] = scenario_parameters_2
+    parameters_2 = loading_parameters_from_file(
+        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_faba_bean.xlsx"),
+        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_faba_bean"))
+    # We store this set of parameters in the parameters dictionary:
+    parameters_dict["faba_bean"] = parameters_2
     # And we update the parameters from the original python file with the parameters read in the Excel file:
-    param.__dict__.update(scenario_parameters_2)
-    rhizodep_param.__dict__.update(scenario_parameters_2)
+    param.__dict__.update(parameters_2)
+    rhizodep_param.__dict__.update(parameters_2)
     # We create the shoot MTG:
     shoot_g_2 = AllocF.create_shoot_MTG(number_of_cotyledons=2,  # We define two cotyledons
-                                        number_of_phytomers=2,
+                                        number_of_phytomers=0,
                                         initial_internode_radius=param.initial_internode_radius,
                                         initial_hypocotyl_length=param.initial_hypocotyl_length,
                                         initial_internode_height=param.initial_internode_length,
                                         initial_cotyledon_length=param.initial_cotyledon_length,
                                         initial_leaf_length=param.initial_leaf_length,
-                                        initial_labile_C_concentration=0.001,
-                                        initial_labile_N_concentration=0.0001
+                                        initial_labile_C_concentration=0.,
+                                        initial_labile_N_concentration=0.
                                         )
     # We create the corresponding root MTG:
     root_g_2 = RootSimple.initiate_mtg(initial_segment_length=0.,
@@ -2673,17 +2728,15 @@ if __name__ == '__main__':
 
     # We run the simulation for the heterogeneous plant cover:
     run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
-                                     list_of_distinct_plant_types=["rapeseed", "faba_bean"],
-                                     parameter_scenarios=parameter_scenarios,
-                                     list_of_distinct_shoot_MTG=[shoot_g_1, shoot_g_2],
-                                     list_of_distinct_root_MTG=[root_g_1, root_g_2],
-                                     list_of_parameter_file_names_for_the_distinct_plant_MTG=[
-                                         "simbal_parameters_1.xlsx", "simbal_parameters_2.xlsx"],
-                                     list_of_numbers_of_plants_per_square_meter=[33, 16.5],
-                                     list_of_inter_row_distances=[0.20, 0.20],
-                                     list_of_number_of_rows_to_show=[3, 2],
-                                     list_of_scene_lengths=[1, 1],
-                                     list_of_scene_widths=[0.5, 0.5],
+                                     genotype_names_list=list_of_species_name,
+                                     parameters_dict=parameters_dict,
+                                     shoot_MTG_dict={"rapeseed": shoot_g_1, "faba_bean": shoot_g_2},
+                                     root_MTG_dict={"rapeseed": root_g_1, "faba_bean": root_g_2},
+                                     numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
+                                     inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
+                                     number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
+                                     scene_lengths_dict={"rapeseed": 1, "faba_bean": 1},
+                                     scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
                                      simulation_period_in_days=20., time_step_in_days=1 / 24.,
                                      starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
                                      input_file="inputs_over_time.csv",
@@ -2694,10 +2747,11 @@ if __name__ == '__main__':
                                      constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
                                      simulation_option="shoot_and_roots",
                                      plotting_population=True,
-                                     plotting_single_plants=True
+                                     plotting_single_plants=False
                                      )
 
     print("Simulation done!")
 
 #TODO: check phytomer emergence over time
-#TODO: add a variable "node rank"
+#TODO: add a variable "node rank", add angle for fababean
+#TODO: add a sowing depth and a sowing date

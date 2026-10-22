@@ -352,18 +352,21 @@ if __name__ == "__main__":
     #                          time_step_in_days=1./24., sampling_frequency=1, fps=24)
 
     # FROM ORIGINAL GRAPHS - classic:
-    resizing_and_film_making(outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/',
-                             images_folder='population_plots',
-                             resized_images_folder='plots_resized',
-                             film_making=True,
-                             film_name="plant_movie.gif",
-                             image_transforming=True,
-                             resizing=False, dividing_size_by=1.,
-                             colorbar_option=False,
-                             # colorbar_position=1,
-                             # colorbar_title="Net rhizodeposition rate (gC per day per cm)",
-                             # ticks=[],
-                             # vmin=vmin, vmax=vmax,
-                             # time_printing=True, time_position=1,
-                             time_printing=True,
-                             time_step_in_days=1./24., sampling_frequency=1, fps=24)
+    resizing_and_film_making(
+        # outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/',
+        # images_folder='population_plots',
+        outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/outputs_rapeseed/',
+        images_folder='plots',
+        resized_images_folder='plots_resized',
+        film_making=True,
+        film_name="plant_movie.gif",
+        image_transforming=True,
+        resizing=False, dividing_size_by=1.,
+        colorbar_option=False,
+        # colorbar_position=1,
+        # colorbar_title="Net rhizodeposition rate (gC per day per cm)",
+        # ticks=[],
+        # vmin=vmin, vmax=vmax,
+        # time_printing=True, time_position=1,
+        time_printing=True,
+        time_step_in_days=1./24., sampling_frequency=1, fps=24)

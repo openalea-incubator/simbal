@@ -19,8 +19,8 @@ from openalea.caribu.data_samples import data_path
 
 from openalea.simbal import simbal_parameters as param
 from openalea.simbal.tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
-                   circle_coordinates, updating_coordinates,
-                   plotting_shoot_MTG, plotting_shoots_with_pyvista)
+                                   circle_coordinates, updating_coordinates, leaf_insertion_angle_evolution,
+                                   plotting_shoot_MTG, plotting_shoots_with_pyvista)
 
 import os
 import warnings
@@ -28,9 +28,6 @@ import numpy as np
 import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
-
-from src.openalea.simbal.tools import leaf_insertion_angle_evolution
-
 
 ########################################################################################################################
 ########################################################################################################################
@@ -325,7 +322,7 @@ def new_phytomers_initiation(shoot_system,
                     element.actual_N_consumption_rate_by_shoot_growth\
                         = element.struct_mass * param.structural_N_content / time_step_in_seconds
 
-    # We calculate the corresponding C (gC) and N (gN) cost for the plant:
+    # We calculate the corresponding C (gC) and N (gN) cost for the plant, including the C respiratory cost:
     C_cost = new_structural_mass * param.structural_C_content / param.yield_growth
     N_cost = new_structural_mass * param.structural_N_content
     # # We update the structural mass of the plant:
@@ -402,8 +399,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               net_shoot_N_immobilization_rate = 0.,
                               # Other attributes:
                               senescence_status = False,
-                              PAR_intercepted=1.,
-                              surfacic_PAR_intercepted=100.,
+                              PAR_intercepted=0.,
+                              surfacic_PAR_intercepted=0.,
                               surfacic_PAR_averaged_over_time=0.,
                               previous_PAR_intercepted_values=[],
                               light_intensity_share=0.,
@@ -713,8 +710,8 @@ def computing_light_interception(shoot_MTG,
         print("!!! ERROR: Caribu could not be run! Here is the error:")
         print(e)
         print("!!! We therefore set an arbitrary intercepted light by the plant:")
-        total_PAR_intercepted = 400
-        sum_of_surfacic_PAR = 400
+        total_PAR_intercepted = 0
+        sum_of_surfacic_PAR = 0
 
     # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
     ################################################################
@@ -808,7 +805,8 @@ def computing_light_interception(shoot_MTG,
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception_on_plant_population(scene,
                                                      scene_information,
-                                                     list_of_distinct_shoot_MTG=[],
+                                                     genotype_names_list=["rapeseed", "faba_bean"],
+                                                     shoot_MTG_dict={},
                                                      list_of_scene_MTG=[],
                                                      incoming_light_density = 400,
                                                      isolated_plant=False,
@@ -824,15 +822,15 @@ def computing_light_interception_on_plant_population(scene,
 
     # We initialize the total PAR intercepted by the shoot (umol of photons per second)
     # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
-    list_of_total_PAR_intercepted = []
-    list_of_total_surface = []
-    list_of_sum_of_surfacic_PAR = []
+    total_PAR_intercepted_dict = {}
+    sum_of_surfacic_PAR_dict = {}
 
     # We verify that the light input is not nil:
     if incoming_light_density <= 0.:
-        list_of_total_PAR_intercepted = [0.] * len(list_of_distinct_shoot_MTG)
-        list_of_sum_of_surfacic_PAR = [0.] * len(list_of_distinct_shoot_MTG)
-        return list_of_total_PAR_intercepted, list_of_sum_of_surfacic_PAR
+        for genotype_name in genotype_names_list:
+            total_PAR_intercepted_dict[genotype_name] = 0.
+            sum_of_surfacic_PAR_dict[genotype_name] = 0.
+        return total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict
 
     # LIGHT INTERCEPTION BY CARIBU:
     ###############################
@@ -913,7 +911,7 @@ def computing_light_interception_on_plant_population(scene,
     ################################################################
 
     # We cover the distinct shoot MTG for which we want to update the light properties:
-    for i in range(0,len(list_of_distinct_shoot_MTG)):
+    for genotype_name in genotype_names_list:
 
         # We initialize the total properties for the plant:
         total_PAR_intercepted = 0.
@@ -921,9 +919,9 @@ def computing_light_interception_on_plant_population(scene,
         sum_of_surfacic_PAR = 0.
 
         # We access the corresponding original MTG:
-        g = list_of_distinct_shoot_MTG[i]
+        g = shoot_MTG_dict[genotype_name]
         # We get the ID number of the copied MTG in the middle of the scene for which light properties should be taken:
-        middle_id = scene_information["middle_plant_id_" + str(i)][0]
+        middle_id = scene_information["middle_plant_id_" + genotype_name][0]
         # We access the copied MTG:
         scene_g = list_of_scene_MTG[middle_id]
 
@@ -932,6 +930,9 @@ def computing_light_interception_on_plant_population(scene,
             n = g.node(vid)
             scene_n = scene_g.node(vid)
             try:
+                n.Caribu_area = scene_n.Caribu_area
+                n.Caribu_Ei = scene_n.Caribu_Ei
+                n.Caribu_Eabs = scene_n.Caribu_Eabs
                 n.PAR_intercepted = scene_n.Caribu_Eabs * scene_n.Caribu_area
                 total_PAR_intercepted += scene_n.Caribu_Eabs * scene_n.Caribu_area
                 total_surface += scene_n.Caribu_area
@@ -1008,7 +1009,7 @@ def computing_light_interception_on_plant_population(scene,
         # CONTROL & ADJUSTMENTS:
         # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
         if abs(sum_of_light_fractions - 1) > 1e-14:
-            print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was not equal to 1!")
+            print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was", sum_of_light_fractions, "and not 1!")
             print("We therefore adjusted each light intensity share to correct this!")
             # We will adjust the light intensity share of each organ so that their sum is now equal to 1.
             # We cover each organ n of the shoot:
@@ -1018,11 +1019,10 @@ def computing_light_interception_on_plant_population(scene,
                 n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
 
         # We record the total intercepted PAR and the sum of surfacic PAR for this plant:
-        list_of_total_PAR_intercepted.append(total_PAR_intercepted)
-        total_surface = 0.
-        list_of_sum_of_surfacic_PAR.append(sum_of_surfacic_PAR)
+        total_PAR_intercepted_dict[genotype_name] = total_PAR_intercepted
+        sum_of_surfacic_PAR_dict[genotype_name] = sum_of_surfacic_PAR
 
-    return list_of_total_PAR_intercepted, list_of_sum_of_surfacic_PAR
+    return total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calculating the actual photosynthesis rate:
@@ -1060,9 +1060,9 @@ def computing_photosynthesis_rate(shoot_system, shoot_MTG, air_temperature_in_de
 
     # We correct the specific carbon assimilation according to mean shoot labile C concentration (possible inhibition):
     shoot_C_conc = (shoot_system.shoot_labile_C_pool - shoot_system.shoot_labile_C_deficit) / shoot_system.shoot_struct_mass
-    inhibiting_labile_C_concentration = 0.1
 
     #TODO: WATCH OUT BELOW - NO PHOTOSYNTHESIS INHIBITION!
+    # inhibiting_labile_C_concentration = 0.1
     # corrected_SCA = corrected_SCA * (1 - shoot_C_conc / inhibiting_labile_C_concentration)
     # if corrected_SCA < 0.:
     #     corrected_SCA = 0.
@@ -1445,25 +1445,26 @@ def potential_shoot_growth(shoot_MTG,
         #------------------------------------
         if n.label == "Leaf":
 
-            #TODO: WATCH OUT - here we remove SFQN law and make a direct relationship with light interception
             # # We calculate the potential surface based on the available N in the leaf:
             # potential_leaf_surface = SFQN * n.labile_N
+
+            #TODO: WATCH OUT - here we remove SFQN law and make a direct relationship with light interception!
             # We define a coefficient of surface increase per day at 20°C as a function of PAR:
-            SIP = 0.00005 / 400. # We assume an increase by 100% per day for a PAR of 400 µmol m-2 s-1
+            SIP = 1e-4 / 400. # We assume a potential increase by 1 cm2 per day for a PAR of 400 µmol m-2 s-1
             # potential_leaf_surface = n.surface * (1 + SIP * n.surfacic_PAR_intercepted * thermal_time_step_in_days/1.)
             potential_leaf_surface = n.surface + SIP * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days/1.
             # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
 
             # We calculate the maximal surface increase (m2), knowing that the surface increase cannot become higher
-            # than the maximal increase rate allowed:
+            # than the maximal rate allowed:
             if n.type != "Cotyledon":
                 maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day * thermal_time_step_in_days
             else:
                 maximal_surface_increase = n.surface * param.LA_max_relative_increase_per_day/3. * thermal_time_step_in_days
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
-            # TODO: what happens if the leaf has already a thickness higher than the minimal one?
+            #TODO: what happens if the leaf has already a thickness higher than the minimal one?
 
             if leaf_shape == "diamond_shape":
                 # We consider the leaf as a diamond characterized by its length and its width, which is calculated as
@@ -1489,7 +1490,6 @@ def potential_shoot_growth(shoot_MTG,
         elif n.label == "Internode":
 
             # 1) We calculate a potential elongation rate.
-
             # We check whether the lateral bud has emerged or is about to emerge.
             try:
                 # We initialize a Boolean that will determine whether elongation is fast or not:
@@ -1692,8 +1692,10 @@ def actual_shoot_growth(shoot_MTG,
     
     Returns
     -------
-    total_actual_C_consumption_rate_by_shoot_growth:
-    total_actual_N_consumption_rate_by_shoot_growth:
+    total_actual_C_consumption_rate_by_shoot_growth: the rate of labile C consumption for producing the actual new
+                                                     structural mass (including the respiratory cost)
+    total_actual_N_consumption_rate_by_shoot_growth: the rate of labile N consumption for producing the actual new
+                                                     structural mass
     """
 
     # We rename the shoot MTG for simplification:
@@ -1701,11 +1703,11 @@ def actual_shoot_growth(shoot_MTG,
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
     temperature_adjustment = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
-                                                                 process_at_T_ref=1,
-                                                                 T_ref=param.shoot_growth_T_ref,
-                                                                 A=param.shoot_growth_A,
-                                                                 B=param.shoot_growth_B,
-                                                                 C=param.shoot_growth_C)
+                                                      process_at_T_ref=1,
+                                                      T_ref=param.shoot_growth_T_ref,
+                                                      A=param.shoot_growth_A,
+                                                      B=param.shoot_growth_B,
+                                                      C=param.shoot_growth_C)
     # We calculate the equivalent time step in thermal time:
     thermal_time_step_in_seconds = time_step_in_seconds * temperature_adjustment
 
@@ -1845,6 +1847,7 @@ def actual_shoot_growth(shoot_MTG,
                                                        * structural_C_content / yield_growth / time_step_in_seconds)
         n.actual_N_consumption_rate_by_shoot_growth = (final_volume_increment * structural_mass_density
                                                        * structural_N_content / time_step_in_seconds)
+
         # The C respired because of growth is also calculated:
         n.shoot_growth_respiration_rate = n.actual_C_consumption_rate_by_shoot_growth * (1 - yield_growth)
         # And we increase the total consumption rates with the contribution from this element:
@@ -2373,6 +2376,57 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     # s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
 
     return
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for resetting rates and other temporary variables in the shoot MTG to 0:
+def shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=False):
+    """
+    This function resets all temporary variables to 0 in each element of the MTG.
+
+    Parameters
+    ----------
+    shoot_g: the shoot MTG to be reinitialized
+
+    Returns
+    -------
+    [Nothing - the shoot MTG has been updated]
+    """
+
+    # We define an empty dictionary where 0. will be assigned to each vid of the shoot MTG:
+    empty_dict = {vid: 0 for vid in shoot_g.vertices()}
+
+    if reinitializing_rates:
+        # We reset each variable that is normally modified at each time step:
+        shoot_g.properties()["potential_radius"].update(empty_dict)
+        shoot_g.properties()["potential_length"].update(empty_dict)
+        shoot_g.properties()["photosynthesized_C_rate"].update(empty_dict)
+        shoot_g.properties()["shoot_maintenance_respiration_rate"].update(empty_dict)
+        shoot_g.properties()["C_input_rate_for_sink"].update(empty_dict)
+        shoot_g.properties()["N_input_rate"].update(empty_dict)
+        shoot_g.properties()["shoot_N_mobilization_rate"].update(empty_dict)
+        # shoot_g.properties()["net_shoot_N_mobilization_rate"].update(empty_dict)
+        shoot_g.properties()["actual_C_consumption_rate_by_shoot_growth"].update(empty_dict)
+        shoot_g.properties()["actual_N_consumption_rate_by_shoot_growth"].update(empty_dict)
+        shoot_g.properties()["shoot_C_distribution_rate"].update(empty_dict)
+        shoot_g.properties()["shoot_N_distribution_rate"].update(empty_dict)
+        shoot_g.properties()["PAR_intercepted"].update(empty_dict)
+        shoot_g.properties()["surfacic_PAR_intercepted"].update(empty_dict)
+        shoot_g.properties()["Caribu_Eabs"].update(empty_dict)
+        shoot_g.properties()["Caribu_Ei"].update(empty_dict)
+        shoot_g.properties()["Caribu_area"].update(empty_dict)
+        shoot_g.properties()["photosynthetic_area"].update(empty_dict)
+        # WATCH OUT: we don't reinitialize light intensity share as it needs to remain positive,
+        # even if there is no light at the current time step!
+        # shoot_g.properties()["light_intensity_share"].update(empty_dict)
+
+    if reinitializing_amounts:
+        shoot_g.properties()["labile_C"].update(empty_dict)
+        shoot_g.properties()["labile_C_deficit"].update(empty_dict)
+        shoot_g.properties()["labile_N"].update(empty_dict)
+        shoot_g.properties()["labile_N_deficit"].update(empty_dict)
+
+    return
+#-----------------------------------------------------------------------------------------------------------------------
 
 ########################################################################################################################
 ########################################################################################################################
