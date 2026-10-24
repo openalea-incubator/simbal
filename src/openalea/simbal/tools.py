@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
 from decimal import Decimal
-
+import ast
 from openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
 
 try:
@@ -2276,6 +2276,7 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
     transposed_df = scenarios_df.T
     transposed_df.to_csv(os.path.join(outputs_path, 'scenarios_list.csv'), na_rep='NA', header=False)
     new_scenarios_df = pd.read_csv(os.path.join(outputs_path, 'scenarios_list.csv'), index_col='Scenario', header=0)
+
     # We convert the dataframe into a dictionnary:
     scenario = new_scenarios_df.to_dict(orient='records')[0]
     # # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:

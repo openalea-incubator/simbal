@@ -141,6 +141,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                      properties_identical_to_parent=properties_identical_to_parent,
                                      nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
+    internode.node_rank = parent_element.node_rank + 1
     internode.radius = internode_radius
     internode.potential_radius = internode_radius
     internode.length = internode_length
@@ -174,6 +175,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                 properties_identical_to_parent=properties_identical_to_parent,
                                 nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
+    leaf.node_rank = parent_element.node_rank + 1
     leaf.length = leaf_length
     leaf.radius = leaf_length * param.leaf_width_to_length_ratio / 2.
     leaf.angle_down = param.leaf_insertion_angle
@@ -209,6 +211,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                properties_identical_to_parent=False,
                                nil_properties=True)
     # We specified some properties that may be distinct from the parent element:
+    bud.node_rank = parent_element.node_rank + 1
     bud.radius = param.bud_radius_ratio * parent_element.radius
     bud.potential_radius = bud.radius
     bud.length = bud_length
@@ -367,7 +370,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
                               label='Base_of_the_root_system',
-                              type="hypocotyl",
+                              type="Hypocotyl",
+                              node_rank=0,
                               # Geometry:
                               radius=initial_internode_radius,
                               potential_radius=initial_internode_radius,
@@ -441,6 +445,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                bud_length=0.,
                                                                properties_identical_to_parent = True)
         # We set the thermal time since the phytomer formed according to the phyllochron:
+        new_internode.node_rank = 0
         new_internode.thermal_time_since_formation = 0.
         new_leaf.thermal_time_since_formation = 0.
         new_bud.thermal_time_since_formation = 0.
@@ -452,9 +457,11 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_internode.labile_N = 0.
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
+        new_leaf.node_rank = 0
         new_leaf.surface_max = param.cotyledon_area_max
         # We set the bud diameter to 0, so that it will never be able to emerge:
         new_bud.radius = 0.
+        new_bud.node_rank = 0
 
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
@@ -489,6 +496,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                     label="Apex",
                                     nil_properties=True)
     new_apex.length = 0.
+    new_apex.node_rank = 0
 
     # Eventually, we add special properties specific to the base of the shoot system that are not expected elsewhere
     # in the shoot system:

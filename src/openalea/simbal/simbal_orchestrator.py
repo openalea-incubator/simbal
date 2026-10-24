@@ -24,6 +24,7 @@ from math import sqrt, trunc, ceil
 from decimal import Decimal
 
 from sympy import isolate
+import ast
 
 
 ########################################################################################################################
@@ -1469,9 +1470,8 @@ def run_simulation_for_one_plant(my_path=None,
 def run_simulation_for_a_plant_cover(my_path=None,
                                      genotype_names_list=[],
                                      parameters_dict={},
-                                     shoot_MTG_dict={},
-                                     root_MTG_dict={},
                                      numbers_of_plants_per_square_meter_dict={},
+                                     sowing_depths_dict={},
                                      inter_row_distances_dict={},
                                      number_of_rows_to_show_dict={},
                                      scene_lengths_dict={},
@@ -1499,11 +1499,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
     population_and_genotypes_names_list = ["population"]
     population_and_genotypes_names_list.extend(genotype_names_list)
 
-    # We define the number of distinct shoot MTG, root MTG and distinct plants to be used in the simulation:
-    number_of_shoot_MTG = len(shoot_MTG_dict)
-    number_of_root_MTG = len(root_MTG_dict)
-
     # We initiate dictionaries that will contain items for each of the distinct genotype to be treated:
+    shoot_MTG_dict = {}
+    root_MTG_dict = {}
     outputs_directories = {}
     plot_directories = {}
     shoot_MTG_directories = {}
@@ -1609,6 +1607,39 @@ def run_simulation_for_a_plant_cover(my_path=None,
             for root, dirs, files in os.walk(root_MTG_directory):
                 for file in files:
                     os.remove(os.path.join(root, file))
+
+    # CREATING OR LOADING MTG FILES:
+    #-------------------------------
+
+    # We cover each plant genotype present in the population:
+    for plant_genotype_name in genotype_names_list:
+        # The values of the parameters in the simulation for the given MTG are updated:
+        parameters = loading_parameters_from_file(
+            parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs",
+                                             "simbal_parameters_" + plant_genotype_name + ".xlsx"),
+            outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs",
+                                      "outputs_" + plant_genotype_name))
+        # We update the parameters from the original python file with the parameters read in the Excel file:
+        param.__dict__.update(parameters)
+        rhizodep_param.__dict__.update(parameters)
+        # We store this set of parameters in the parameters dictionary under the corresponding genotype name:
+        parameters_dict[plant_genotype_name] = parameters
+        # We create the shoot MTG and store it in a dictionary under the corresponding genotype name:
+        shoot_MTG_dict[plant_genotype_name] = AllocF.create_shoot_MTG(
+            number_of_cotyledons=2,
+            number_of_phytomers=0,
+            initial_internode_radius=param.initial_internode_radius,
+            initial_hypocotyl_length=param.initial_hypocotyl_length,
+            initial_internode_height=param.initial_internode_length,
+            initial_cotyledon_length=param.initial_cotyledon_length,
+            initial_leaf_length=param.initial_leaf_length,
+            initial_labile_C_concentration=0.,
+            initial_labile_N_concentration=0.
+        )
+        # We create the root MTG and store it in a dictionary under the corresponding genotype name:
+        root_MTG_dict[plant_genotype_name] = RootSimple.initiate_mtg(
+            initial_segment_length=0.,
+            initial_apex_length=0.001)
 
     # LOADING PARAMETERS AND INSTRUCTIONS:
     #-------------------------------------
@@ -2656,102 +2687,64 @@ if __name__ == '__main__':
     # Preparation of the MTG files and the population:
     #-------------------------------------------------
 
-    # We define two distinct species to be computed:
-    list_of_species_name = []
     # We initialize a dictionary that will contain the parameters for the population and for each genotype:
     parameters_dict = {}
+    shoot_MTG_dict = {}
+    root_MTG_dict = {}
 
-    # POPULATION:
-    # We load the parameters used at the population scale (i.e., not genotype-specific):
+    # Description of the population:
     parameters = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters.xlsx"),
+        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_population.xlsx"),
         outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs"))
     # We store this set of parameters in the parameters dictionary:
     parameters_dict["population"] = parameters
-
-    # FIRST PLANT GENOTYPE:
-    # We add the name of the genotype to the list:
-    list_of_species_name.append("rapeseed")
-    # The values of the parameters in the simulation for the given MTG are updated:
-    parameters_1 = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_rapeseed.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_rapeseed"))
-    # We store this set of parameters in the parameters dictionary:
-    parameters_dict["rapeseed"]=parameters_1
-    # And we update the parameters from the original python file with the parameters read in the Excel file:
-    param.__dict__.update(parameters_1)
-    rhizodep_param.__dict__.update(parameters_1)
-    # We create the shoot MTG:
-    shoot_g_1 = AllocF.create_shoot_MTG(number_of_cotyledons=2,  # We define two cotyledons
-                                        number_of_phytomers=0,
-                                        initial_internode_radius=param.initial_internode_radius,
-                                        initial_hypocotyl_length=param.initial_hypocotyl_length,
-                                        initial_internode_height=param.initial_internode_length,
-                                        initial_cotyledon_length=param.initial_cotyledon_length,
-                                        initial_leaf_length=param.initial_leaf_length,
-                                        initial_labile_C_concentration=0.,
-                                        initial_labile_N_concentration=0.
-                                        )
-    # We create the corresponding root MTG:
-    root_g_1 = RootSimple.initiate_mtg(initial_segment_length=0.,
-                                       initial_apex_length=0.001)
-
-    # SECOND PLANT GENOTYPE:
-    # We add the name of the genotype to the list:
-    list_of_species_name.append("faba_bean")
-    # The values of the parameters in the simulation for the given MTG are updated:
-    parameters_2 = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_faba_bean.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs", "outputs_faba_bean"))
-    # We store this set of parameters in the parameters dictionary:
-    parameters_dict["faba_bean"] = parameters_2
-    # And we update the parameters from the original python file with the parameters read in the Excel file:
-    param.__dict__.update(parameters_2)
-    rhizodep_param.__dict__.update(parameters_2)
-    # We create the shoot MTG:
-    shoot_g_2 = AllocF.create_shoot_MTG(number_of_cotyledons=2,  # We define two cotyledons
-                                        number_of_phytomers=0,
-                                        initial_internode_radius=param.initial_internode_radius,
-                                        initial_hypocotyl_length=param.initial_hypocotyl_length,
-                                        initial_internode_height=param.initial_internode_length,
-                                        initial_cotyledon_length=param.initial_cotyledon_length,
-                                        initial_leaf_length=param.initial_leaf_length,
-                                        initial_labile_C_concentration=0.,
-                                        initial_labile_N_concentration=0.
-                                        )
-    # We create the corresponding root MTG:
-    root_g_2 = RootSimple.initiate_mtg(initial_segment_length=0.,
-                                       initial_apex_length=0.001)
+    # We get scene-related specific parameters:
+    try:
+        # We get the list of plant genotype names:
+        plant_genotype_names = ast.literal_eval(parameters["plant_genotype"])
+        # (NOTE: ast.literal_eval allows to convert string into a Python list or dictionary)
+        # We get information about the way plants are to be positionned in the scene:
+        numbers_of_plants_per_square_meter_dict=ast.literal_eval(parameters["plant_density"])
+        sowing_depths_dict = ast.literal_eval(parameters["sowing_depth"])
+        inter_row_distances_dict=ast.literal_eval(parameters["inter_row_distance"])
+        number_of_rows_to_show_dict=ast.literal_eval(parameters["number_of_rows_to_show"])
+        scene_lengths_dict=ast.literal_eval(parameters["scene_length"])
+        scene_widths_dict=ast.literal_eval(parameters["scene_width"])
+    except:
+        print("ERROR: failure to import lists and dictionaries from the population parameter file!")
 
     # Simulation of the plant population:
     # -----------------------------------
 
     # We run the simulation for the heterogeneous plant cover:
     run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
-                                     genotype_names_list=list_of_species_name,
+                                     genotype_names_list=plant_genotype_names,
                                      parameters_dict=parameters_dict,
-                                     shoot_MTG_dict={"rapeseed": shoot_g_1, "faba_bean": shoot_g_2},
-                                     root_MTG_dict={"rapeseed": root_g_1, "faba_bean": root_g_2},
-                                     numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
-                                     inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
-                                     number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
-                                     scene_lengths_dict={"rapeseed": 1, "faba_bean": 1},
-                                     scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
-                                     simulation_period_in_days=20., time_step_in_days=1 / 24.,
-                                     starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
+                                     numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+                                     sowing_depths_dict=sowing_depths_dict,
+                                     inter_row_distances_dict=inter_row_distances_dict,
+                                     number_of_rows_to_show_dict=number_of_rows_to_show_dict,
+                                     scene_lengths_dict=scene_lengths_dict,
+                                     scene_widths_dict=scene_widths_dict,
+                                     simulation_period_in_days=parameters_dict["population"]["simulation_period_in_days"],
+                                     time_step_in_days=parameters_dict["population"]["time_step_in_days"],
+                                     starting_time_in_days=parameters_dict["population"]["starting_time_in_days"],
+                                     starting_thermal_time_in_degree_days=0.,
                                      input_file="inputs_over_time.csv",
                                      input_file_time_step_in_days=1.,
-                                     forcing_constant_aboveground_environment=False,
-                                     constant_air_temperature_in_Celsius=10, constant_light_irradiation=400,
-                                     forcing_constant_belowground_environment=False,
-                                     constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
-                                     simulation_option="shoot_and_roots",
-                                     plotting_population=True,
-                                     plotting_single_plants=False
+                                     forcing_constant_aboveground_environment=parameters_dict["population"]["forcing_constant_aboveground_environment"],
+                                     constant_air_temperature_in_Celsius=parameters_dict["population"]["constant_air_temperature_in_Celsius"],
+                                     constant_light_irradiation=parameters_dict["population"]["constant_light_irradiation"],
+                                     forcing_constant_belowground_environment=parameters_dict["population"]["forcing_constant_belowground_environment"],
+                                     constant_soil_temperature_in_Celsius=parameters_dict["population"]["constant_soil_temperature_in_Celsius"],
+                                     constant_soil_available_nitrogen=parameters_dict["population"]["constant_soil_available_nitrogen"],
+                                     simulation_option=parameters_dict["population"]["simulation_option"],
+                                     plotting_population=parameters_dict["population"]["plotting_population"],
+                                     plotting_single_plants=parameters_dict["population"]["plotting_single_plants"]
                                      )
 
     print("Simulation done!")
 
 #TODO: check phytomer emergence over time
-#TODO: add a variable "node rank", add angle for fababean
+#TODO: add angle for fababean
 #TODO: add a sowing depth and a sowing date
