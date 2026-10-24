@@ -663,6 +663,8 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # We access the node corresponding to the vertex ID "v" of the MTG "g":
         n = g.node(v)
+        # The turtle is associated to this vertex:
+        turtle.setId(v)
 
         # We look at the geometrical properties already defined within the root element:
         radius = n.radius * upscaling_factor
@@ -675,8 +677,6 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         n.x1 = position1[0] * upscaling_factor
         n.y1 = position1[1] * upscaling_factor
         n.z1 = position1[2] * upscaling_factor
-        # The turtle is moved:
-        turtle.setId(v)
         # The direction of the turtle is changed:
         turtle.down(angle_down)
         turtle.rollL(angle_roll)
@@ -935,7 +935,7 @@ def get_root_visitor(upscaling_factor=1.):
         n.y1 = position1[1] / zoom_factor
         n.z1 = position1[2] / zoom_factor
 
-        # The direction of the turtle is changed:
+        # The turtle is positioned and oriented at the base of the root system:
         turtle.down(angle_down)
         turtle.rollL(angle_roll)
 
@@ -1168,6 +1168,7 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
                                             root_MTG_dict={},
                                             option="shoots_and_roots",
                                             numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
+                                            sowing_depths_dict={"rapeseed": 0.008, "faba_bean": 0.08},
                                             inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
                                             number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
                                             scene_lengths_dict={"rapeseed": 1., "faba_bean": 1.},
@@ -1219,6 +1220,7 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
         scene_information[middle_id_field].append(0)
 
         number_of_plants_per_square_meter = numbers_of_plants_per_square_meter_dict[genotype_name]
+        sowing_depth =  sowing_depths_dict[genotype_name]
         inter_row_distance = inter_row_distances_dict[genotype_name]
         scene_length = scene_lengths_dict[genotype_name]
         scene_width = scene_widths_dict[genotype_name]
@@ -1246,7 +1248,7 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
         # We move to the position of the first plant:
         x = lateral_border_length * upscaling_factor
         y = lateral_border_width * upscaling_factor
-        z = 0. * upscaling_factor
+        z = -sowing_depth * upscaling_factor
 
         # We cover each plant of the scene:
         for j in range(0, number_of_plants_to_show):
@@ -1386,6 +1388,7 @@ def plotting_shoot_MTG(g,
                        petiole_showing=False,
                        width=1200, height=900,
                        upscaling_factor=1.,
+                       origin_coordinates=[0.,0.,0.],
                        x_center=0, y_center=-0, z_center=0.,
                        x_cam=5., y_cam=5., z_cam=-1,
                        grid=True,
@@ -1403,6 +1406,7 @@ def plotting_shoot_MTG(g,
 
     # We initialize a turtle in PlantGL:
     turtle = turt.PglTurtle()
+    turtle.move(origin_coordinates)
 
     # We initialize a scene:
     new_scene = pgl.Scene()
@@ -1458,43 +1462,6 @@ def plotting_shoot_MTG(g,
         print("Plot saved!")
 
     return
-# -----------------------------------------------------------------------------------------------------------------------
-# # -----------------------------------------------------------------------------------------------------------------------
-# def plotting_shoot_MTG_population(g,
-#                                   number_of_plants_per_square_meter=33,
-#                                   inter_row_distance=0.45,
-#                                   scene_length=1.,
-#                                   scene_width=1.,
-#                                   leaf_shape="oval_shape",
-#                                   width=1200, height=900,
-#                                   upscaling_factor=1.,
-#                                   x_center=0, y_center=-0, z_center=0.,
-#                                   x_cam=5., y_cam=5., z_cam=-1,
-#                                   grid=True,
-#                                   background_color=[94, 76, 64],
-#                                   single_color=None,
-#                                   property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=400, lognorm=False,
-#                                   recording_plot=True,
-#                                   plot_filepath='plot.png'
-#                                   ):
-#     my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-#     complete_scene = create_a_scene_with_plants_population(g,
-#                                                             number_of_plants_per_square_meter=number_of_plants_per_square_meter,
-#                                                             upscaling_factor=upscaling_factor,
-#                                                             inter_row_distance=inter_row_distance,
-#                                                             scene_length=scene_length,
-#                                                             scene_width=scene_width,
-#                                                             leaf_shape=leaf_shape)
-#     setting_PGLViewer(width=width, height=height,
-#                       x_center=x_center, y_center=y_center, z_center=z_center,
-#                       x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-#                       grid=grid,
-#                       background_color=background_color)
-#     # background_color=[150, 200, 250])
-#     pgl.Viewer.display(complete_scene)
-#     pgl.Viewer.saveSnapshot(plot_filepath)
-#
-#     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a scene with uniques shapes ID:
@@ -1598,7 +1565,6 @@ def create_plants_population_scene(scene_information={},
 
             # We reset the turtle:
             turtle.reset()
-            # And we reposition the turtle from there:
             turtle.move(list_of_positions[plant_index])
             turtle.rollL(angle_roll)
 
@@ -1932,6 +1898,7 @@ def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True
 def plotting_whole_plant(shoot_MTG, root_MTG,
                          width=1200, height=900,
                          upscaling_factor=1.,
+                         origin_coordinates=[0.,0.,0.],
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
                          grid=True,
@@ -1964,7 +1931,9 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     # SETTING THE NEW SCENE FOR THE SHOOT SYSTEM WITH THE TURTLE:
     # We initialize a turtle in PlantGL:
     shoot_turtle = turt.PglTurtle()
-    # We create the scene by moving the turtle along the current MTG:
+    # We move it to the starting position:
+    shoot_turtle.move(origin_coordinates)
+    # We then create the scene by moving the turtle along the current MTG:
     shoot_scene = turt.TurtleFrame(shoot_MTG,
                                    visitor=get_shoot_visitor(plant_species=plant_species,
                                                              leaf_shape=leaf_shape,
@@ -1999,6 +1968,8 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     # SETTING THE NEW SCENE FOR THE ROOT SYSTEM WITH THE TURTLE:
     # We initialize a turtle in PlantGL:
     root_turtle = turt.PglTurtle()
+    # We move the turtle to the specific origin:
+    root_turtle.move(origin_coordinates)
     root_turtle.down(180)
     # We create the scene by moving the turtle along the current MTG:
     root_scene = turt.TurtleFrame(root_MTG,

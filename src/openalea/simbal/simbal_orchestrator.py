@@ -678,7 +678,8 @@ def run_simulation_for_one_plant(my_path=None,
                                           initial_leaf_length=0.,
                                           leaf_surface_max=0.,
                                           initial_labile_C_concentration=0,
-                                          initial_labile_N_concentration=0
+                                          initial_labile_N_concentration=0,
+                                          sowing_depth=0.
                                           )
         # We define an arbitrary shoot structural mass (gram), which will remain constant over the simulation:
         plant.shoot_struct_mass = 0.1
@@ -695,7 +696,8 @@ def run_simulation_for_one_plant(my_path=None,
                                           initial_cotyledon_length=param.initial_cotyledon_length,
                                           initial_leaf_length=param.initial_leaf_length,
                                           initial_labile_C_concentration=initial_shoot_labile_C_concentration,
-                                          initial_labile_N_concentration=initial_shoot_labile_N_concentration
+                                          initial_labile_N_concentration=initial_shoot_labile_N_concentration,
+                                          sowing_depth=param.sowing_depth,
                                           )
 
         # We update the shoot system general properties based on the shoot MTG:
@@ -868,7 +870,7 @@ def run_simulation_for_one_plant(my_path=None,
             soil_available_nitrogen = input_frame.loc[step - initial_step_number, 'soil_available_nitrogen_in_gN_per_gDW_of_soil']
 
         print("")
-        print("From", "{:.2f}".format(Decimal(initial_time_in_days)),"to", "{:.2f}".format(Decimal(final_time_in_days)),"days:")
+        print("From", "{:.2f}".format(Decimal(starting_time_in_days)),"to", "{:.2f}".format(Decimal(final_time_in_days)),"days:")
         print("-------------------------")
         print("    Air temperature is", "{:.2f}".format(Decimal(air_temperature)), "degree Celsius; soil temperature is",
               "{:.2f}".format(Decimal(soil_temperature)), "degree Celsius.")
@@ -1411,6 +1413,7 @@ def run_simulation_for_one_plant(my_path=None,
         plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
                              width=1200, height=1200,
                              upscaling_factor=zoom_factor,
+                             origin_coordinates=[0.,0.,-param.sowing_depth],
                              x_center=param.x_center*zoom_factor,
                              y_center=param.y_center*zoom_factor,
                              z_center=param.z_center*zoom_factor,
@@ -1467,33 +1470,68 @@ def run_simulation_for_one_plant(my_path=None,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calling the main functions in a specific order and run the whole simulation:
-def run_simulation_for_a_plant_cover(my_path=None,
-                                     genotype_names_list=[],
-                                     parameters_dict={},
-                                     numbers_of_plants_per_square_meter_dict={},
-                                     sowing_depths_dict={},
-                                     inter_row_distances_dict={},
-                                     number_of_rows_to_show_dict={},
-                                     scene_lengths_dict={},
-                                     scene_widths_dict={},
-                                     zoom_factor=100.,
-                                     simulation_period_in_days=20., time_step_in_days=1/24.,
-                                     starting_time_in_days=0., starting_thermal_time_in_degree_days=0.,
-                                     input_file=None,
-                                     input_file_time_step_in_days=1.,
-                                     forcing_constant_aboveground_environment=False,
-                                     constant_air_temperature_in_Celsius=10, constant_light_irradiation=400,
-                                     forcing_constant_belowground_environment=False,
-                                     constant_soil_temperature_in_Celsius=10, constant_soil_available_nitrogen=1,
-                                     simulation_option="shoot_and_roots",
-                                     plotting_population=True,
-                                     plotting_single_plants=True,
-                                     ):
+def run_simulation_for_a_plant_cover(my_path=None):
 
     """
     Returns
     -------
     """
+
+    # We make sure that there is a path to the main folder:
+    if my_path is None:
+        # We define the reference directory (here, we move to the parent directory of the current directory):
+        # my_path = os.path.dirname(os.getcwd())
+        # We first define the path and the file to read as a .csv:
+        my_path = os.path.join('../../..', os.getcwd())
+
+    # We initialize dictionaries for parameters and MTG:
+    parameters_dict = {}
+    shoot_MTG_dict = {}
+    root_MTG_dict = {}
+
+    # LOADING THE MAIN PARAMETERS AT THE SCALE OF THE POPULATION:
+    #------------------------------------------------------------
+
+    # We get the general parameters related to the population of plants:
+    parameters = loading_parameters_from_file(
+        parameters_filepath=os.path.join(my_path, "simulation", "inputs", "simbal_parameters_population.xlsx"),
+        outputs_path=os.path.join(my_path, "simulation", "outputs"))
+    # We store this set of parameters in the parameters dictionary:
+    parameters_dict["population"] = parameters
+    # We update the general parameters with this set of parameters:
+    param.__dict__.update(parameters)
+
+    # We get scene-related specific parameters:
+    try:
+        # We get the list of plant genotype names:
+        genotype_names_list = ast.literal_eval(parameters["plant_genotype"])
+        # (NOTE: ast.literal_eval allows to convert string into a Python list or dictionary)
+        # We get information about the way plants are to be positionned in the scene:
+        numbers_of_plants_per_square_meter_dict=ast.literal_eval(parameters["plant_density"])
+        sowing_depths_dict = ast.literal_eval(parameters["sowing_depth"])
+        inter_row_distances_dict=ast.literal_eval(parameters["inter_row_distance"])
+        number_of_rows_to_show_dict=ast.literal_eval(parameters["number_of_rows_to_show"])
+        scene_lengths_dict=ast.literal_eval(parameters["scene_length"])
+        scene_widths_dict=ast.literal_eval(parameters["scene_width"])
+    except:
+        print("ERROR: failure to import lists and dictionaries from the population parameter file!")
+
+    # READING INSTRUCTIONS FROM THE MAIN PARAMETER FILE:
+    simulation_period_in_days = param.simulation_period_in_days
+    time_step_in_days = param.time_step_in_days
+    starting_time_in_days = param.starting_time_in_days
+    starting_thermal_time_in_degree_days = param.starting_thermal_time_in_degree_days
+    input_file = param.input_file
+    input_file_time_step_in_days = param.input_file_time_step_in_days
+    forcing_constant_aboveground_environment = param.forcing_constant_aboveground_environment
+    constant_air_temperature_in_Celsius = param.constant_air_temperature_in_Celsius
+    constant_light_irradiation = param.constant_light_irradiation
+    forcing_constant_belowground_environment = param.forcing_constant_belowground_environment
+    constant_soil_temperature_in_Celsius = param.constant_soil_temperature_in_Celsius
+    constant_soil_available_nitrogen = param.constant_soil_available_nitrogen
+    simulation_option = param.simulation_option
+    plotting_population = param.plotting_population
+    plotting_single_plants = param.plotting_single_plants
 
     # We create a list of names containing first the population, then the names of each genotype:
     population_and_genotypes_names_list = ["population"]
@@ -1519,11 +1557,6 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
     # SETTING FILE PATHS AND FOLDERS:
     #--------------------------------
-    if my_path is None:
-        # We define the reference directory (here, we move to the parent directory of the current directory):
-        # my_path = os.path.dirname(os.getcwd())
-        # We first define the path and the file to read as a .csv:
-        my_path = os.path.join('../../..', os.getcwd())
 
     # We consider a general output directory:
     outputs_directory = os.path.join(my_path, "simulation", "outputs")
@@ -1626,61 +1659,21 @@ def run_simulation_for_a_plant_cover(my_path=None,
         parameters_dict[plant_genotype_name] = parameters
         # We create the shoot MTG and store it in a dictionary under the corresponding genotype name:
         shoot_MTG_dict[plant_genotype_name] = AllocF.create_shoot_MTG(
-            number_of_cotyledons=2,
+            number_of_cotyledons=2, # We start with two cotyledones by default
             number_of_phytomers=0,
             initial_internode_radius=param.initial_internode_radius,
-            initial_hypocotyl_length=param.initial_hypocotyl_length,
+            initial_hypocotyl_length=sowing_depths_dict[plant_genotype_name], # The hypocothyl length corresponds to the sowing depth
             initial_internode_height=param.initial_internode_length,
             initial_cotyledon_length=param.initial_cotyledon_length,
             initial_leaf_length=param.initial_leaf_length,
             initial_labile_C_concentration=0.,
-            initial_labile_N_concentration=0.
+            initial_labile_N_concentration=0.,
+            sowing_depth=sowing_depths_dict[plant_genotype_name]
         )
         # We create the root MTG and store it in a dictionary under the corresponding genotype name:
         root_MTG_dict[plant_genotype_name] = RootSimple.initiate_mtg(
             initial_segment_length=0.,
             initial_apex_length=0.001)
-
-    # LOADING PARAMETERS AND INSTRUCTIONS:
-    #-------------------------------------
-
-    # (In case it has not been done before:) We update the general parameters defined for the population:
-    parameters_pop = parameters_dict["population"]
-    param.__dict__.update()
-
-    # We read the other specific instructions of the scenario that do not correspond to the parameters in the list
-    # (Note: The following function "get" looks if the first argument is present in the scenario parameters.
-    # If not, it returns the default value indicated in the second argument, which may be the default argument
-    # of the function 'run_simulation' itself):
-    SIMULATION_OPTION = parameters_pop.get('simulation_option',
-                                           simulation_option)
-    SIMULATION_PERIOD_IN_DAYS = parameters_pop.get('simulation_period_in_days',
-                                                   simulation_period_in_days)
-    TIME_STEP_IN_DAYS = parameters_pop.get('time_step_in_days',
-                                           time_step_in_days)
-    STARTING_TIME_IN_DAYS = parameters_pop.get('starting_time_in_days',
-                                               starting_time_in_days)
-    STARTING_THERMAL_TIME_IN_DAYS = parameters_pop.get('starting_thermal_time_in_degree_days',
-                                                       starting_thermal_time_in_degree_days)
-    if input_file is None:
-        INPUT_FILE = parameters_pop.get('input_file',
-                                        input_file)
-    else:
-        INPUT_FILE = input_file
-    INPUT_FILE_TIME_STEP_IN_DAYS = parameters_pop.get('input_file_time_step_in_days',
-                                                      input_file_time_step_in_days)
-    FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT = parameters_pop.get('forcing_constant_aboveground_environment',
-                                                                  forcing_constant_aboveground_environment)
-    CONSTANT_LIGHT_IRRADIATION = parameters_pop.get('constant_light_irradiation',
-                                                    constant_light_irradiation)
-    CONSTANT_AIR_TEMPERATURE = parameters_pop.get('constant_air_temperature_in_Celsius',
-                                                  constant_air_temperature_in_Celsius)
-    FORCING_CONSTANT_BELOWGROUND_ENVIRONMENT = parameters_pop.get('forcing_constant_belowground_environment',
-                                                                  forcing_constant_belowground_environment)
-    CONSTANT_SOIL_TEMPERATURE = parameters_pop.get('constant_soil_temperature_in_Celsius',
-                                                   constant_soil_temperature_in_Celsius)
-    CONSTANT_SOIL_AVAILABLE_N = parameters_pop.get('constant_soil_available_nitrogen',
-                                                   constant_soil_available_nitrogen)
 
     # SETTING INITIAL CONDITIONS
     #---------------------------
@@ -1694,21 +1687,22 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
     # INITIALIZING SHOOT STRUCTURE:
     # In case we only want to simulate the behavior of the roots, keeping the shoot properties constant over time:
-    if SIMULATION_OPTION == "roots_only":
+    if simulation_option == "roots_only":
         # We (re)initialize the dictionary of shoot MTG:
         shoot_MTG_dict={}
         # For each distinct plant genotype:
         for genotype_name in genotype_names_list:
             # We create a corresponding simple shoot MTG, without any dimensions (it will not be shown in the graph):
             shoot_MTG_dict[genotype_name] = AllocF.create_shoot_MTG(number_of_cotyledons=2,
-                                                       number_of_phytomers=0,
-                                                       initial_internode_height=0.,
-                                                       initial_internode_radius=0.,
-                                                       initial_leaf_length=0.,
-                                                       leaf_surface_max=0.,
-                                                       initial_labile_C_concentration=0.,
-                                                       initial_labile_N_concentration=0.
-                                                       )
+                                                                    number_of_phytomers=0,
+                                                                    initial_internode_height=0.,
+                                                                    initial_internode_radius=0.,
+                                                                    initial_leaf_length=0.,
+                                                                    leaf_surface_max=0.,
+                                                                    initial_labile_C_concentration=0.,
+                                                                    initial_labile_N_concentration=0.,
+                                                                    sowing_depth=sowing_depths_dict[genotype_name]
+                                                                    )
             # We define an arbitrary shoot structural mass (gram), which will remain constant over the simulation:
             plant = plant_objects[genotype_name]
             plant.shoot_struct_mass = 0.1
@@ -1742,7 +1736,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
 
     # INITIALIZING ROOT STRUCTURE:
     # In case we only want to simulate the behavior of the shoot, keeping the root properties constant over time:
-    if SIMULATION_OPTION == "shoot_only":
+    if simulation_option == "shoot_only":
         # We (re)initialize the dictionary of root MTG:
         root_MTG_dict = {}
         # For each distinct plant genotype:
@@ -1813,35 +1807,33 @@ def run_simulation_for_a_plant_cover(my_path=None,
     # ----------------------------------
 
     # We define the steps of the simulation based on the desired period:
-    initial_time = STARTING_TIME_IN_DAYS
-    simulation_period_in_days = SIMULATION_PERIOD_IN_DAYS
-    time_step_in_seconds = TIME_STEP_IN_DAYS * 60*60*24
-    n_steps = trunc(SIMULATION_PERIOD_IN_DAYS / TIME_STEP_IN_DAYS)
+    time_step_in_seconds = time_step_in_days * 60*60*24
+    n_steps = trunc(simulation_period_in_days / time_step_in_days)
     # We initialize a counter that will be used over successive time steps together with the phyllochron:
     elapsed_time_in_days_since_last_leaf_emergence = 0.
 
     # We initiate actual and thermal time at the end of each step:
-    actual_time_in_days = STARTING_TIME_IN_DAYS
-    thermal_time_in_degree_days = STARTING_THERMAL_TIME_IN_DAYS
+    actual_time_in_days = starting_time_in_days
+    thermal_time_in_degree_days = starting_thermal_time_in_degree_days
 
     # READING THE INPUT FILE:
     # -----------------------
-    if INPUT_FILE and not (FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT and FORCING_CONSTANT_BELOWGROUND_ENVIRONMENT):
+    if input_file and not (forcing_constant_aboveground_environment and forcing_constant_belowground_environment):
         # We use the function 'formatted inputs' to create a table containing the input data for each time step:
-        input_frame = formatted_inputs(original_input_file=os.path.join(my_path, "simulation", "inputs", INPUT_FILE),
+        input_frame = formatted_inputs(original_input_file=os.path.join(my_path, "simulation", "inputs", input_file),
                                        final_input_file=os.path.join(outputs_directory, 'updated_input_file.csv'),
-                                       original_time_step_in_days=INPUT_FILE_TIME_STEP_IN_DAYS,
-                                       final_time_step_in_days=TIME_STEP_IN_DAYS,
-                                       simulation_period_in_days=SIMULATION_PERIOD_IN_DAYS,
+                                       original_time_step_in_days=input_file_time_step_in_days,
+                                       final_time_step_in_days=time_step_in_days,
+                                       simulation_period_in_days=simulation_period_in_days,
                                        do_not_execute_if_file_with_suitable_size_exists=False)
 
         # We then initialize the step and time according to the first line of the new inputs dataframe:
         initial_step_number = input_frame['step_number'].loc[0]
-        initial_time_in_days = input_frame['initial_time_in_days'].loc[0]
+        stating_time_in_days = input_frame['initial_time_in_days'].loc[0]
     else:
         # We then initialize the step and time at 1:
         initial_step_number = 1
-        initial_time_in_days = 0.
+        starting_time_in_days = 0.
     # In any case, the value of 'step' is initialized:
     step = initial_step_number
 
@@ -1890,16 +1882,16 @@ def run_simulation_for_a_plant_cover(my_path=None,
     for step in range(initial_step_number, initial_step_number + n_steps):
 
         # We calculate the initial and final time of the current time step (in days):
-        initial_time_in_days = initial_time + (step - 1) * TIME_STEP_IN_DAYS
-        final_time_in_days = initial_time + (step) * TIME_STEP_IN_DAYS
+        initial_time_in_days = starting_time_in_days + (step - 1) * time_step_in_days
+        final_time_in_days = starting_time_in_days + (step) * time_step_in_days
 
         # DEFINING THE INPUTS AT THIS TIME STEP:
         # --------------------------------------
         # If constant aboveground conditions have been chosen:
-        if FORCING_CONSTANT_ABOVEGROUND_ENVIRONMENT:
+        if forcing_constant_aboveground_environment:
             # We set up the constant values:
-            light_input = CONSTANT_LIGHT_IRRADIATION
-            air_temperature = CONSTANT_AIR_TEMPERATURE
+            light_input = constant_light_irradiation
+            air_temperature = constant_air_temperature_in_Celsius
         # Otherwise, if there is an input file to be used:
         elif input_file:
             # We extract the information on incident light and air temperature from the input file:
@@ -1909,9 +1901,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
             print("!!! ERROR: no input file has been provided!")
 
         # Similarly, if constant belowground conditions have been chosen:
-        if FORCING_CONSTANT_BELOWGROUND_ENVIRONMENT:
-            soil_temperature = CONSTANT_SOIL_TEMPERATURE
-            soil_available_nitrogen = CONSTANT_SOIL_AVAILABLE_N
+        if forcing_constant_belowground_environment:
+            soil_temperature = constant_soil_temperature_in_Celsius
+            soil_available_nitrogen = constant_soil_available_nitrogen
         elif input_file:
             soil_temperature = input_frame.loc[step - initial_step_number, 'soil_temperature_in_degree_Celsius']
             soil_available_nitrogen = input_frame.loc[step - initial_step_number, 'soil_available_nitrogen_in_gN_per_gDW_of_soil']
@@ -2001,24 +1993,24 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 # Then the amount of C exchanged is limited to the amount of C available in shoots:
                 final_C_exchange = plant.shoot_labile_C_pool
                 #  The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_C_pool -= final_C_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_C_pool += final_C_exchange
             # CASE 2: The flux from root to shoot is positive but there is not enough C in the root to sustain it:
             elif expected_C_exchange < 0. and abs(expected_C_exchange) > (plant.root_labile_C_pool - plant.root_labile_C_deficit):
                 final_C_exchange = plant.root_labile_C_pool
                 # The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_C_pool += final_C_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_C_pool -= final_C_exchange
             # CASE 3 (EXPECTED CASE): There is enough C in the source compartment to sustain the transfer:
             else:
                 # Then the amount of labile C in shoots and roots is updated according to the initial computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_C_pool -= expected_C_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_C_pool += expected_C_exchange
 
             # TRANSFER OF N FROM ROOTS TO SHOOTS:
@@ -2042,9 +2034,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 # Then the amount of N exchanged is limited to the amount of N available in roots:
                 final_N_exchange = plant.root_labile_N_pool
                 # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_N_pool += final_N_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_N_pool -= final_N_exchange
             # CASE 2: The flux from shoot to root is positive but there is not enough N in the shoot to sustain it:
             elif expected_N_exchange < 0. and abs(expected_N_exchange) > (
@@ -2052,22 +2044,22 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 # Then the amount of N exchanged is limited to the amount of N available in shoots:
                 final_N_exchange = plant.shoot_labile_N_pool
                 # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_N_pool -= final_N_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_N_pool += final_N_exchange
             # CASE 3 (EXPECTED CASE): There is enough N in the source compartment to sustain the transfer.
             else:
                 # Then the amount of labile N in shoots and roots is updated according to the computed exchange:
-                if SIMULATION_OPTION != "roots_only":
+                if simulation_option != "roots_only":
                     plant.shoot_labile_N_pool += expected_N_exchange
-                if SIMULATION_OPTION != "shoot_only":
+                if simulation_option != "shoot_only":
                     plant.root_labile_N_pool -= expected_N_exchange
 
         # CALLING SUCCESSIVELY THE DIFFERENT ROOT MODULES:
         ##################################################
 
-        if SIMULATION_OPTION != "shoot_only":
+        if simulation_option != "shoot_only":
 
             # We cover each distinct plant to be computed:
             for genotype_name in genotype_names_list:
@@ -2165,7 +2157,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
         # CALLING SUCCESSIVELY THE DIFFERENT SHOOT MODULES:
         ###################################################
 
-        if SIMULATION_OPTION != "roots_only":
+        if simulation_option != "roots_only":
 
             # TODO: WATCH OUT BELOW!
             # REINITIALIZING SHOOT MTG VARIABLES:
@@ -2180,6 +2172,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
             #####################
 
             print("\n    Preparing the scene...")
+            zoom_factor = 100
 
             # We create a dictionary of scene details and an updated list containing one shoot MTG of each genotype
             # copied and distributed over the scene:
@@ -2190,6 +2183,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                 root_MTG_dict=root_MTG_dict,
                 option="shoots_only",
                 numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+                sowing_depths_dict=sowing_depths_dict,
                 inter_row_distances_dict=inter_row_distances_dict,
                 number_of_rows_to_show_dict=number_of_rows_to_show_dict,
                 scene_lengths_dict=scene_lengths_dict,
@@ -2382,7 +2376,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                               leaf_minimal_thickness=param.leaf_minimal_thickness,
                                               leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
                                               elong_internode=param.elong_internode,
-                                              time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
+                                              time_step_in_seconds=time_step_in_seconds,
                                               air_temperature_in_degree_Celsius=air_temperature)
                 # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
                 # organ, based on the local amounts of labile C:
@@ -2394,7 +2388,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                                structural_N_content=param.structural_N_content,
                                                leaf_minimal_thickness=param.leaf_minimal_thickness,
                                                leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
-                                               time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
+                                               time_step_in_seconds=time_step_in_seconds,
                                                air_temperature_in_degree_Celsius=air_temperature)
                 # At this stage, the shoot structure has been updated and the consumption rates have been calculated
                 # for each organ, but no actual consumption of labile C&N at the scale of organ or shoot system has occured yet.
@@ -2594,6 +2588,20 @@ def run_simulation_for_a_plant_cover(my_path=None,
                     y_cam = param.y_camera
                     z_cam = param.z_camera
 
+                # We consider the possibility of single colors to show for background, shoots and roots:
+                if param.background_color is None:
+                    plot_background_color = None
+                else:
+                    plot_background_color = ast.literal_eval(param.background_color)
+                if param.single_color_shoot is None or pd.isna(param.single_color_shoot):
+                    plot_single_color_shoot = None
+                else:
+                    plot_single_color_shoot = ast.literal_eval(param.single_color_shoot)
+                if param.single_color_root is None:
+                    plot_single_color_root = None
+                else:
+                    plot_single_color_root = ast.literal_eval(param.single_color_root)
+
                 # PLOTTING THE POPULATION:
                 if name == "population" and plotting_population:
                     plotting_whole_scene(genotype_names_list=genotype_names_list,
@@ -2613,13 +2621,13 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor,
                                          z_cam=z_cam * zoom_factor,
                                          grid=False,
-                                         background_color=[255, 255, 255],
-                                         single_color_shoot=[60, 100, 40],
-                                         single_color_root=[250, 150, 100],
+                                         background_color=plot_background_color,
+                                         single_color_shoot=plot_single_color_shoot,
+                                         single_color_root=plot_single_color_root,
                                          plotting_leaf_shape=param.plotting_leaf_shape,
                                          simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
                                          displaying_soil_surface=True,
-                                         recording_plot=True,
+                                         recording_plot=param.recording_images,
                                          plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step)
                                          )
 
@@ -2632,6 +2640,7 @@ def run_simulation_for_a_plant_cover(my_path=None,
                     plotting_whole_plant(shoot_MTG=shoot_g, root_MTG=root_g,
                                          width=1200, height=1200,
                                          upscaling_factor=zoom_factor,
+                                         origin_coordinates=[0.,0.,-sowing_depths_dict[name]*zoom_factor],
                                          x_center=x_center*zoom_factor, y_center=y_center*zoom_factor, z_center=z_center*zoom_factor,
                                          x_cam=x_cam*zoom_factor, y_cam=y_cam*zoom_factor, z_cam=z_cam*zoom_factor,
                                          grid=False,
@@ -2639,9 +2648,9 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          leaf_shape=param.plotting_leaf_shape,
                                          simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
                                          # background_color=[94, 76, 64],
-                                         background_color=[255, 255, 255],
-                                         single_color_shoot=[70,100,35],
-                                         single_color_root=[250, 150, 100],
+                                         background_color=plot_background_color,
+                                         single_color_shoot=plot_single_color_shoot,
+                                         single_color_root=plot_single_color_root,
                                          # single_color_shoot=None,
                                          # single_color_root=None,
                                          property_name_shoot='surfacic_PAR_intercepted', cmap_shoot='summer', vmin_shoot=0., vmax_shoot=1000, lognorm_shoot=False,
@@ -2650,9 +2659,6 @@ def run_simulation_for_a_plant_cover(my_path=None,
                                          recording_plot=True,
                                          plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
                                          shoots_overlapping_roots=True)
-
-                if step ==1:
-                    print("ADJUSTING PLANTGL...")
 
     print("")
     print("Simulation is done!")
@@ -2682,69 +2688,11 @@ if __name__ == '__main__':
 
     # RUNNING SIMULATION ON A HETEROGENEOUS PLANT COVER:
     ####################################################
-    ####################################################
-
-    # Preparation of the MTG files and the population:
-    #-------------------------------------------------
-
-    # We initialize a dictionary that will contain the parameters for the population and for each genotype:
-    parameters_dict = {}
-    shoot_MTG_dict = {}
-    root_MTG_dict = {}
-
-    # Description of the population:
-    parameters = loading_parameters_from_file(
-        parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs", "simbal_parameters_population.xlsx"),
-        outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs"))
-    # We store this set of parameters in the parameters dictionary:
-    parameters_dict["population"] = parameters
-    # We get scene-related specific parameters:
-    try:
-        # We get the list of plant genotype names:
-        plant_genotype_names = ast.literal_eval(parameters["plant_genotype"])
-        # (NOTE: ast.literal_eval allows to convert string into a Python list or dictionary)
-        # We get information about the way plants are to be positionned in the scene:
-        numbers_of_plants_per_square_meter_dict=ast.literal_eval(parameters["plant_density"])
-        sowing_depths_dict = ast.literal_eval(parameters["sowing_depth"])
-        inter_row_distances_dict=ast.literal_eval(parameters["inter_row_distance"])
-        number_of_rows_to_show_dict=ast.literal_eval(parameters["number_of_rows_to_show"])
-        scene_lengths_dict=ast.literal_eval(parameters["scene_length"])
-        scene_widths_dict=ast.literal_eval(parameters["scene_width"])
-    except:
-        print("ERROR: failure to import lists and dictionaries from the population parameter file!")
-
-    # Simulation of the plant population:
-    # -----------------------------------
 
     # We run the simulation for the heterogeneous plant cover:
-    run_simulation_for_a_plant_cover(my_path=main_simbal_folder,
-                                     genotype_names_list=plant_genotype_names,
-                                     parameters_dict=parameters_dict,
-                                     numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
-                                     sowing_depths_dict=sowing_depths_dict,
-                                     inter_row_distances_dict=inter_row_distances_dict,
-                                     number_of_rows_to_show_dict=number_of_rows_to_show_dict,
-                                     scene_lengths_dict=scene_lengths_dict,
-                                     scene_widths_dict=scene_widths_dict,
-                                     simulation_period_in_days=parameters_dict["population"]["simulation_period_in_days"],
-                                     time_step_in_days=parameters_dict["population"]["time_step_in_days"],
-                                     starting_time_in_days=parameters_dict["population"]["starting_time_in_days"],
-                                     starting_thermal_time_in_degree_days=0.,
-                                     input_file="inputs_over_time.csv",
-                                     input_file_time_step_in_days=1.,
-                                     forcing_constant_aboveground_environment=parameters_dict["population"]["forcing_constant_aboveground_environment"],
-                                     constant_air_temperature_in_Celsius=parameters_dict["population"]["constant_air_temperature_in_Celsius"],
-                                     constant_light_irradiation=parameters_dict["population"]["constant_light_irradiation"],
-                                     forcing_constant_belowground_environment=parameters_dict["population"]["forcing_constant_belowground_environment"],
-                                     constant_soil_temperature_in_Celsius=parameters_dict["population"]["constant_soil_temperature_in_Celsius"],
-                                     constant_soil_available_nitrogen=parameters_dict["population"]["constant_soil_available_nitrogen"],
-                                     simulation_option=parameters_dict["population"]["simulation_option"],
-                                     plotting_population=parameters_dict["population"]["plotting_population"],
-                                     plotting_single_plants=parameters_dict["population"]["plotting_single_plants"]
-                                     )
-
+    run_simulation_for_a_plant_cover(my_path=main_simbal_folder)
     print("Simulation done!")
 
 #TODO: check phytomer emergence over time
 #TODO: add angle for fababean
-#TODO: add a sowing depth and a sowing date
+#TODO: add a sowing date

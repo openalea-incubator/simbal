@@ -344,7 +344,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
                      initial_internode_height = 0.0005,
                      initial_labile_C_concentration = 0.001,
                      initial_labile_N_concentration = 0.0001,
-                     struct_mass_density=1e5, minimal_leaf_thickness=1e-3):
+                     struct_mass_density=1e5, minimal_leaf_thickness=1e-3,
+                     sowing_depth=0.):
     """
     This function is used to create the shoot part of a plant with a succession of different phytomers on the same branch.
 
@@ -383,8 +384,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               x2=0.,
                               y1=0.,
                               y2=0.,
-                              z1=0.,
-                              z2=0.,
+                              z1=-sowing_depth,
+                              z2=-sowing_depth,
                               # C & N labile pools:
                               labile_C=0.,
                               labile_C_deficit=0.,
