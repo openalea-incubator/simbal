@@ -1583,19 +1583,18 @@ def create_plants_population_scene(scene_information={},
             for vid in colors_shoot:
                 if vid in shapes:
                     n = new_shoot_MTG.node(vid)
-                    if single_color_shoot is None:
+                    # If organ is a fallen leaf, we print in black, semi-transparent:
+                    if n.label == "Fallen_leaf":
+                        shapes[vid].appearance = pgl.Material([0, 0, 0], transparency=0.8)
+                    # If the organ is the hypocotyl, we show it in light grey:
+                    elif n.type == "Hypocotyl":
+                        shapes[vid].appearance = pgl.Material([200, 220, 200], transparency=0)
+                    # If no specific uniform color has been prescribed, we get the hue from the property "color" computed elsewhere:
+                    elif single_color_shoot is None:
                         shapes[vid].appearance = pgl.Material(colors_shoot[vid], transparency=0)
+                    # Otherwise we display the prescribed uniform color:
                     else:
-                        # Otherwise, we can print it with a unique color:
-                        if n.label == "Fallen_leaf":
-                            # If the leaf has fallen, we print in grey, semi-transparent:
-                            shapes[vid].appearance = pgl.Material([0, 0, 0], transparency=0.8)
-                        elif n.type == "Hypocotyl":
-                            # If the leaf has fallen, we print in grey, semi-transparent:
-                            shapes[vid].appearance = pgl.Material([200, 220, 200], transparency=0.2)
-                        else:
-                            # shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0.2)
-                            shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0)
+                        shapes[vid].appearance = pgl.Material(single_color_shoot, transparency=0)
 
             # We reindex the different shapes by adding the lag number:
             reindexed_shapes = dict((sh.id + vid_lag, sh) for sh in scene_shoot)
@@ -2036,12 +2035,10 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
                          background_color=[255, 255, 255],
                          single_color_shoot=None,
                          single_color_root=None,
+                         property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2, lognorm_shoot=True,
+                         property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
                          plotting_leaf_shape="complex_shape",
                          simplified_leaf_shape_for_surface_calculation="diamond_shape",
-                         # property_name_shoot='radius', cmap_shoot='jet', vmin_shoot=1e-4, vmax_shoot=1e-2,
-                         # lognorm_shoot=True,
-                         # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2,
-                         # lognorm_root=True,
                          displaying_soil_surface=True,
                          recording_plot=True,
                          plot_name="plot.png"):
@@ -2090,6 +2087,10 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
                                                                   simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
                                                                   single_color_shoot=single_color_shoot,
                                                                   single_color_root=single_color_root,
+                                                                  property_name_shoot=property_name_shoot, cmap_shoot=cmap_shoot,
+                                                                  vmin_shoot=vmin_shoot, vmax_shoot=vmax_shoot, lognorm_shoot=lognorm_shoot,
+                                                                  property_name_root=property_name_root, cmap_root=cmap_root,
+                                                                  vmin_root=vmin_root, vmax_root=vmax_root,lognorm_root=lognorm_root,
                                                                   upscaling_factor=upscaling_factor)
 
     # IF NEEDED - SORTING SHAPES ACCORDING TO THE DISTANCE FROM THE CAMERA:

@@ -1272,7 +1272,9 @@ def run_simulation_for_one_plant(my_path=None,
                                           SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                           leaf_minimal_thickness=param.leaf_minimal_thickness,
                                           leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
-                                          elong_internode=param.elong_internode,
+                                          elong_hypocotyl=param.elong_internode * 10.,
+                                          elong_internode_slow=param.elong_internode / 10.,
+                                          elong_internode_fast=param.elong_internode,
                                           time_step_in_seconds=TIME_STEP_IN_DAYS * 60. * 60. * 24.,
                                           air_temperature_in_degree_Celsius=air_temperature)
             # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
@@ -1443,9 +1445,6 @@ def run_simulation_for_one_plant(my_path=None,
         # We can record the main properties of the plant:
         recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
 
-        if plant.actual_C_consumption_rate_by_shoot_growth > 0.:
-            print("...")
-
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
         results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
                                                        final_time_in_days=actual_time_in_days,
@@ -1488,6 +1487,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
     parameters_dict = {}
     shoot_MTG_dict = {}
     root_MTG_dict = {}
+    growth_stages_dict = {}
 
     # LOADING THE MAIN PARAMETERS AT THE SCALE OF THE POPULATION:
     #------------------------------------------------------------
@@ -1662,8 +1662,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
             number_of_cotyledons=2, # We start with two cotyledones by default
             number_of_phytomers=0,
             initial_internode_radius=param.initial_internode_radius,
-            initial_hypocotyl_length=sowing_depths_dict[plant_genotype_name], # The hypocothyl length corresponds to the sowing depth
-            initial_internode_height=param.initial_internode_length,
+            initial_hypocotyl_length=0.001,
+            initial_internode_height=0.,
             initial_cotyledon_length=param.initial_cotyledon_length,
             initial_leaf_length=param.initial_leaf_length,
             initial_labile_C_concentration=0.,
@@ -1897,6 +1897,12 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # We extract the information on incident light and air temperature from the input file:
             light_input = input_frame.loc[step - initial_step_number, 'light_irradiation_in_micromol_per_m2_per_second']
             air_temperature = input_frame.loc[step - initial_step_number, 'air_temperature_in_degree_Celsius']
+            # For each genotype, we get its stage based on an integer, e.g. 0 = absent:
+            for genotype_name in genotype_names_list:
+                # We reconstruct the name of the variable in the input file:
+                variable_name = genotype_name + "_stage"
+                # We get the corresponding value and store it in a dictionary:
+                growth_stages_dict[genotype_name] = input_frame.loc[step - initial_step_number, variable_name]
         else:
             print("!!! ERROR: no input file has been provided!")
 
@@ -1943,6 +1949,11 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
         # We cover each distinct plant to be computed:
         for genotype_name in genotype_names_list:
+
+            # VERIFYING THE PRESENCE OF THE PLANT:
+            if growth_stages_dict[genotype_name] == 0:
+                # If the plant is absent for this genotype, we move to the next genotype:
+                continue
 
             # ACCESSING THE CURRENT PLANT:
             plant = plant_objects[genotype_name]
@@ -2063,6 +2074,12 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
             # We cover each distinct plant to be computed:
             for genotype_name in genotype_names_list:
+
+                # VERIFYING THE PRESENCE OF THE PLANT:
+                if growth_stages_dict[genotype_name] == 0:
+                    # If the plant is absent for this genotype, we move to the next genotype:
+                    continue
+
                 # ACCESSING THE CURRENT PLANT:
                 plant = plant_objects[genotype_name]
                 root_g = root_MTG_dict[genotype_name]
@@ -2159,10 +2176,13 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
         if simulation_option != "roots_only":
 
-            # TODO: WATCH OUT BELOW!
             # REINITIALIZING SHOOT MTG VARIABLES:
             # We cover each distinct plant type to be computed:
             for genotype_name in genotype_names_list:
+                # VERIFYING THE PRESENCE OF THE PLANT:
+                if growth_stages_dict[genotype_name] == 0:
+                    # If the plant is absent for this genotype, we move to the next genotype:
+                    continue
                 # ACCESSING THE CURRENT PLANT:
                 shoot_g = shoot_MTG_dict[genotype_name]
                 # We reset all local properties to 0:
@@ -2220,6 +2240,10 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
             # We cover each distinct plant type to be computed:
             for genotype_name in genotype_names_list:
+                # VERIFYING THE PRESENCE OF THE PLANT:
+                if growth_stages_dict[genotype_name] == 0:
+                    # If the plant is absent for this genotype, we move to the next genotype:
+                    continue
                 # ACCESSING THE CURRENT PLANT:
                 plant = plant_objects[genotype_name]
                 shoot_g = shoot_MTG_dict[genotype_name]
@@ -2254,87 +2278,108 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 if len(n.previous_PAR_intercepted_values) == 0:
                     total_shoot_struct_mass = sum(shoot_g.properties()["struct_mass"].values())
 
+                # Redistributing labile C into each shoot organ:
+                #-----------------------------------------------
+                # The total amount of labile C to redistribute into the shoot organs is defined as:
+                shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
+                # SPECIAL CASE: if the hypocothyl can grow, then it receives all available labile C
+                hypocotyl = shoot_g.node(1)
+                if hypocotyl.z2 < 0.:
+                    # We calculate the rate of net N input to this organ corresponding to N distribution:
+                    hypocotyl.shoot_C_distribution_rate = (shoot_available_C - (
+                                hypocotyl.labile_C - hypocotyl.labile_C_deficit)) / time_step_in_seconds
+                    hypocotyl.labile_C = shoot_available_C
+                    hypocotyl.labile_C_deficit = 0.
+                else:
+                    # We cover each organ n of the shoot:
+                    for vid in shoot_g.vertices_iter(scale=1):
+                        # We access the current organ "n":
+                        n = shoot_g.node(vid)
+                        if n.surface <= 0.:
+                            continue
+                        # If there is no labile C to be distributed, the shoot labile C will remain 0:
+                        if shoot_available_C <= 0.:
+                            labile_C_target = 0.
+                            # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                            n.shoot_C_distribution_rate = (labile_C_target - (
+                                    n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                            # We now redefine the local pool of labile C according to this target level:
+                            n.labile_C_deficit = -labile_C_target
+                            n.labile_C = 0.
+                        # Otherwise, if there is labile C in the shoot:
+                        else:
+                            #TODO: WATCH OUT BELOW
+                            # We define the fraction of shoot available C allocated to this organ based on the previously
+                            # computed light intensity share:
+                            # If no light interception was computed so far:
+                            if len(n.previous_PAR_intercepted_values) == 0:
+                                # Then the fraction of labile N allocated to this organ will be based on its structural mass:
+                                fraction = n.struct_mass / total_shoot_struct_mass
+                            else:
+                                fraction = n.light_intensity_share
+                            # The eventual shoot labile C to be targeted after redistribution is:
+                            labile_C_target = shoot_available_C * fraction
+                            # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                            n.shoot_C_distribution_rate = (labile_C_target - (
+                                    n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                            # We now redefine the local pool of labile C according to this target level:
+                            # n.labile_C_deficit = -labile_C_target
+                            # n.labile_C = 0.
+                            n.labile_C = labile_C_target
+                            n.labile_C_deficit = 0.
+
                 # Redistributing labile N within each shoot organ:
                 #-------------------------------------------------
 
                 # The total amount of labile N to redistribute into the shoot organs is defined as:
                 shoot_available_N = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
-                # We cover each organ of the shoot:
-                for vid in shoot_g.vertices_iter(scale=1):
-                    # We access the current organ "n":
-                    n = shoot_g.node(vid)
-                    if n.surface <= 0.:
-                        continue
-                    # If there is no labile N to be distributed, the shoot labile N will remain 0:
-                    if shoot_available_N <= 0.:
-                        labile_N_target = 0.
-                        # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                        n.shoot_N_distribution_rate = (labile_N_target - (
-                                n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
-                        # We now redefine the local pool of labile N according to this target level:
-                        n.labile_N = 0.
-                        n.labile_N_deficit = -labile_N_target
-                    # Otherwise, if there is labile N in the shoot:
-                    else:
-                        #TODO: WATCH OUT BELOW
-                        # We define the fraction of shoot available N allocated to this organ based on the previously
-                        # computed light intensity share.
-                        # If no light interception was computed so far:
-                        if len(n.previous_PAR_intercepted_values) == 0:
-                            # Then the fraction of labile N allocated to this organ will be based on its structural mass:
-                            fraction =  n.struct_mass / total_shoot_struct_mass
+                # SPECIAL CASE: if the hypocothyl can grow, then it receives all available labile N
+                hypocotyl = shoot_g.node(1)
+                if hypocotyl.z2 < 0.:
+                    # We calculate the rate of net N input to this organ corresponding to N distribution:
+                    hypocotyl.shoot_N_distribution_rate = (shoot_available_N - (
+                                hypocotyl.labile_N - hypocotyl.labile_N_deficit)) / time_step_in_seconds
+                    hypocotyl.labile_N = shoot_available_N
+                    hypocotyl.labile_N_deficit = 0.
+                else:
+                    # We cover each organ of the shoot:
+                    for vid in shoot_g.vertices_iter(scale=1):
+                        # We access the current organ "n":
+                        n = shoot_g.node(vid)
+                        if n.surface <= 0.:
+                            continue
+                        # If there is no labile N to be distributed, the shoot labile N will remain 0:
+                        if shoot_available_N <= 0.:
+                            labile_N_target = 0.
+                            # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                            n.shoot_N_distribution_rate = (labile_N_target - (
+                                    n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                            # We now redefine the local pool of labile N according to this target level:
+                            n.labile_N = 0.
+                            n.labile_N_deficit = -labile_N_target
+                        # Otherwise, if there is labile N in the shoot:
                         else:
-                            fraction = n.light_intensity_share
-                        # The eventual shoot labile N to be targeted after redistribution is:
-                        labile_N_target = shoot_available_N * fraction
-                        # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                        n.shoot_N_distribution_rate = (labile_N_target - (n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
-                        # We now redefine the local pool of labile N according to this target level:
-                        # n.labile_N = 0.
-                        # n.labile_N_deficit = -labile_N_target
-                        n.labile_N = labile_N_target
-                        n.labile_N_deficit = 0.
+                            #TODO: WATCH OUT BELOW
+                            # We define the fraction of shoot available N allocated to this organ based on the previously
+                            # computed light intensity share.
+                            # If no light interception was computed so far:
+                            if len(n.previous_PAR_intercepted_values) == 0:
+                                # Then the fraction of labile N allocated to this organ will be based on its structural mass:
+                                fraction =  n.struct_mass / total_shoot_struct_mass
+                            else:
+                                fraction = n.light_intensity_share
+                            # The eventual shoot labile N to be targeted after redistribution is:
+                            labile_N_target = shoot_available_N * fraction
+                            # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                            n.shoot_N_distribution_rate = (labile_N_target - (n.labile_N - n.labile_N_deficit)) / time_step_in_seconds
+                            # We now redefine the local pool of labile N according to this target level:
+                            # n.labile_N = 0.
+                            # n.labile_N_deficit = -labile_N_target
+                            n.labile_N = labile_N_target
+                            n.labile_N_deficit = 0.
 
-                # Redistributing labile C into each shoot organ:
-                #-----------------------------------------------
-                # The total amount of labile C to redistribute into the shoot organs is defined as:
-                shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
-                # We cover each organ n of the shoot:
-                for vid in shoot_g.vertices_iter(scale=1):
-                    # We access the current organ "n":
-                    n = shoot_g.node(vid)
-                    if n.surface <= 0.:
-                        continue
-                    # If there is no labile C to be distributed, the shoot labile C will remain 0:
-                    if shoot_available_C <= 0.:
-                        labile_C_target = 0.
-                        # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                        n.shoot_C_distribution_rate = (labile_C_target - (
-                                n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
-                        # We now redefine the local pool of labile C according to this target level:
-                        n.labile_C_deficit = -labile_C_target
-                        n.labile_C = 0.
-                    # Otherwise, if there is labile C in the shoot:
-                    else:
-                        #TODO: WATCH OUT BELOW
-                        # We define the fraction of shoot available C allocated to this organ based on the previously
-                        # computed light intensity share:
-                        # If no light interception was computed so far:
-                        if len(n.previous_PAR_intercepted_values) == 0:
-                            # Then the fraction of labile N allocated to this organ will be based on its structural mass:
-                            fraction = n.struct_mass / total_shoot_struct_mass
-                        else:
-                            fraction = n.light_intensity_share
-                        # The eventual shoot labile C to be targeted after redistribution is:
-                        labile_C_target = shoot_available_C * fraction
-                        # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                        n.shoot_C_distribution_rate = (labile_C_target - (
-                                n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
-                        # We now redefine the local pool of labile C according to this target level:
-                        # n.labile_C_deficit = -labile_C_target
-                        # n.labile_C = 0.
-                        n.labile_C = labile_C_target
-                        n.labile_C_deficit = 0.
+                # INPUT OF C&N INTO THE SHOOT SYSTEM:
+                #####################################
 
                 # POSSIBLE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
                 # If the elapsed thermal time is lower than the prescribed duration of supply from the seed:
@@ -2359,6 +2404,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # Note: at this stage, the labile C amounts have not been updated in the organs or at the scale of the plant!
 
                 # MAINTENANCE IN THE SHOOT ORGANS:
+                ##################################
+
                 # We calculate the C respiration cost associated to maintenance in each organ:
                 total_maintenance_rate = AllocF.computing_maintenance_rate(shoot_g,
                                                                            air_temperature_in_degree_Celsius=air_temperature)
@@ -2375,7 +2422,9 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                               SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
                                               leaf_minimal_thickness=param.leaf_minimal_thickness,
                                               leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
-                                              elong_internode=param.elong_internode,
+                                              elong_hypocotyl=param.elong_internode,
+                                              elong_internode_slow=param.elong_internode/10.,
+                                              elong_internode_fast=param.elong_internode,
                                               time_step_in_seconds=time_step_in_seconds,
                                               air_temperature_in_degree_Celsius=air_temperature)
                 # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
@@ -2589,7 +2638,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     z_cam = param.z_camera
 
                 # We consider the possibility of single colors to show for background, shoots and roots:
-                if param.background_color is None:
+                if param.background_color is None or pd.isna(param.background_color):
                     plot_background_color = None
                 else:
                     plot_background_color = ast.literal_eval(param.background_color)
@@ -2597,7 +2646,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     plot_single_color_shoot = None
                 else:
                     plot_single_color_shoot = ast.literal_eval(param.single_color_shoot)
-                if param.single_color_root is None:
+                if param.single_color_root is None or pd.isna(param.single_color_root):
                     plot_single_color_root = None
                 else:
                     plot_single_color_root = ast.literal_eval(param.single_color_root)
@@ -2624,6 +2673,16 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                          background_color=plot_background_color,
                                          single_color_shoot=plot_single_color_shoot,
                                          single_color_root=plot_single_color_root,
+                                         property_name_shoot=param.displayed_property_shoot,
+                                         cmap_shoot=param.color_map_shoot,
+                                         vmin_shoot=param.displayed_min_value_shoot,
+                                         vmax_shoot=param.displayed_max_value_shoot,
+                                         lognorm_shoot=param.log_scale_shoot,
+                                         property_name_root=param.displayed_property_root,
+                                         cmap_root=param.color_map_root,
+                                         vmin_root=param.displayed_min_value_root,
+                                         vmax_root=param.displayed_max_value_root,
+                                         lognorm_root=param.log_scale_root,
                                          plotting_leaf_shape=param.plotting_leaf_shape,
                                          simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
                                          displaying_soil_surface=True,
@@ -2632,7 +2691,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                          )
 
                 # PLOTTING ONE SINGLE PLANT:
-                if name != "population" and plotting_single_plants:
+                if name != "population" and plotting_single_plants and growth_stages_dict[name] != 0:
                     shoot_g = shoot_MTG_dict[name]
                     root_g = root_MTG_dict[name]
 
@@ -2647,16 +2706,20 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                          plant_species=param.plant_genotype,
                                          leaf_shape=param.plotting_leaf_shape,
                                          simplified_leaf_shape_for_surface_calculation=param.simplified_leaf_shape_for_surface_calculation,
-                                         # background_color=[94, 76, 64],
                                          background_color=plot_background_color,
                                          single_color_shoot=plot_single_color_shoot,
                                          single_color_root=plot_single_color_root,
-                                         # single_color_shoot=None,
-                                         # single_color_root=None,
-                                         property_name_shoot='surfacic_PAR_intercepted', cmap_shoot='summer', vmin_shoot=0., vmax_shoot=1000, lognorm_shoot=False,
-                                         # property_name_shoot='PAR_intercepted', cmap_shoot='inferno', vmin_shoot=0, vmax_shoot=400, lognorm_shoot=False,
-                                         # property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2, lognorm_root=True,
-                                         recording_plot=True,
+                                         property_name_shoot=param.displayed_property_shoot,
+                                         cmap_shoot=param.color_map_shoot,
+                                         vmin_shoot=param.displayed_min_value_shoot,
+                                         vmax_shoot=param.displayed_max_value_shoot,
+                                         lognorm_shoot=param.log_scale_shoot,
+                                         property_name_root=param.displayed_property_root,
+                                         cmap_root=param.color_map_root,
+                                         vmin_root=param.displayed_min_value_root,
+                                         vmax_root=param.displayed_max_value_root,
+                                         lognorm_root=param.log_scale_root,
+                                         recording_plot=param.recording_images,
                                          plot_name=os.path.join(plot_directory, 'plot_%.5d.png' % step),
                                          shoots_overlapping_roots=True)
 
@@ -2694,5 +2757,5 @@ if __name__ == '__main__':
     print("Simulation done!")
 
 #TODO: check phytomer emergence over time
+#TODO: load MTG
 #TODO: add angle for fababean
-#TODO: add a sowing date

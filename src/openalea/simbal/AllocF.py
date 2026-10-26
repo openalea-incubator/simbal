@@ -340,7 +340,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
                      initial_cotyledon_length=0.003,
                      initial_leaf_length=0.003,
                      initial_internode_radius = 0.001,
-                     initial_hypocotyl_length = 0.01,
+                     initial_hypocotyl_length = 0.0001,
                      initial_internode_height = 0.0005,
                      initial_labile_C_concentration = 0.001,
                      initial_labile_N_concentration = 0.0001,
@@ -370,7 +370,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
 
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
-                              label='Base_of_the_root_system',
+                              label='Internode',
                               type="Hypocotyl",
                               node_rank=0,
                               # Geometry:
@@ -939,6 +939,10 @@ def computing_light_interception_on_plant_population(scene,
             n = g.node(vid)
             scene_n = scene_g.node(vid)
             try:
+                # If the mean z-position of the current organ is below 0, then it is belowground and cannot intercept light:
+                if np.average([n.z1, n.z2]) < 0.:
+                    continue
+                # Otherwise, we assign to the organ the computed light interception:
                 n.Caribu_area = scene_n.Caribu_area
                 n.Caribu_Ei = scene_n.Caribu_Ei
                 n.Caribu_Eabs = scene_n.Caribu_Eabs
@@ -1024,8 +1028,11 @@ def computing_light_interception_on_plant_population(scene,
             # We cover each organ n of the shoot:
             for vid in g.vertices_iter(scale=1):
                 n = g.node(vid)
-                # We adjust the light intensity share so that the sum of all shares now equals 0:
-                n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
+                if sum_of_light_fractions > 0.:
+                    # We adjust the light intensity share so that the sum of all shares now equals 0:
+                    n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
+                else:
+                    n.light_intensity_share = 0.
 
         # We record the total intercepted PAR and the sum of surfacic PAR for this plant:
         total_PAR_intercepted_dict[genotype_name] = total_PAR_intercepted
@@ -1413,7 +1420,9 @@ def potential_shoot_growth(shoot_MTG,
                            SFQN = 1,
                            leaf_minimal_thickness = 1e-3,
                            leaf_shape="diamond_shape",
-                           elong_internode = 5e-7,
+                           elong_hypocotyl = 5e-7,
+                           elong_internode_slow = 5e-7,
+                           elong_internode_fast = 5e-7,
                            plant_age = 0.,
                            time_step_in_seconds = 60.*60.*24.,
                            air_temperature_in_degree_Celsius = 10.):
@@ -1494,9 +1503,16 @@ def potential_shoot_growth(shoot_MTG,
                 # The radius, which is half of the width, is also calculated based on the allometric coefficient:
                 n.potential_radius = n.potential_length * param.leaf_width_to_length_ratio / 2.
 
-        # CASE 2: the shoot element is an internode
-        #------------------------------------------
-        elif n.label == "Internode":
+        # CASE 2: the shoot element is the hypocothyl that has not reached soil surface yet:
+        #--------------------------------------------------------------------------------------
+        elif n.type == "Hypocotyl" and n.z2 < 0.:
+            potential_elongation_rate = elong_hypocotyl * temperature_adjustement
+            n.potential_length = n.length + potential_elongation_rate * time_step_in_seconds
+            n.potential_volume_increment = (n.potential_length - n.length) * (n.radius ** 2 * pi)
+
+        # CASE 2bis: the shoot element is a normal internode
+        #---------------------------------------------------
+        elif n.label == "Internode" and n.type != "Cotyledon_supporting_segment":
 
             # 1) We calculate a potential elongation rate.
             # We check whether the lateral bud has emerged or is about to emerge.
@@ -1516,10 +1532,10 @@ def potential_shoot_growth(shoot_MTG,
             # If the plant has reached a minimal age above which it can fully elongate:
             if plant_age > param.minimal_age_for_internode_elongation and fast_elongation is True:
                 # Then we set the potential elongation rate to the full potential:
-                potential_elongation_rate = elong_internode * temperature_adjustement
+                potential_elongation_rate = elong_internode_fast * temperature_adjustement
             else:
                 # Otherwise, we only allow only a very slow elongation rate:
-                potential_elongation_rate = elong_internode * temperature_adjustement / 100. #TODO: change the parameter with the actual elongation before stem elongation
+                potential_elongation_rate = elong_internode_slow * temperature_adjustement
             # Eventually, we record the potential new length:
             n.potential_length = n.length + potential_elongation_rate * time_step_in_seconds
 
@@ -1760,7 +1776,7 @@ def actual_shoot_growth(shoot_MTG,
 
         # CASE 1: The shoot element is an internode
         #------------------------------------------
-        if n.label == "Internode":
+        if n.label == "Internode" or n.type == "Hypocothyl":
             # We compute the maximal length increment and radius increment based on the final volume increment:
             possible_length_increment = final_volume_increment / (n.radius ** 2 * pi)
             possible_radius_increment = sqrt( (n.volume + final_volume_increment) / (n.length * pi) ) - n.radius
