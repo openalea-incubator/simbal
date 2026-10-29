@@ -645,6 +645,17 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         # leaflet_shape = pgl.Scaled((leaflet_length, leaflet_width, 1), leaflet_shape)
         return (leaflet_shape)
 
+    def computing_leaflets_number_per_leaf(rank):
+        if rank <= 6:
+            nb_leaflets = 2
+        elif rank == 7:
+            nb_leaflets = 3
+        elif rank >= 10:
+            nb_leaflets = 5
+        elif (rank >= 8 & rank <= 9):
+            nb_leaflets = 4
+        return nb_leaflets
+
     # Now we define the actual shoot visitor by moving the turtle:
     def shoot_visitor(g, v, turtle):
         """
@@ -674,9 +685,9 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # We get the x,y,z coordinates from the beginning of the root segment, before the turtle moves:
         position1 = turtle.getPosition()
-        n.x1 = position1[0] * upscaling_factor
-        n.y1 = position1[1] * upscaling_factor
-        n.z1 = position1[2] * upscaling_factor
+        n.x1 = position1[0] / upscaling_factor
+        n.y1 = position1[1] / upscaling_factor
+        n.z1 = position1[2] / upscaling_factor
         # The direction of the turtle is changed:
         turtle.down(angle_down)
         turtle.rollL(angle_roll)
@@ -742,6 +753,8 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                     # We create a cylinder corresponding to the whole petiole:
                     petiole = pgl.Cylinder(radius=length * param.leaf_width_to_length_ratio * param.petiole_to_leaf_width_ratio,
                                            height=total_petiole_length)
+                    # We compute the number of leaflets to be drawn on the leaf:
+                    nb_leaflets = computing_leaflets_number_per_leaf(rank = n.node_rank)
                     # We initiate a list that will contain the petiole and all leaflets:
                     leaflets = [petiole]
                     # The upper surface of the cylinder of the petiole is calculated and withdrawn from the total leaf surface:
@@ -752,7 +765,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                     else:
                         total_leaflet_surface = leaf_surface - upper_petiole_surface
                         # We assume that leaf surface is distributed equally between each leaflet:
-                        leaflet_surface = total_leaflet_surface / param.number_of_leaflets
+                        leaflet_surface = total_leaflet_surface / nb_leaflets
                         # Now we can calculate the length and width of each leaflet based on the simplified shape used for calculations:
                         if simplified_shape == "oval_shape" or simplified_shape == "ellipse_shape":
                             leaflet_length = 2 * (leaflet_surface / (param.leaflet_width_to_length_ratio * pi)) ** (0.5)
@@ -773,10 +786,10 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                                                     leaflet_length=leaflet_length,
                                                     leaflet_width=leaflet_width)
                         # We compute the number of distinct petiole zones to be shown (one for each pair of leaflets):
-                        if param.number_of_leaflets <= 1:
+                        if nb_leaflets <= 2:
                             number_of_petioles = 1
                         else:
-                            number_of_petioles = param.number_of_leaflets // 2
+                            number_of_petioles = nb_leaflets // 2
                         # We defined the length between two pairs of leaflets:
                         petiole_leaflet_length_1 = total_petiole_length * 0.4
                         petiole_leaflet_length_2 = total_petiole_length * 0.3
@@ -786,10 +799,13 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                         leaflet_left = pgl.AxisRotated(axis=(0, 1, 0), angle = -90 * pi / 180, geometry=leaflet_left)
                         leaflet_right = pgl.AxisRotated(axis=(0, 0, 1), angle= param.leaflet_angle * pi / 180, geometry=leaflet)
                         leaflet_right = pgl.AxisRotated(axis=(0, 1, 0), angle= -90 * pi / 180, geometry=leaflet_right)
-                        # We define a translation vector:
-                        translate = [0, 0, petiole_leaflet_length_1]
+                        # We initialize a translation vector:
+                        if nb_leaflets <= 2:
+                            translate = [0, 0, length]
+                        else:
+                            translate = [0, 0, petiole_leaflet_length_1]
                         # We initiate a counter for leaflets to handle:
-                        count_leaflets = param.number_of_leaflets
+                        count_leaflets = nb_leaflets
                         # We add the first two leaflefts:
                         leaflets.append(pgl.Translated(translate, leaflet_left))
                         leaflets.append(pgl.Translated(translate, leaflet_right))
@@ -896,19 +912,40 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # We get the x,y,z coordinates from the end of the root segment, after the turtle has moved:
         position2 = turtle.getPosition()
-        n.x2 = position2[0] * upscaling_factor
-        n.y2 = position2[1] * upscaling_factor
-        n.z2 = position2[2] * upscaling_factor
+        n.x2 = position2[0] / upscaling_factor
+        n.y2 = position2[1] / upscaling_factor
+        n.z2 = position2[2] / upscaling_factor
 
     return shoot_visitor
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # We create a function that computes the insertion angle of the petiole of a leaf from the mother stem,
 # based on the thermal age of the plant and of the leaf:
-def leaf_insertion_angle_evolution(plant_thermal_age_in_degree_days, leaf_age_in_degree_days):
-    a = 0.322 - 2.74E-04 * plant_thermal_age_in_degree_days
-    b = (2.26E-05 * plant_thermal_age_in_degree_days - 7.38E-03) * plant_thermal_age_in_degree_days
-    angle = min(90, a * leaf_age_in_degree_days + b)
+def leaf_insertion_angle_evolution(leaf,
+                                   plant_genotype_name = "rapeseed",
+                                   plant_thermal_age_in_degree_days=0.):
+
+    # We get the age of the leaf:
+    leaf_age_in_degree_days = leaf.thermal_time_since_formation / (24. * 60. * 60.) * param.T_ref_growth
+
+    # If the leaf corresponds to a cotyledon:
+    if leaf.type == "Cotyledon":
+        # We make sure that if the cotyledon is belowground, its angle remains almost nil:
+        if leaf.thermal_time_since_aboveground_emergence <= 0.:
+            angle = 5.
+        # Otherwise, we assume that the angle of the emerged cotyledon linearily increases
+        # over thermal time up to 90 degrees:
+        else:
+            cotyledon_thermal_time_in_degree_days = leaf.thermal_time_since_aboveground_emergence / (60.*60.*24) * param.T_ref_growth
+            angle = min(90, 5 + 2 * cotyledon_thermal_time_in_degree_days)
+    elif plant_genotype_name == "rapeseed":
+        a = 0.322 - 2.74E-04 * plant_thermal_age_in_degree_days
+        b = (2.26E-05 * plant_thermal_age_in_degree_days - 7.38E-03) * plant_thermal_age_in_degree_days
+        angle = min(90, a * leaf_age_in_degree_days + b)
+    else:
+        angle = param.leaf_insertion_angle
+        # print("WARNING: the evolution of the leaf angle over time cannot be properly computed as the genotype", plant_genotype_name, "is unknown.",
+        #       "We therefore set the angle to", angle, "degrees as specified in the parameters.")
     return angle
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1238,7 +1275,7 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
         lateral_border_width = (scene_width - (number_of_rows_to_show - 1) * inter_row_distance) / 2.
         lateral_border_length = (scene_length - (number_of_plants_per_row_to_show - 1) * inter_plant_distance) / 2.
 
-        # We calculate the thoretical middle of the scene, in order to identify the best plant candidate for recording
+        # We calculate the theoretical middle of the scene, in order to identify the best plant candidate for recording
         # light interception later on, i.e. the plant located closest to the middle of the scene:
         x_middle = (lateral_border_length + ((number_of_plants_per_row_to_show-1) * inter_plant_distance) / 2.)*upscaling_factor
         y_middle = (lateral_border_width + ((number_of_rows_to_show-1) * inter_row_distance) / 2.)*upscaling_factor
@@ -2450,8 +2487,8 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
     print("")
 
     return input_frame
-
-
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
 # This function enables to record the properties of each element of the MTG:
 def recording_MTG_properties(g, file_name='g_properties.csv'):
     """
@@ -2504,3 +2541,395 @@ def recording_MTG_properties(g, file_name='g_properties.csv'):
     return data_frame
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
+
+# MAIN FUNCTION FOR LOADING AND DISPLAYING/EXTRACTING PROPERTIES FROM MTG FILES:
+def loading_MTG_files(my_path='',
+                      opening_list=False,
+                      file_extension='pckl',
+                      MTG_directory='MTG_files',
+                      single_MTG_filename='root00001.pckl',
+                      list_of_MTG_ID=None,
+                      plotting_with_PlantGL=False,
+                      normal_plotting_with_pyvista=False, show_Pyvista_axes=False,
+                      fast_plotting_with_pyvista=False,
+                      closing_window=False,
+                      factor_of_higher_resolution=3,
+                      property="C_hexose_root", vmin=1e-5, vmax=1e-2, log_scale=True, cmap='jet',
+                      width=1200, height=1200,
+                      x_center=0, y_center=0, z_center=0,
+                      x_cam=0, y_cam=0, z_cam=0,
+                      step_back_coefficient=0., camera_rotation=False, n_rotation_points=12 * 10,
+                      background_color=[0,0,0],
+                      root_hairs_display=True,
+                      mycorrhizal_fungus_display=False,
+                      adding_images_on_plot=False,
+                      recording_images=False,
+                      images_directory='root_new_images',
+                      z_classification=False, z_min=0.0, z_max=1., z_interval=0.1, time_step_in_days=1 / 24.,
+                      computing_on_different_roots=False, comparing_distance_from_tip = False, distance_treshold = 0.04,
+                      properties_to_compute=["total_net_rhizodeposition", "length"],
+                      summing_different_roots=False, averaging_different_roots=False,
+                      printing_sum=True,
+                      recording_sum=True,
+                      printing_warnings=True,
+                      recording_g_properties=True,
+                      MTG_properties_folder='MTG_properties'):
+
+    """
+    This function opens one MTG file or a list of MTG files, displays them and record some of their properties if needed.
+    :param my_path: the general file path, in which the directory 'MTG_directory' will be located
+    :param opening_list: if True, the function opens all (or some) MTG files located in the 'MTG_directory'
+    :param MTG_directory: the name of the directory when MTG files are located
+    :param single_MTG_filename: the name of the single MTG to open (if opening_list=False)
+    :param list_of_MTG_ID: a list containing the ID number of each MTG to be opened (each MTG name is assumed to be in the format 'rootXXXXX.pckl')
+    :param property: the property of the MTG to be displayed
+    :param vmin, vmax, log_scale, cmap, width, height, x_center, y_center, z_center, z_cam, camera_distance,
+           step_back_coefficient, camera_rotation, n_rotation_points: [cf parameters of the function plot_MTG]
+    :param adding_images_on_plot: for adding some additional features on the plots' images
+    :param recording_images: if True, images opened in PlantGL will be recorded
+    :param images_directory: the name of the directory where images will be recorded
+    :param z_classification: if True, specific properties will be integrated or averaged for different z-layers
+    :param z_min: the depth to which we start computing
+    :param z_max: the maximal depth to which we stop computing
+    :param z_interval: the thickness of each layer to consider between z_min and z_max
+    :param time_step_in_days: the time step at which is MTG file was generated (used to display time on the images)
+    :param computing_on_different_roots: if True, calculations will be done on different root classes
+    :param comparing_distance_from_tip: if True, root classes will be based not only on root orders, but also according to the distance from root tip
+    :param distance_treshold: the critical distance from root tip to consider when segregating roots according to this distance
+    :param properties_to_compute: a list containing the names of the properties to be considered by the function
+    :param summing_different_roots: if True, the function returns the sum of each property within each root class
+    :param averaging_different_roots: if True, the function returns the mean value of each property for a root element within each root class, and its standard deviation
+    :param printing_sum: if True, properties summed over the whole MTG(s) will be shown in the console
+    :param recording_sum: if True, properties summed over the whole MTG(s) will be recorded
+    :param printing_warnings: if True, warnings will be displayed
+    :param recording_g_properties: if True, all the properties of each MTG's node will be recorded in a file
+    :param MTG_properties_folder: the specific file path in which MTG properties will be recorded, if any
+    :return: The MTG file "g" that was loaded at last.
+    """
+
+    # Preparing the folders:
+    # -----------------------
+
+    if opening_list:
+        # We define the directory "MTG_files":
+        g_dir = os.path.join(my_path, MTG_directory)
+        print("Loading MTG files located in", g_dir, "...")
+    else:
+        g_dir = my_path
+        print("Loading the MTG file located in", g_dir,"...")
+
+    if recording_images:
+        # We define the directory "video"
+        video_dir = os.path.join(my_path, images_directory)
+        # If this directory doesn't exist:
+        if not os.path.exists(video_dir):
+            # Then we create it:
+            os.mkdir(video_dir)
+        else:
+            # Otherwise, we delete all the images that are already present inside:
+            for root, dirs, files in os.walk(video_dir):
+                for file in files:
+                    os.remove(os.path.join(root, file))
+
+    if recording_g_properties:
+        # We define the directory "MTG_properties_dir"
+        properties_dir = os.path.join(my_path,MTG_properties_folder)
+        # If this directory doesn't exist:
+        if not os.path.exists(properties_dir):
+            # Then we create it:
+            os.mkdir(properties_dir)
+        else:
+            # Otherwise, we delete all the files that are already present inside:
+            for root, dirs, files in os.walk(properties_dir):
+                for file in files:
+                    os.remove(os.path.join(root, file))
+
+    # Depending on the extension of the file, we may either consider pickle files or csv files containing
+    # all the properties of the MTG:
+    if file_extension == 'pckl':
+        # We get the list of the names of all MTG files:
+        filenames = Path(g_dir).glob('*pckl')
+    elif file_extension == 'csv':
+        # We get the list of the names of all MTG files:
+        filenames = Path(g_dir).glob('*csv')
+    else:
+        print("!!! ERROR: the file extension can only be 'pckl' or 'csv'!!!")
+        return
+
+    filenames = sorted(filenames)
+    # We initialize a list containing the ID numbers of the MTG to be opened:
+    list_of_MTG_numbers = []
+
+    # If the instructions are to open the whole list of MTGs in the directory and not a subset of it:
+    if opening_list and not list_of_MTG_ID:
+        # We cover each name of MTG ending as 'rootXXXX.pckl' (where X is a digit), extract the corresponding number,
+        # and add it to the list:
+        for filename in filenames:
+            if file_extension == 'pckl':
+                MTG_ID = int(str(filename)[-10:-5])
+            else:
+                MTG_ID = int(str(filename)[-9:-4])
+            list_of_MTG_numbers.append(MTG_ID)
+    # If the instructions are to open a specific list:
+    elif opening_list and list_of_MTG_ID:
+        list_of_MTG_numbers =  list_of_MTG_ID
+    # Otherwise, we open a single file:
+    else:
+        list_of_MTG_numbers = [int(str(single_MTG_filename)[-10:-5])]
+
+    # In addition, we get the final list of properties corresponding to the last MTG of the list.
+    # We first load the last MTG of the list:
+    ID = list_of_MTG_numbers[-1]
+    if file_extension == 'pckl':
+        filename = 'root%.5d.pckl' % ID
+        MTG_path = os.path.join(g_dir, filename)
+        f = open(MTG_path, 'rb')
+        g = pickle.load(f)
+        f.close()
+    else:
+        filename = 'root%.5d.csv' % ID
+        MTG_path = os.path.join(g_dir, filename)
+        g = create_MTG_from_csv_file(csv_filename=MTG_path)
+    # And we define the final list of properties to record according to all the properties of this MTG:
+    list_of_properties = list(g.properties().keys())
+    # We sort it alphabetically:
+    list_of_properties.sort(key=str.lower)
+
+    if z_classification:
+        # We create an empty dataframe that will contain the results of z classification:
+        z_dictionnary_series = []
+
+    if computing_on_different_roots:
+        # We create an empty dataframe that will contain the results of computing:
+        computing_dictionnary_series = []
+
+    # If the camera is supposed to move around the MTG:
+    if camera_rotation:
+        # We record the initial distance of the camera from the center:
+        initial_camera_distance = max(x_cam, y_cam)
+        camera_distance = initial_camera_distance
+        # We initialize the index for reading each coordinates:
+        index_camera = 0
+        # We calculate the coordinates of the camera on the circle around the center:
+        x_coordinates, y_coordinates, z_coordinates = circle_coordinates(z_center=z_cam,
+                                                                         radius=camera_distance,
+                                                                         n_points=n_rotation_points)
+
+    # We cover each of the MTG files in the list (or only the specified file when requested):
+    # ---------------------------------------------------------------------------------------
+    for MTG_position in range(0,len(list_of_MTG_numbers)):
+
+        # Loading the MTG file:
+        #----------------------
+        ID = list_of_MTG_numbers[MTG_position]
+        print("Dealing with MTG", ID, "-", MTG_position+1,"out of", len(list_of_MTG_numbers), "MTGs to consider...")
+
+        if file_extension == 'pckl':
+            filename = 'root%.5d.pckl' % ID
+            MTG_path = os.path.join(g_dir, filename)
+            f = open(MTG_path, 'rb')
+            g = pickle.load(f)
+            f.close()
+        else:
+            filename = 'root%.5d.csv' % ID
+            MTG_path = os.path.join(g_dir, filename)
+            g = create_MTG_from_csv_file(csv_filename=MTG_path)
+        print("   > New MTG opened!")
+
+        # Plotting the MTG:
+        # ------------------
+        if recording_images:
+            # We define the name of the image:
+            image_name = os.path.join(video_dir, 'root%.5d.png' % ID)
+        else:
+            image_name = "plot.png"
+
+        # If the rotation of the camera around the root system is required:
+        if camera_rotation:
+            # We redefine the position of the camera according to the pre-registered circle coordinates around the MTG:
+            x_cam = x_coordinates[index_camera]
+            y_cam = y_coordinates[index_camera]
+            z_cam = z_coordinates[index_camera]
+            # And we move the index for the next plot:
+            index_camera += 1
+            # If this index is higher than the number of coordinates in each vector:
+            if index_camera >= n_rotation_points:
+                # Then we reset the index to 0:
+                index_camera = 0
+            # If the camera is also supposed to change its distance from the center:
+            if step_back_coefficient != 0.:
+                # Then we increase the distance according to the step_back_coefficient:
+                camera_distance += initial_camera_distance * step_back_coefficient
+                # And we re-calculate the coordinates of the camera on the circle around the center, used at the next image:
+                x_coordinates, y_coordinates, z_coordinates = circle_coordinates(z_center=z_cam,
+                                                                                 radius=camera_distance,
+                                                                                 n_points=n_rotation_points)
+
+        # CASE 1: the MTG is to be plot with Pyvista
+        #-------------------------------------------
+        if normal_plotting_with_pyvista or fast_plotting_with_pyvista:
+
+            # We color the MTG according to the property:
+            my_colormap(g, property_name=property, cmap='jet', vmin=vmin, vmax=vmax, lognorm=log_scale)
+            print("   > Trying to plot...")
+            if normal_plotting_with_pyvista:
+                # We plot the current file:
+                plotting_roots_with_pyvista(g, displaying_root_hairs=root_hairs_display,
+                                            showing=False, recording_image=recording_images, image_file=image_name,
+                                            factor_of_higher_resolution=factor_of_higher_resolution,
+                                            background_color=background_color,
+                                            plot_width=width, plot_height=height,
+                                            camera_x=x_cam, camera_y=y_cam, camera_z=z_cam,
+                                            focal_x=x_center, focal_y=y_center, focal_z=z_center,
+                                            closing_window=closing_window,
+                                            show_axes=show_Pyvista_axes)
+            else:
+                # We plot the current file:
+                fast_plotting_roots_with_pyvista(g, displaying_root_hairs=root_hairs_display,
+                                                 showing=False, recording_image=recording_images, image_file=image_name,
+                                                 factor_of_higher_resolution=factor_of_higher_resolution,
+                                                 background_color=background_color,
+                                                 plot_width=width, plot_height=height,
+                                                 camera_x=x_cam, camera_y=y_cam, camera_z=z_cam,
+                                                 focal_x=x_center, focal_y=y_center, focal_z=z_center,
+                                                 closing_window=closing_window)
+
+            # If the camera is supposed to move away at the next image, then we move the camera further from the root system:
+            x_cam = x_cam * (1 + step_back_coefficient)
+            z_cam = z_cam * (1 + step_back_coefficient)
+
+            print("   > Plot made!")
+            print("")
+
+        # CASE 2: the MTG is to be plot with PlantGL
+        #-------------------------------------------
+        elif plotting_with_PlantGL:
+            # We create the general scene:
+            sc = plot_mtg(g, prop_cmap=property, lognorm=log_scale, vmin=vmin, vmax=vmax, cmap=cmap,
+                                 width=width,
+                                 height=height,
+                                 x_center=x_center,
+                                 y_center=y_center,
+                                 z_center=z_center,
+                                 x_cam=x_cam,
+                                 y_cam=y_cam,
+                                 z_cam=z_cam,
+                                 background_color=background_color,
+                                 root_hairs_display=root_hairs_display,
+                                 mycorrhizal_fungus_display=mycorrhizal_fungus_display)
+
+            # In case we want to add text:
+            if adding_images_on_plot:
+                text = "t = 100 days"
+                # length_text=len(text)*50
+                # height_text = 120
+                length_text = 600
+                height_text = 600
+                font_size = 100
+                drawing_text(text=text, length=length_text, height=height_text, font_size=font_size, image_name="text.png")
+                # Adding text to the plot:
+                lower_left_x = 3
+                lower_left_y = -2
+                lower_left_z = -2
+                length = 1
+                height = 1
+                shape1 = showing_image(image_name="text.png",
+                                       x1=lower_left_x, y1=lower_left_y, z1=lower_left_z,
+                                       x2=lower_left_x, y2=lower_left_y, z2=lower_left_z + height,
+                                       x3=lower_left_x, y3=lower_left_y + length, z3=lower_left_z + height,
+                                       x4=lower_left_x, y4=lower_left_y + length, z4=lower_left_z
+                                       )
+                # Viewer.display(shape)
+                sc += shape1
+
+                # Adding colorbar to the plot:
+                # Adding text to the plot:
+                lower_left_x = 6.5
+                lower_left_y = -1
+                lower_left_z = -3.8
+                length = 1
+                height = 1
+                shape2 = showing_image(image_name="colorbar_new.png",
+                                       x1=lower_left_x, y1=lower_left_y, z1=lower_left_z,
+                                       x2=lower_left_x, y2=lower_left_y, z2=lower_left_z + height,
+                                       x3=lower_left_x, y3=lower_left_y + length, z3=lower_left_z + height,
+                                       x4=lower_left_x, y4=lower_left_y + length, z4=lower_left_z
+                                       )
+                # Viewer.display(shape)
+                sc += shape2
+
+            # We finally display the MTG on PlantGL:
+            pgl.Viewer.display(sc)
+            # And we record its image:
+            if recording_images:
+                image_name = os.path.join(video_dir, 'root%.5d.png')
+                pgl.Viewer.saveSnapshot(image_name % ID)
+
+            # If the camera is supposed to move away at the next image, then we move the camera further from the root system:
+            x_cam = x_cam * (1 + step_back_coefficient)
+            z_cam = z_cam * (1 + step_back_coefficient)
+
+            print("   > Plot made!")
+            print("")
+
+        # For recording the properties of g in a csv file:
+        # ------------------------------------------------
+        if recording_g_properties:
+            # We define the final list of properties to record according to all the properties of this MTG:
+            list_of_properties = list(g.properties().keys())
+            # We sort it alphabetically:
+            list_of_properties.sort(key=str.lower)
+            prop_file_name = os.path.join(properties_dir, 'root%.5d.csv')
+            recording_MTG_properties(g, file_name=prop_file_name % ID, list_of_properties=list_of_properties)
+
+        # For integrating root variables on the z axis:
+        # ----------------------------------------------
+        if z_classification:
+            # We perform the classification for the current MTG, which generates a dictionnary:
+            z_dictionnary = classifying_on_z(g, z_min=z_min, z_max=z_max, z_interval=z_interval)
+            # We add a new item in the dictionnary containing the time to which this MTG corresponds:
+            z_dictionnary["time_in_days"] = time_step_in_days * ID
+            # We add the dictionnary to the dataframe containing the results of z-classfication for all MTG files:
+            z_dictionnary_series.append(z_dictionnary)
+
+        # For computing variables among different types of roots:
+        # -------------------------------------------------------
+        if computing_on_different_roots:
+            # We perform the computing for the current MTG, which generates a dictionnary:
+            dictionnary = computing_data_on_different_roots(g, properties_to_compare=properties_to_compute,
+                                                            comparing_distance_from_tip=comparing_distance_from_tip,
+                                                            distance_treshold=distance_treshold,
+                                                            summing=summing_different_roots,
+                                                            averaging=averaging_different_roots)
+            # We add a new item in the dictionnary containing the time to which this MTG corresponds:
+            dictionnary["time_in_days"] = time_step_in_days * ID
+            # We add the dictionnary to the dataframe containing the results of computing for all MTG files:
+            computing_dictionnary_series.append(dictionnary)
+
+    #-------------------------------------------------------------------------------------------------------------------
+
+    # At the end of the loop, we can record the classification according to z:
+    if z_classification:
+        # We create a data_frame from the vectors generated in the main program up to this point:
+        data_frame_z = pd.DataFrame.from_dict(z_dictionnary_series)
+        # For clarity, we move the last column "time_in_days" to the first column:
+        col = data_frame_z.pop('time_in_days')
+        data_frame_z.insert(0, col.name, col)
+        # We save the data_frame in a CSV file:
+        z_file_path = os.path.join(my_path, 'z_classification.csv')
+        data_frame_z.to_csv(z_file_path, na_rep='NA', index=False, header=True)
+        print("   > A new file 'z_classification.csv' has been saved.")
+
+    # And we can record the computing among different root classes:
+    if computing_on_different_roots:
+        # We create a data_frame from the vectors generated in the main program up to this point:
+        data_frame_computing = pd.DataFrame.from_dict(computing_dictionnary_series)
+        # For clarity, we move the last column "time_in_days" to the first column:
+        col = data_frame_computing.pop('time_in_days')
+        data_frame_computing.insert(0, col.name, col)
+        # We save the data_frame in a CSV file:
+        computing_file_path = os.path.join(my_path, 'computing_different_root_classes.csv')
+        data_frame_computing.to_csv(computing_file_path, na_rep='NA', index=False, header=True)
+        print("   > A new file 'computing_different_root_classes.csv' has been saved.")
+
+    return g

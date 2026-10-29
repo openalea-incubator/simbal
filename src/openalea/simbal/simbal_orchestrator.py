@@ -22,9 +22,9 @@ import os
 import pandas as pd
 from math import sqrt, trunc, ceil
 from decimal import Decimal
-
 from sympy import isolate
 import ast
+import pickle
 
 
 ########################################################################################################################
@@ -589,26 +589,26 @@ def run_simulation_for_one_plant(my_path=None,
                 os.remove(os.path.join(root, file))
 
     # We consider the directory containing the attributes of shoot properties over time:
-    shoot_MTG_directory = os.path.join(my_path, "simulation", "outputs", "shoot_MTG_properties")
+    shoot_MTG_properties_directory = os.path.join(my_path, "simulation", "outputs", "shoot_MTG_properties")
     # If this directory doesn't exist:
-    if not os.path.exists(shoot_MTG_directory):
+    if not os.path.exists(shoot_MTG_properties_directory):
         # Then we create it:
-        os.mkdir(shoot_MTG_directory)
+        os.mkdir(shoot_MTG_properties_directory)
     else:
         # Otherwise, we delete all the images that are already present inside:
-        for root, dirs, files in os.walk(shoot_MTG_directory):
+        for root, dirs, files in os.walk(shoot_MTG_properties_directory):
             for file in files:
                 os.remove(os.path.join(root, file))
 
     # We consider the directory containing the attributes of root properties over time:
-    root_MTG_directory = os.path.join(my_path, "simulation", "outputs", "root_MTG_properties")
+    root_MTG_properties_directory = os.path.join(my_path, "simulation", "outputs", "root_MTG_properties")
     # If this directory doesn't exist:
-    if not os.path.exists(root_MTG_directory):
+    if not os.path.exists(root_MTG_properties_directory):
         # Then we create it:
-        os.mkdir(root_MTG_directory)
+        os.mkdir(root_MTG_properties_directory)
     else:
         # Otherwise, we delete all the images that are already present inside:
-        for root, dirs, files in os.walk(root_MTG_directory):
+        for root, dirs, files in os.walk(root_MTG_properties_directory):
             for file in files:
                 os.remove(os.path.join(root, file))
 
@@ -715,7 +715,7 @@ def run_simulation_for_one_plant(my_path=None,
         # was formed (used together with the phyllochron later on):
         shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
         # We record the properties in the initial state of the shoot MTG in an external file:
-        recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_directory, 'MTG_00000.csv'))
+        recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_properties_directory, 'MTG_00000.csv'))
 
     # INITIALIZING ROOT STRUCTURE:
     # In case we only want to simulate the behavior of the shoot, keeping the root properties constant over time:
@@ -742,7 +742,7 @@ def run_simulation_for_one_plant(my_path=None,
         # We calculate the total exchange surface of the root system:
         RootSimple.updating_exchange_surface(plant, root_g)
         # We record the properties in the initial state of the root MTG in an external file:
-        recording_MTG_properties(root_g, os.path.join(root_MTG_directory, 'MTG_00000.csv'))
+        recording_MTG_properties(root_g, os.path.join(root_MTG_properties_directory, 'MTG_00000.csv'))
 
     # We also initialize the dictionary containing the general properties of the plant:
     results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days=0., thermal_time_in_degree_days=0.)
@@ -1439,11 +1439,11 @@ def run_simulation_for_one_plant(my_path=None,
 
         # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
         # We can record the main properties of the plant:
-        recording_MTG_properties(shoot_g, file_name = os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
+        recording_MTG_properties(shoot_g, file_name = os.path.join(shoot_MTG_properties_directory, 'MTG_%.5d.csv' % step))
 
         # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
         # We can record the main properties of the plant:
-        recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
+        recording_MTG_properties(root_g, file_name = os.path.join(root_MTG_properties_directory, 'MTG_%.5d.csv' % step))
 
         # RECORDING THE FINAL RESULTS AT PLANT SCALE:
         results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
@@ -1483,11 +1483,33 @@ def run_simulation_for_a_plant_cover(my_path=None):
         # We first define the path and the file to read as a .csv:
         my_path = os.path.join('../../..', os.getcwd())
 
-    # We initialize dictionaries for parameters and MTG:
+    # We initialize an upscaling factor that allows to have better resolution on PlantGL graphs:
+    zoom_factor = 100
+
+    # We initiate dictionaries that will contain items for each of the distinct genotype to be treated:
     parameters_dict = {}
     shoot_MTG_dict = {}
     root_MTG_dict = {}
     growth_stages_dict = {}
+    outputs_directories = {}
+    plot_directories = {}
+    shoot_MTG_properties_directories = {}
+    root_MTG_properties_directories = {}
+    shoot_MTG_directories = {}
+    root_MTG_directories = {}
+    plant_objects = {}
+    plant_data_frame_dict = {}
+    shoot_total_C_dict = {}
+    root_total_C_dict = {}
+    shoot_total_N_dict = {}
+    root_total_N_dict = {}
+    cam_x_dict = {}
+    cam_y_dict = {}
+    cam_z_dict = {}
+    cam_index_dict = {}
+
+    # We initially consider the simulation as possible, and will change this if a condition is not met:
+    simulation_allowed = True
 
     # LOADING THE MAIN PARAMETERS AT THE SCALE OF THE POPULATION:
     #------------------------------------------------------------
@@ -1515,6 +1537,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
         scene_widths_dict=ast.literal_eval(parameters["scene_width"])
     except:
         print("ERROR: failure to import lists and dictionaries from the population parameter file!")
+        simulation_allowed = False
 
     # READING INSTRUCTIONS FROM THE MAIN PARAMETER FILE:
     simulation_period_in_days = param.simulation_period_in_days
@@ -1536,24 +1559,6 @@ def run_simulation_for_a_plant_cover(my_path=None):
     # We create a list of names containing first the population, then the names of each genotype:
     population_and_genotypes_names_list = ["population"]
     population_and_genotypes_names_list.extend(genotype_names_list)
-
-    # We initiate dictionaries that will contain items for each of the distinct genotype to be treated:
-    shoot_MTG_dict = {}
-    root_MTG_dict = {}
-    outputs_directories = {}
-    plot_directories = {}
-    shoot_MTG_directories = {}
-    root_MTG_directories = {}
-    plant_objects = {}
-    plant_data_frame_dict = {}
-    shoot_total_C_dict = {}
-    root_total_C_dict = {}
-    shoot_total_N_dict = {}
-    root_total_N_dict = {}
-    cam_x_dict = {}
-    cam_y_dict = {}
-    cam_z_dict = {}
-    cam_index_dict = {}
 
     # SETTING FILE PATHS AND FOLDERS:
     #--------------------------------
@@ -1616,28 +1621,54 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     os.remove(os.path.join(root, file))
 
         # We consider the directory containing the attributes of shoot properties over time:
-        shoot_MTG_directory = os.path.join(sub_outputs_directory, "shoot_MTG_properties")
-        shoot_MTG_directories[genotype_name] = shoot_MTG_directory
+        shoot_MTG_properties_directory = os.path.join(sub_outputs_directory, "shoot_MTG_properties")
+        shoot_MTG_properties_directories[genotype_name] = shoot_MTG_properties_directory
         # If this directory doesn't exist:
-        if not os.path.exists(shoot_MTG_directory):
+        if not os.path.exists(shoot_MTG_properties_directory):
             # Then we create it:
-            os.mkdir(shoot_MTG_directory)
+            os.mkdir(shoot_MTG_properties_directory)
         else:
             # Otherwise, we delete all the images that are already present inside:
-            for root, dirs, files in os.walk(shoot_MTG_directory):
+            for root, dirs, files in os.walk(shoot_MTG_properties_directory):
                 for file in files:
                     os.remove(os.path.join(root, file))
 
         # We consider the directory containing the attributes of root properties over time:
-        root_MTG_directory = os.path.join(sub_outputs_directory, "root_MTG_properties")
-        root_MTG_directories[genotype_name] = root_MTG_directory
+        root_MTG_properties_directory = os.path.join(sub_outputs_directory, "root_MTG_properties")
+        root_MTG_properties_directories[genotype_name] = root_MTG_properties_directory
         # If this directory doesn't exist:
-        if not os.path.exists(root_MTG_directory):
+        if not os.path.exists(root_MTG_properties_directory):
             # Then we create it:
-            os.mkdir(root_MTG_directory)
+            os.mkdir(root_MTG_properties_directory)
         else:
             # Otherwise, we delete all the images that are already present inside:
-            for root, dirs, files in os.walk(root_MTG_directory):
+            for root, dirs, files in os.walk(root_MTG_properties_directory):
+                for file in files:
+                    os.remove(os.path.join(root, file))
+
+        # We consider the directory containing the shoot MTG files recorded over time:
+        shoot_MTG_files_saving_directory = os.path.join(sub_outputs_directory, "shoot_MTG_files")
+        shoot_MTG_directories[genotype_name] = shoot_MTG_files_saving_directory
+        # If this directory doesn't exist:
+        if not os.path.exists(shoot_MTG_files_saving_directory):
+            # Then we create it:
+            os.mkdir(shoot_MTG_files_saving_directory)
+        else:
+            # Otherwise, we delete all the images that are already present inside:
+            for root, dirs, files in os.walk(shoot_MTG_files_saving_directory):
+                for file in files:
+                    os.remove(os.path.join(root, file))
+
+        # We consider the directory containing the root MTG files recorded over time:
+        root_MTG_files_saving_directory = os.path.join(sub_outputs_directory, "root_MTG_files")
+        root_MTG_directories[genotype_name] = root_MTG_files_saving_directory
+        # If this directory doesn't exist:
+        if not os.path.exists(root_MTG_files_saving_directory):
+            # Then we create it:
+            os.mkdir(root_MTG_files_saving_directory)
+        else:
+            # Otherwise, we delete all the images that are already present inside:
+            for root, dirs, files in os.walk(root_MTG_files_saving_directory):
                 for file in files:
                     os.remove(os.path.join(root, file))
 
@@ -1646,34 +1677,72 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
     # We cover each plant genotype present in the population:
     for plant_genotype_name in genotype_names_list:
+
         # The values of the parameters in the simulation for the given MTG are updated:
         parameters = loading_parameters_from_file(
             parameters_filepath=os.path.join(main_simbal_folder, "simulation", "inputs",
                                              "simbal_parameters_" + plant_genotype_name + ".xlsx"),
             outputs_path=os.path.join(main_simbal_folder, "simulation", "outputs",
                                       "outputs_" + plant_genotype_name))
-        # We update the parameters from the original python file with the parameters read in the Excel file:
         param.__dict__.update(parameters)
         rhizodep_param.__dict__.update(parameters)
         # We store this set of parameters in the parameters dictionary under the corresponding genotype name:
         parameters_dict[plant_genotype_name] = parameters
-        # We create the shoot MTG and store it in a dictionary under the corresponding genotype name:
-        shoot_MTG_dict[plant_genotype_name] = AllocF.create_shoot_MTG(
-            number_of_cotyledons=2, # We start with two cotyledones by default
-            number_of_phytomers=0,
-            initial_internode_radius=param.initial_internode_radius,
-            initial_hypocotyl_length=0.001,
-            initial_internode_height=0.,
-            initial_cotyledon_length=param.initial_cotyledon_length,
-            initial_leaf_length=param.initial_leaf_length,
-            initial_labile_C_concentration=0.,
-            initial_labile_N_concentration=0.,
-            sowing_depth=sowing_depths_dict[plant_genotype_name]
-        )
-        # We create the root MTG and store it in a dictionary under the corresponding genotype name:
-        root_MTG_dict[plant_genotype_name] = RootSimple.initiate_mtg(
-            initial_segment_length=0.,
-            initial_apex_length=0.001)
+
+        # We check whether existing shoot or root MTG files should be loaded or not:
+        start_from_a_known_shoot_MTG = param.start_from_a_known_shoot_MTG
+        start_from_a_known_root_MTG = param.start_from_a_known_root_MTG
+
+        # If we decide to start from a given shoot MTG to be loaded:
+        if start_from_a_known_shoot_MTG and simulation_option != "roots_only":
+            filename = os.path.join(my_path, "simulation", "inputs", 'initial_shoot_MTG_' + plant_genotype_name + '.pckl')
+            if os.path.exists(filename):
+                # We load the MTG file and name it "g":
+                f = open(filename, 'rb')
+                shoot_MTG_dict[plant_genotype_name] = pickle.load(f)
+                f.close()
+                print("The MTG", filename, "has been loaded!")
+            else:
+                print("!!! ERROR: the file", filename, "could not be found!")
+                simulation_allowed=False
+        # Otherwise we initiate the properties of the MTG "shoot_g":
+        else:
+            # We create the shoot MTG and store it in a dictionary under the corresponding genotype name:
+            shoot_MTG_dict[plant_genotype_name] = AllocF.create_shoot_MTG(
+                number_of_cotyledons=2,  # We start with two cotyledones by default
+                number_of_phytomers=0,
+                initial_internode_radius=param.initial_internode_radius,
+                initial_hypocotyl_length=0.001,
+                initial_internode_height=0.,
+                initial_cotyledon_length=param.initial_cotyledon_length,
+                initial_leaf_length=param.initial_leaf_length,
+                initial_labile_C_concentration=0.,
+                initial_labile_N_concentration=0.,
+                sowing_depth=sowing_depths_dict[plant_genotype_name]
+            )
+
+        # If we decide to start from a given root MTG to be loaded:
+        if start_from_a_known_root_MTG and simulation_option != "shoots_only":
+            filename = os.path.join(my_path, "simulation", "inputs", 'initial_root_MTG_' + plant_genotype_name + '.pckl')
+            if os.path.exists(filename):
+                # We load the MTG file and name it "g":
+                f_root = open(filename, 'rb')
+                root_MTG_dict[plant_genotype_name] = pickle.load(f_root)
+                f_root.close()
+                print("The MTG", filename, "has been loaded!")
+                # # And by precaution we save the initial MTG in the outputs:
+                # g_file_name = os.path.join(outputs_directory, 'initial_root_MTG.pckl')
+                # with open(g_file_name, 'wb') as output:
+                #     pickle.dump(root_MTG_dict[plant_genotype_name], output, protocol=2)
+                # print("The initial root MTG file has been saved in the outputs.")
+            else:
+                print("!!! ERROR: the file", filename, "could not be found!")
+                simulation_allowed = False
+        # Otherwise we initiate the properties of the MTG "shoot_g":
+        else:
+            # We create the root MTG and store it in a dictionary under the corresponding genotype name:
+            root_MTG_dict[plant_genotype_name] = RootSimple.initiate_mtg(initial_segment_length=0.,
+                                                                         initial_apex_length=0.001)
 
     # SETTING INITIAL CONDITIONS
     #---------------------------
@@ -1685,7 +1754,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
         # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
         plant_objects[genotype_name]=whole_plant()
 
-    # INITIALIZING SHOOT STRUCTURE:
+    # INITIALIZING SHOOT PROPERTIES:
     # In case we only want to simulate the behavior of the roots, keeping the shoot properties constant over time:
     if simulation_option == "roots_only":
         # We (re)initialize the dictionary of shoot MTG:
@@ -1709,14 +1778,15 @@ def run_simulation_for_a_plant_cover(my_path=None):
             plant.shoot_labile_C_pool = 0.
             plant.shoot_labile_N_pool = 0.
     else:
-        # Otherwise, shoot MTG should have been provided in the input list, so we just have to update the properties
+        # Otherwise, shoot MTG have been defined, so we just have to update the properties
         # of the corresponding whole plant objects.
         # For each distinct plant genotype:
         for genotype_name in genotype_names_list:
-            # We get the plant object, the shoot MTG and the directory of the outputs:
+            # We get the plant object, the shoot MTG and the directories in the outputs:
             plant = plant_objects[genotype_name]
             shoot_g = shoot_MTG_dict[genotype_name]
-            shoot_MTG_directory = shoot_MTG_directories[genotype_name]
+            shoot_MTG_properties_directory = shoot_MTG_properties_directories[genotype_name]
+            shoot_MTG_files_directory = shoot_MTG_directories[genotype_name]
             # We update the shoot system general properties based on the shoot MTG:
             for vid in shoot_g.vertices_iter(scale=1):
                 n = shoot_g.node(vid)
@@ -1732,9 +1802,13 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # was formed (used together with the phyllochron later on):
             shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
             # We record the properties in the initial state of the shoot MTG in an external file:
-            recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_directory, 'MTG_00000.csv'))
+            recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_properties_directory, 'MTG_00000.csv'))
+            # We record the initial shoot MTG file:
+            g_file_name = os.path.join(shoot_MTG_files_directory, 'shoot%.5d.pckl')
+            with open(g_file_name % 0, 'wb') as output:
+                pickle.dump(shoot_g, output, protocol=2)
 
-    # INITIALIZING ROOT STRUCTURE:
+    # INITIALIZING ROOT PROPERTIES:
     # In case we only want to simulate the behavior of the shoot, keeping the root properties constant over time:
     if simulation_option == "shoot_only":
         # We (re)initialize the dictionary of root MTG:
@@ -1754,7 +1828,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # We access the plant object, root MTG and root MTG directory in the outputs:
             plant = plant_objects[genotype_name]
             root_g = root_MTG_dict[genotype_name]
-            root_MTG_directory = root_MTG_directories[genotype_name]
+            root_MTG_properties_directory = root_MTG_properties_directories[genotype_name]
+            root_MTG_files_directory = root_MTG_directories[genotype_name]
             # We update the distance from tip for each root element in each root axis:
             RootSimple.update_distance_from_tip(root_g)
             # We update the surfaces and volumes of each root element:
@@ -1766,7 +1841,11 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # We calculate the total exchange surface of the root system:
             RootSimple.updating_exchange_surface(plant, root_g)
             # We record the properties in the initial state of the root MTG in an external file:
-            recording_MTG_properties(root_g, os.path.join(root_MTG_directory, 'MTG_00000.csv'))
+            recording_MTG_properties(root_g, os.path.join(root_MTG_properties_directory, 'MTG_00000.csv'))
+            # We record the initial root MTG file:
+            g_file_name = os.path.join(root_MTG_files_directory, 'root%.5d.pckl')
+            with open(g_file_name % 0, 'wb') as output:
+                pickle.dump(shoot_g, output, protocol=2)
 
     # INITIALIZING RESULTS AND C&N BALANCE:
     # For each distinct plant genotype:
@@ -2192,7 +2271,6 @@ def run_simulation_for_a_plant_cover(my_path=None):
             #####################
 
             print("\n    Preparing the scene...")
-            zoom_factor = 100
 
             # We create a dictionary of scene details and an updated list containing one shoot MTG of each genotype
             # copied and distributed over the scene:
@@ -2517,7 +2595,13 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # AGEING AND CONSEQUENCES:
                 ##########################
 
+                AllocF.ageing(shoot_MTG=shoot_g,
+                              time_step_in_seconds=time_step_in_seconds,
+                              air_temperature_in_degree_Celsius=air_temperature,
+                              zoom_factor=zoom_factor)
+
                 AllocF.geometry_evolution(shoot_MTG = shoot_g,
+                                          plant_genotype_name = genotype_name,
                                           plant_thermal_age_in_degree_days = thermal_time_in_degree_days)
 
                 # CHECKING C & N BALANCE:
@@ -2550,21 +2634,33 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
                 print("\n    Recording the results...")
 
-                # ACCESSING THE CURRENT PLANT:
+                # ACCESSING THE CURRENT PLANT AND DIRECTORIES:
                 plant = plant_objects[genotype_name]
                 shoot_g = shoot_MTG_dict[genotype_name]
                 root_g = root_MTG_dict[genotype_name]
-                shoot_MTG_directory = shoot_MTG_directories[genotype_name]
-                root_MTG_directory = root_MTG_directories[genotype_name]
                 sub_outputs_directory = outputs_directories[genotype_name]
+                shoot_MTG_properties_directory = shoot_MTG_properties_directories[genotype_name]
+                root_MTG_properties_directory = root_MTG_properties_directories[genotype_name]
+                shoot_MTG_files_directory = shoot_MTG_directories[genotype_name]
+                root_MTG_files_directory = root_MTG_directories[genotype_name]
 
                 # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
                 # We can record the main properties of the plant:
-                recording_MTG_properties(shoot_g, file_name=os.path.join(shoot_MTG_directory, 'MTG_%.5d.csv' % step))
+                recording_MTG_properties(shoot_g, file_name=os.path.join(shoot_MTG_properties_directory, 'MTG_%.5d.csv' % step))
 
                 # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
                 # We can record the main properties of the plant:
-                recording_MTG_properties(root_g, file_name=os.path.join(root_MTG_directory, 'MTG_%.5d.csv' % step))
+                recording_MTG_properties(root_g, file_name=os.path.join(root_MTG_properties_directory, 'MTG_%.5d.csv' % step))
+
+                # RECORDING THE SHOOT MTG FILE FOR THIS TIME STEP:
+                g_file_name = os.path.join(shoot_MTG_files_directory, 'shoot%.5d.pckl')
+                with open(g_file_name % step, 'wb') as output:
+                    pickle.dump(shoot_g, output, protocol=2)
+
+                # RECORDING THE ROOT MTG FILE FOR THIS TIME STEP:
+                g_file_name = os.path.join(root_MTG_files_directory, 'root%.5d.pckl')
+                with open(g_file_name % step, 'wb') as output:
+                    pickle.dump(root_g, output, protocol=2)
 
                 # RECORDING THE FINAL RESULTS AT PLANT SCALE:
                 results_dict = recording_main_plant_properties(plant, shoot_g, root_g,

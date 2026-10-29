@@ -397,6 +397,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               shoot_N_distribution_rate = 0.,
                               C_input_rate_for_sink = 0.,
                               shoot_maintenance_respiration_rate = 0.,
+                              actual_elongation_rate = 0.,
                               actual_C_consumption_rate_by_shoot_growth = 0.,
                               N_input_rate = 0.,
                               actual_N_consumption_rate_by_shoot_growth = 0.,
@@ -460,6 +461,8 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_leaf.type = "Cotyledon"
         new_leaf.node_rank = 0
         new_leaf.surface_max = param.cotyledon_area_max
+        # For cotyledons, we create a special indicator expliciting the time since the cotyledon has reached soil surface:
+        new_leaf.thermal_time_since_aboveground_emergence = 0.
         # We set the bud diameter to 0, so that it will never be able to emerge:
         new_bud.radius = 0.
         new_bud.node_rank = 0
@@ -534,7 +537,9 @@ def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
             # NB: we need to add 'iloc[0]' as the previous expression otherwise returns a series, not a single value.
     return g
 #-----------------------------------------------------------------------------------------------------------------------
-def geometry_evolution(shoot_MTG, plant_thermal_age_in_degree_days):
+def geometry_evolution(shoot_MTG,
+                       plant_genotype_name = "rapeseed",
+                       plant_thermal_age_in_degree_days = 0.):
     """
     This function updates the evolution of geometrical features of the shoot MTG over time.
     Parameters
@@ -550,15 +555,13 @@ def geometry_evolution(shoot_MTG, plant_thermal_age_in_degree_days):
     # We cover each organ n of the shoot:
     for vid in shoot_MTG.vertices_iter(scale=1):
         n = shoot_MTG.node(vid)
+
+        # COMPUTING LEAF INSERTION ANGLE:
         # If the organ is a leaf:
         if n.label == "Leaf":
-            leaf_age = n.thermal_time_since_formation / (24. * 60. * 60.) * param.T_ref_growth
-            if n.type != "Cotyledon":
-                # We compute the evolution of the insertion angle of this leaf on the stem, and modify the angle accordingly:
-                n.angle_down = leaf_insertion_angle_evolution(plant_thermal_age_in_degree_days=plant_thermal_age_in_degree_days,
-                                                              leaf_age_in_degree_days = leaf_age)
-            else:
-                n.angle_down = 75
+            n.angle_down = leaf_insertion_angle_evolution(leaf=n,
+                                                          plant_genotype_name=plant_genotype_name,
+                                                          plant_thermal_age_in_degree_days=plant_thermal_age_in_degree_days)
     return shoot_MTG
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception(shoot_MTG,
@@ -1776,7 +1779,11 @@ def actual_shoot_growth(shoot_MTG,
 
         # CASE 1: The shoot element is an internode
         #------------------------------------------
-        if n.label == "Internode" or n.type == "Hypocothyl":
+        if n.label == "Internode":
+
+            # We store the initial length:
+            initial_length = n.length
+
             # We compute the maximal length increment and radius increment based on the final volume increment:
             possible_length_increment = final_volume_increment / (n.radius ** 2 * pi)
             possible_radius_increment = sqrt( (n.volume + final_volume_increment) / (n.length * pi) ) - n.radius
@@ -1819,6 +1826,9 @@ def actual_shoot_growth(shoot_MTG,
             n.surface = n.length * n.radius * 2 * pi
             n.volume = n.length * n.radius**2 * pi
             n.struct_mass = n.volume * structural_mass_density
+
+            # We also record the actual elongation rate of the internode:
+            n.actual_elongation_rate = (n.length - initial_length) / time_step_in_seconds
 
         # CASE 2: The shoot element is a leaf
         #------------------------------------
@@ -1883,7 +1893,7 @@ def actual_shoot_growth(shoot_MTG,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing the ageing of each shoot organ:
-def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_degree_Celsius=20):
+def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_degree_Celsius=20, zoom_factor = 1.):
     """
     This functions increases the age of each organ in the shoot MTG. The age is expressed in seconds, either as actual
     time or as time equivalent to the reference growth temperature.
@@ -1910,11 +1920,31 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
         C=param.shoot_growth_C)
 
     # We cover each shoot organ:
-    for vid in g.vertices_iter(scale=1):
-        element = g.node(vid)
+    for vid in shoot_MTG.vertices_iter(scale=1):
+        element = shoot_MTG.node(vid)
         # We increase the time since this element has been formed:
         element.actual_time_since_formation += time_step_in_seconds
         element.thermal_time_since_formation += time_step_in_seconds * temperature_adjustment
+        # SPECIAL CASE FOR COTYLEDONS:
+        # If the tip of the cotyledon is above the ground:
+        if element.type == "Cotyledon" and element.z2 > 0.:
+            # If the cotyledon has just emerged from the ground:
+            if element.thermal_time_since_aboveground_emergence <= 0.:
+                # Then we calculate exactly the time since the tip of the cotyledon has reached the soil surface,
+                # based on the actual elongation rate of the hypocotyl:
+                hypocotyl = shoot_MTG.node(1)
+                try:
+                    # The time is the actual height from the ground divided by the actual elongation rate:
+                    time_since_emergence = (element.z2 - 0.) / hypocotyl.actual_elongation_rate
+                    print("")
+                except:
+                    print("ERROR: the time since the cotyledon emerged from the ground could not be computed!")
+                    time_since_emergence = 0.
+                element.actual_time_since_aboveground_emergence = time_since_emergence
+                element.thermal_time_since_aboveground_emergence = time_since_emergence * temperature_adjustment
+            else:
+                element.actual_time_since_aboveground_emergence += time_step_in_seconds
+                element.thermal_time_since_aboveground_emergence += time_step_in_seconds * temperature_adjustment
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2016,7 +2046,6 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     while list_of_apices != []:
         # We cover each bud present in the list:
         for apex in list_of_apices:
-            # print("For the bud", apex.index(),"the initial angle down is", apex.angle_down)
             # We add a new phytomer at the top of the current apex:
             [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                        internode_radius=apex.radius,
