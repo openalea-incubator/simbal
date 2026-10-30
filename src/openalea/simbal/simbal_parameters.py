@@ -160,8 +160,11 @@ structural_C_content = 0.44
 # Nitrogen content of the dry structural mass (gN per gram of root dry structural mass):
 structural_N_content = 0.01
 
-# We define the phyllochron, i.e. the period separating two leaf emergences (seconds at the reference growth temperature):
+# We define the phyllochron, i.e. the period separating two leaf emergence events (seconds at the reference growth temperature):
 phyllochron = 5. * (60.*60.*24.)
+
+# We define the plastochron, i.e. the period separating two leaf primordia formation (seconds at the reference growth temperature):
+plastochron = 3. * (60.*60.*24.)
 
 # We define a maximal duration of "youth", above which the organ will start senescing
 # (seconds at the reference growth temperature):

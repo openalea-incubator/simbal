@@ -926,7 +926,7 @@ def leaf_insertion_angle_evolution(leaf,
                                    plant_thermal_age_in_degree_days=0.):
 
     # We get the age of the leaf:
-    leaf_age_in_degree_days = leaf.thermal_time_since_formation / (24. * 60. * 60.) * param.T_ref_growth
+    leaf_age_in_degree_days = leaf.thermal_time_since_emergence / (24. * 60. * 60.) * param.T_ref_growth
 
     # If the leaf corresponds to a cotyledon:
     if leaf.type == "Cotyledon":

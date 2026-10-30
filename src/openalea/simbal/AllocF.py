@@ -107,6 +107,10 @@ def ADDING_A_PHYTOMER(parent_element,
                       internode_length=0.,
                       leaf_length=0.,
                       bud_length=0.,
+                      actual_time_since_initiation=0.,
+                      thermal_time_since_initiation=0.,
+                      actual_time_since_emergence=0.,
+                      thermal_time_since_emergence=0.,
                       properties_identical_to_parent = True,
                       nil_properties = False
                       ):
@@ -155,9 +159,11 @@ def ADDING_A_PHYTOMER(parent_element,
     internode.photosynthetic_area = internode.surface
     # We specify the ramification order :
     internode.ramification_order = parent_element.ramification_order
-    # We reset the time since formation:
-    internode.actual_time_since_formation = 0.
-    internode.thermal_time_since_formation = 0.
+    # We set the time since initiation and emergence:
+    internode.actual_time_since_initiation = actual_time_since_initiation
+    internode.thermal_time_since_initiation = thermal_time_since_initiation
+    internode.actual_time_since_emergence = actual_time_since_emergence
+    internode.thermal_time_since_emergence = thermal_time_since_emergence
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     internode.light_intensity_share = 0.
@@ -191,9 +197,11 @@ def ADDING_A_PHYTOMER(parent_element,
     leaf.photosynthetic_area = leaf.surface
     # We specify the ramification order :
     leaf.ramification_order = parent_element.ramification_order
-    # And we reset the time since formation:
-    leaf.actual_time_since_formation = 0.
-    leaf.thermal_time_since_formation = 0.
+    # We set the time since initiation and emergence:
+    leaf.actual_time_since_initiation = actual_time_since_initiation
+    leaf.thermal_time_since_initiation = thermal_time_since_initiation
+    leaf.actual_time_since_emergence = actual_time_since_emergence
+    leaf.thermal_time_since_emergence = thermal_time_since_emergence
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     leaf.light_intensity_share = 0.
@@ -229,9 +237,11 @@ def ADDING_A_PHYTOMER(parent_element,
     bud.ramification_order = parent_element.ramification_order + 1
     # We set the emergence possibility to False by default:
     bud.emergence_possibility = False
-    # We reset the time since formation:
-    bud.actual_time_since_formation = 0.
-    bud.thermal_time_since_formation = 0.
+    # We set the time since initiation and emergence:
+    bud.actual_time_since_initiation = actual_time_since_initiation
+    internode.thermal_time_since_initiation = thermal_time_since_initiation
+    bud.actual_time_since_emergence = actual_time_since_emergence
+    bud.thermal_time_since_emergence = thermal_time_since_emergence
     # We initialize the share of light intensity perceived by this organ
     # compared to the sum of light intensities of all other organs:
     bud.light_intensity_share = 0.
@@ -252,13 +262,17 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
-def new_phytomers_initiation(shoot_system,
-                             shoot_MTG, new_initiation = True,
-                             initial_internode_length = 0.002,
-                             initial_leaf_length = 0.002,
-                             time_step_in_seconds = 60*60):
+def new_phytomers_emergence(shoot_system,
+                            shoot_MTG, new_initiation = True,
+                            thermal_time_since_initiation=0.,
+                            actual_time_since_initiation=0.,
+                            thermal_time_since_emergence = 0.,
+                            actual_time_since_emergence = 0.,
+                            initial_internode_length = 0.002,
+                            initial_leaf_length = 0.002,
+                            time_step_in_seconds = 60*60):
     """
-    This function creates new phytomers (internode + leaf + bud) wherever neceassry in the shoot MTG.
+    This function creates one new phytomer (internode + leaf + bud) wherever necessary in the shoot MTG.
     Parameters
     ----------
     shoot_system: the object corresponding to the whole shoot system (not the MTG)
@@ -296,6 +310,10 @@ def new_phytomers_initiation(shoot_system,
                                                            internode_length=initial_internode_length,
                                                            leaf_length=initial_leaf_length,
                                                            bud_length=0.,
+                                                           actual_time_since_initiation=actual_time_since_initiation,
+                                                           thermal_time_since_initiation=thermal_time_since_emergence,
+                                                           actual_time_since_emergence=actual_time_since_emergence,
+                                                           thermal_time_since_emergence=thermal_time_since_emergence,
                                                            properties_identical_to_parent=False,
                                                            nil_properties=True
                                                            )
@@ -307,16 +325,12 @@ def new_phytomers_initiation(shoot_system,
                                                 label="Apex",
                                                 properties_identical_to_parent = False,
                                                 nil_properties=True)
-                # print("We have moved the previous apex", apex.index(), "on the node", internode.index(),"; its index is now", new_apex.index())
                 new_apex.radius = internode.radius
-                # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS ON THE TOP OF EACH OTHERS
-                # # Finally, we update the list of apices by adding the new apex that has been formed,
-                # # in case it could itself form a new phytomer:
-                # list_of_apices.append(new_apex)
 
-                # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
                 # For each new element of the new phytomer:
                 for element in [internode, leaf, bud]:
+
+                    # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
                     # We add the structural mass of each new element:
                     new_structural_mass += element.struct_mass
                     # We register locally the costs of C&N for their construction:
@@ -336,7 +350,9 @@ def new_phytomers_initiation(shoot_system,
 #-----------------------------------------------------------------------------------------------------------------------
 # This function enables to generate an initial MTG with a certain number of leaves and corresponding internodes:
 def create_shoot_MTG(number_of_cotyledons=2,
-                     number_of_phytomers=3,
+                     number_of_phytomers=0,
+                     thermal_time_since_germination = 2.*(60*60*24),
+                     actual_time_since_germination = 2.*(60*60*24),
                      initial_cotyledon_length=0.003,
                      initial_leaf_length=0.003,
                      initial_internode_radius = 0.001,
@@ -431,12 +447,24 @@ def create_shoot_MTG(number_of_cotyledons=2,
     # We define the ramification order of this first internode as 0:
     new_internode.ramification_order = 0
 
-    # We set the time since formation:
-    new_internode.actual_time_since_formation = 0.
-    new_internode.thermal_time_since_formation = 0.
+    # We define the time since initiation and emergence of the hypocotyl and cotyledons:
+    thermal_time_since_initiation = thermal_time_since_germination
+    actual_time_since_initiation = actual_time_since_germination
+    thermal_time_since_emergence = number_of_phytomers * param.phyllochron
+    if thermal_time_since_germination > 0.:
+        actual_time_since_emergence = thermal_time_since_emergence * actual_time_since_germination / thermal_time_since_germination
+    else:
+        actual_time_since_emergence = 0.
+
+    # We set the time since initiation and emergence:
+    new_internode.actual_time_since_initiation = actual_time_since_germination
+    new_internode.thermal_time_since_initiation = thermal_time_since_germination
+    new_internode.actual_time_since_emergence = actual_time_since_germination
+    new_internode.thermal_time_since_emergence = thermal_time_since_germination
 
     # For each new cotyledon to be created:
     for i in range(0, number_of_cotyledons):
+
         # We first create an internode of zero length, and then a connected cotyledon and a fake bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
                                                                struct_mass_density=struct_mass_density,
@@ -445,12 +473,13 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                internode_length=0.,
                                                                leaf_length=initial_cotyledon_length,
                                                                bud_length=0.,
+                                                               actual_time_since_initiation=actual_time_since_initiation,
+                                                               thermal_time_since_initiation=thermal_time_since_initiation,
+                                                               actual_time_since_emergence=actual_time_since_emergence,
+                                                               thermal_time_since_emergence=thermal_time_since_emergence,
                                                                properties_identical_to_parent = True)
         # We set the thermal time since the phytomer formed according to the phyllochron:
         new_internode.node_rank = 0
-        new_internode.thermal_time_since_formation = 0.
-        new_leaf.thermal_time_since_formation = 0.
-        new_bud.thermal_time_since_formation = 0.
         # We define the type of the internode:
         new_internode.type = "Cotyledon_supporting_segment"
         new_internode.angle_roll = 180
@@ -469,6 +498,17 @@ def create_shoot_MTG(number_of_cotyledons=2,
 
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
+
+        # We define the time since initiation and emergence of the current phytomer:
+        thermal_time_since_initiation = (number_of_phytomers - i) * param.plastochron
+        thermal_time_since_emergence = (number_of_phytomers - i) * param.phyllochron
+        if thermal_time_since_germination > 0.:
+            actual_time_since_initiation = thermal_time_since_initiation * actual_time_since_germination / thermal_time_since_germination
+            actual_time_since_emergence = thermal_time_since_emergence * actual_time_since_germination / thermal_time_since_germination
+        else:
+            actual_time_since_initiation = 0.
+            actual_time_since_emergence = 0.
+
         # We first create an internode, and then a connected leaf and a bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
                                                                struct_mass_density=struct_mass_density,
@@ -477,11 +517,12 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                internode_length=initial_internode_height,
                                                                leaf_length=initial_leaf_length,
                                                                bud_length=0.,
+                                                               actual_time_since_initiation=actual_time_since_initiation,
+                                                               thermal_time_since_initiation=thermal_time_since_initiation,
+                                                               actual_time_since_emergence=actual_time_since_emergence,
+                                                               thermal_time_since_emergence=thermal_time_since_emergence,
                                                                properties_identical_to_parent = True)
-        # We set the thermal time since the phytomer formed according to the phyllochron:
-        new_internode.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
-        new_leaf.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
-        new_bud.thermal_time_since_formation = (number_of_phytomers - i) * param.phyllochron
+
         # We set the type of the elements of this phytomer as normal:
         new_internode.type= "Normal"
         new_leaf.type = "Normal"
@@ -1754,8 +1795,8 @@ def actual_shoot_growth(shoot_MTG,
         n.actual_N_consumption_rate_by_shoot_growth = 0.
 
         # First, we increment the time since the shoot element has been formed:
-        n.actual_time_since_formation +=  time_step_in_seconds
-        n.thermal_time_since_formation += thermal_time_step_in_seconds
+        n.actual_time_since_emergence +=  time_step_in_seconds
+        n.thermal_time_since_emergence += thermal_time_step_in_seconds
 
         # If the element does not have any potential growth, the we move to the next element:
         if n.potential_volume_increment <=0.:
@@ -1906,8 +1947,8 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
 
     Returns
     -------
-    [Nothing is returned; the MTG has been updated with the properties 'actual_time_since_formation' (seconds)
-    and 'thermal_time_since_formation' (seconds at reference temperature)]
+    [Nothing is returned; the MTG has been updated with the properties 'actual_time_since_emergence' (seconds)
+    and 'thermal_time_since_emergence' (seconds at reference temperature)]
     """
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
@@ -1922,9 +1963,12 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
     # We cover each shoot organ:
     for vid in shoot_MTG.vertices_iter(scale=1):
         element = shoot_MTG.node(vid)
-        # We increase the time since this element has been formed:
-        element.actual_time_since_formation += time_step_in_seconds
-        element.thermal_time_since_formation += time_step_in_seconds * temperature_adjustment
+        # We increase the time since this element has been initiated in the apex:
+        element.actual_time_since_initiation += time_step_in_seconds
+        element.thermal_time_since_initiation += time_step_in_seconds * temperature_adjustment
+        # We increase the time since this element has emerged:
+        element.actual_time_since_emergence += time_step_in_seconds
+        element.thermal_time_since_emergence += time_step_in_seconds * temperature_adjustment
         # SPECIAL CASE FOR COTYLEDONS:
         # If the tip of the cotyledon is above the ground:
         if element.type == "Cotyledon" and element.z2 > 0.:
@@ -1935,13 +1979,12 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
                 hypocotyl = shoot_MTG.node(1)
                 try:
                     # The time is the actual height from the ground divided by the actual elongation rate:
-                    time_since_emergence = (element.z2 - 0.) / hypocotyl.actual_elongation_rate
-                    print("")
+                    time_since_aboveground_emergence = (element.z2 - 0.) / hypocotyl.actual_elongation_rate
                 except:
                     print("ERROR: the time since the cotyledon emerged from the ground could not be computed!")
-                    time_since_emergence = 0.
-                element.actual_time_since_aboveground_emergence = time_since_emergence
-                element.thermal_time_since_aboveground_emergence = time_since_emergence * temperature_adjustment
+                    time_since_aboveground_emergence = 0.
+                element.actual_time_since_aboveground_emergence = time_since_aboveground_emergence
+                element.thermal_time_since_aboveground_emergence = time_since_aboveground_emergence * temperature_adjustment
             else:
                 element.actual_time_since_aboveground_emergence += time_step_in_seconds
                 element.thermal_time_since_aboveground_emergence += time_step_in_seconds * temperature_adjustment
@@ -2024,7 +2067,7 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                 light_interception = leaf.PAR_intercepted / leaf.surface
                 # We define the conditions of bud emergence according to its thermal age and the PAR intercepted by the leaf nearby:
                 if (light_interception >= param.bud_light_threshold
-                        and bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period
+                        and bud.thermal_time_since_emergence >= param.bud_minimal_dormancy_period
                         and bud.ramification_order <= 1):
                     bud.emergence_possibility = True
                     print("> The first ramification should emerge from bud", vid)
@@ -2032,7 +2075,7 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                     base.ramification_allowed = True
             else:
                 # We define the conditions of bud emergence according to its thermal age only:
-                if bud.thermal_time_since_formation >= param.bud_minimal_dormancy_period:
+                if bud.thermal_time_since_emergence >= param.bud_minimal_dormancy_period:
                     bud.emergence_possibility = True
 
     # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
@@ -2140,7 +2183,7 @@ def computing_senescence(shoot_MTG,
         if n.senescence_status == False:
             # If there is no labile C to sustain the element and if it has reached a maximal "youth" age:
             if (n.labile_C_deficit > 0.
-                    and (n.thermal_time_since_formation + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
+                    and (n.thermal_time_since_emergence + thermal_time_step_in_seconds) >= param.thermal_youth_duration):
                 # We declare that the element should enter senescence:
                 n.senescence_status = True
 

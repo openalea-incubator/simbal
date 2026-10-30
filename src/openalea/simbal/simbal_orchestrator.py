@@ -20,11 +20,14 @@ from openalea.simbal.tools import (loading_parameters_from_file, buildDic, forma
 
 import os
 import pandas as pd
+import numpy as np
 from math import sqrt, trunc, ceil
 from decimal import Decimal
 from sympy import isolate
 import ast
 import pickle
+
+from src.openalea.simbal.simbal_parameters import plastochron
 
 
 ########################################################################################################################
@@ -1301,7 +1304,8 @@ def run_simulation_for_one_plant(my_path=None,
             # We increment the time since the last phytomer was formed at the top of the main stem:
             thermal_time_since_last_phytomer_formation \
                 = shoot_g.node(0).thermal_time_since_last_phytomer_formation + thermal_time_step_in_seconds_shoots
-            # We get the value of the prescribed phyllochron (in seconds equivalent to the reference temperature):
+            # We get the value of the prescribed plastochron and phyllochron (in seconds equivalent to the reference temperature):
+            plastochron = param.plastochron
             phyllochron = param.phyllochron
             # We initialize the total costs of phytomers initiation:
             total_C_costs_for_new_phytomers = 0.
@@ -1312,13 +1316,27 @@ def run_simulation_for_one_plant(my_path=None,
                 # Then at least one phytomer should be formed on the main stem.
                 # We keep looping until all phytomers have been formed:
                 while thermal_time_since_last_phytomer_formation - phyllochron > 0:
-                    # We subtract the value of the phyllochron to the time since last phytomer was formed:
-                    thermal_time_since_last_phytomer_formation -= phyllochron
+                    # We calculate the exact thermal time elapsed since the phytomer has actually emerged:
+                    thermal_time_since_emergence\
+                        = (thermal_time_since_last_phytomer_formation
+                           - np.floor(thermal_time_since_last_phytomer_formation / phyllochron) * phyllochron)
+                    # We compute then the exact thermal time elapsed since the phytomer was initiated in the apex,
+                    # which is linearily correlated to the time since emergence by the following relationship:
+                    # t_initiation = plastochron + t_emergence * plastochron  / phyllochron
+                    thermal_time_since_initiation = plastochron + thermal_time_since_emergence * plastochron / phyllochron
+                    # The actual times are then calculated:
+                    actual_time_since_emergence = thermal_time_since_emergence / temperature_time_adjustment_shoot
+                    #TODO: WATCH OUT BELOW - may not be correct!
+                    actual_time_since_initiation = thermal_time_since_initiation / temperature_time_adjustment_shoot
                     # We add a set of new phytomers in the shoot system:
-                    C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_initiation(
+                    C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_emergence(
                         shoot_system=plant,
                         shoot_MTG=shoot_g,
                         new_initiation=True,
+                        thermal_time_since_initiation=thermal_time_since_initiation,
+                        actual_time_since_initiation=actual_time_since_initiation,
+                        thermal_time_since_emergence=thermal_time_since_emergence,
+                        actual_time_since_emergence=actual_time_since_emergence,
                         initial_leaf_length=param.initial_leaf_length,
                         initial_internode_length=param.initial_internode_length,
                         time_step_in_seconds=time_step_in_seconds)
@@ -1328,6 +1346,8 @@ def run_simulation_for_one_plant(my_path=None,
                     # We increase the total costs with the cost of this new phytomer:
                     total_C_costs_for_new_phytomers += C_cost_for_new_phytomers
                     total_N_costs_for_new_phytomers += total_N_costs_for_new_phytomers
+                    # We now subtract the value of the phyllochron to the time since last phytomer was formed, and loop:
+                    thermal_time_since_last_phytomer_formation -= phyllochron
             # Once all phytomers have been added, we update the time since the last one was formed,
             # which is stored at the base of the shoot system:
             shoot_g.node(0).thermal_time_since_last_phytomer_formation = thermal_time_since_last_phytomer_formation
@@ -2529,7 +2549,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # We increment the time since the last phytomer was formed at the top of the main stem:
                 thermal_time_since_last_phytomer_formation \
                     = shoot_g.node(0).thermal_time_since_last_phytomer_formation + thermal_time_step_in_seconds_shoots
-                # We get the value of the prescribed phyllochron (in seconds equivalent to the reference temperature):
+                # We get the value of the prescribed plastochron and phyllochron (in seconds equivalent to the reference temperature):
+                plastochron = param.plastochron
                 phyllochron = param.phyllochron
                 # We initialize the total costs of phytomers initiation:
                 total_C_costs_for_new_phytomers = 0.
@@ -2540,22 +2561,38 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     # Then at least one phytomer should be formed on the main stem.
                     # We keep looping until all phytomers have been formed:
                     while thermal_time_since_last_phytomer_formation - phyllochron > 0:
-                        # We subtract the value of the phyllochron to the time since last phytomer was formed:
-                        thermal_time_since_last_phytomer_formation -= phyllochron
+                        # We calculate the exact thermal time elapsed since the phytomer has actually emerged:
+                        thermal_time_since_emergence \
+                            = (thermal_time_since_last_phytomer_formation
+                               - np.floor(thermal_time_since_last_phytomer_formation / phyllochron) * phyllochron)
+                        # We compute then the exact thermal time elapsed since the phytomer was initiated in the apex,
+                        # which is linearily correlated to the time since emergence by the following relationship:
+                        # t_initiation = plastochron + t_emergence * plastochron  / phyllochron
+                        thermal_time_since_initiation = plastochron + thermal_time_since_emergence * plastochron / phyllochron
+                        # The actual times are then calculated:
+                        actual_time_since_emergence = thermal_time_since_emergence / temperature_time_adjustment_shoot
+                        # TODO: WATCH OUT BELOW - may not be correct!
+                        actual_time_since_initiation = thermal_time_since_initiation / temperature_time_adjustment_shoot
                         # We add a set of new phytomers in the shoot system:
-                        C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_initiation(
+                        C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_emergence(
                             shoot_system=plant,
                             shoot_MTG=shoot_g,
                             new_initiation=True,
+                            thermal_time_since_initiation=thermal_time_since_initiation,
+                            actual_time_since_initiation=actual_time_since_initiation,
+                            thermal_time_since_emergence=thermal_time_since_emergence,
+                            actual_time_since_emergence=actual_time_since_emergence,
                             initial_leaf_length=param.initial_leaf_length,
                             initial_internode_length=param.initial_internode_length,
                             time_step_in_seconds=time_step_in_seconds)
                         print("> A new phytomer has been formed! The C & N costs were",
                               "{:.2E}".format(Decimal(C_cost_for_new_phytomers)), "gC and",
-                              "{:.2E}".format(Decimal(N_cost_for_new_phytomers)),"gN.")
+                              "{:.2E}".format(Decimal(N_cost_for_new_phytomers)), "gN.")
                         # We increase the total costs with the cost of this new phytomer:
                         total_C_costs_for_new_phytomers += C_cost_for_new_phytomers
                         total_N_costs_for_new_phytomers += total_N_costs_for_new_phytomers
+                        # We now subtract the value of the phyllochron to the time since last phytomer was formed, and loop:
+                        thermal_time_since_last_phytomer_formation -= phyllochron
                 # Once all phytomers have been added, we update the time since the last one was formed,
                 # which is stored at the base of the shoot system:
                 shoot_g.node(0).thermal_time_since_last_phytomer_formation = thermal_time_since_last_phytomer_formation
