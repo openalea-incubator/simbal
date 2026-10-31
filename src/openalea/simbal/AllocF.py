@@ -2058,7 +2058,7 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
         else:
             bud = g.node(vid)
             # If no ramification has occured until now, we check if one bud somewhere in the shoot system meets the
-            # conditions for triggering ramification for this bud and the bud above it:
+            # conditions for triggering ramification (for this bud and the buds above it):
             if not ramification_allowed:
                 # We get the leaf below the bud (as the bud has been defined as the child of the leaf):
                 leaf_index = g.Father(vid, EdgeType='+')

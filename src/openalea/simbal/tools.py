@@ -2048,10 +2048,10 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
     # RECORDING THE MTG:
     if recording_plot:
 
-        print("    Saving the PlantGL plot...")
+        # print("    Saving the PlantGL plot...")
         pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha=True)
         # pgl.Viewer.frameGL.saveImage(plot_name)
-        print("    The plot has been saved!")
+        # print("    The plot has been saved!")
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -2172,10 +2172,10 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
 
     # RECORDING THE MTG:
     if recording_plot:
-        print("    Saving the PlantGL plot...")
+        # print("    Saving the PlantGL plot...")
         pgl.Viewer.saveSnapshot(plot_name, type='PNG', withAlpha=True)
         # pgl.Viewer.frameGL.saveImage(plot_name)
-        print("    The plot has been saved!")
+        # print("    The plot has been saved!")
 
     return
 
