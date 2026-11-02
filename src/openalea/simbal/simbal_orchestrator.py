@@ -24,7 +24,6 @@ import pandas as pd
 import numpy as np
 from math import sqrt, trunc, ceil
 from decimal import Decimal
-from sympy import isolate
 import ast
 import pickle
 
