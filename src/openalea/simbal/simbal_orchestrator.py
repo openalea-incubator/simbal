@@ -28,7 +28,7 @@ from sympy import isolate
 import ast
 import pickle
 
-from src.openalea.simbal.simbal_parameters import plastochron
+from openalea.simbal.simbal_parameters import plastochron
 
 
 ########################################################################################################################
