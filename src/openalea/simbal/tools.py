@@ -1114,6 +1114,359 @@ def updating_coordinates(g):
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
+# Function for creating a color map for a MTG:
+def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
+    """
+    This function computes a property 'color' on a MTG based on a given MTG's property.
+    :param g: the investigated MTG
+    :param property_name: the name of the property of the MTG that will be displayed
+    :param cmap: the type of color map
+    :param vmin: the min value to be displayed
+    :param vmax: the max value to be displayed
+    :param lognorm: a Boolean describing whether the scale is logarithmic or not
+    :return: the MTG with the corresponding color
+    """
+
+    # We make sure that the user did not accidently switch between vmin and vmax:
+    if vmin >= vmax:
+        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
+    if lognorm and (vmin <= 0 or vmax <= 0):
+        raise Exception(
+            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
+
+    prop = g.property(property_name)
+    keys = prop.keys()
+    values = list(prop.values())
+    # m, M = int(values.min()), int(values.max())
+
+    _cmap = color.get_cmap(cmap)
+    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
+    values = norm(values)
+
+    colors = (_cmap(values)[:, 0:3]) * 255
+    colors = np.array(colors, dtype=int).tolist()
+
+    g.properties()['color'] = dict(zip(keys, colors))
+
+    return g
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for setting the center anc camera position in a scene:
+def setting_PGLViewer(width=1200, height=1200,
+                      x_center=0., y_center=0., z_center=0.,
+                      x_cam=0., y_cam=0., z_cam=-0.2,
+                      grid=True,
+                      background_color=[255, 255, 255]):
+    """
+    This function sets the center of the graph and the relative position of the camera for displaying a scene in
+    PGL.
+    :param width: width of the window (pixels)
+    :param height: height of the window (pixels)
+    :param x_center: x-coordinate of the center at which the camera looks
+    :param y_center: y-coordinate of the center at which the camera looks
+    :param z_center: z-coordinate of the center at which the camera looks
+    :param x_cam: x-coordinate of the camera position
+    :param y_cam: y-coordinate of the camera position
+    :param z_cam: z-coordinate of the camera position
+    :param grid: if True, all grids will be displayed
+    :param background_color: a RGB vector corresponding to the background color of the graph
+    :return:
+    """
+
+    # We define the coordinates of the point cam_target that will be the center of the graph:
+    cam_target = pgl.Vector3(x_center, y_center, z_center)
+    # We define the coordinates of the point cam_pos that represents the position of the camera:
+    cam_pos = pgl.Vector3(x_cam, y_cam, z_cam)
+    # We position the camera in the scene relatively to the center of the scene:
+    pgl.Viewer.camera.lookAt(cam_pos, cam_target)
+    # We define the dimensions of the graph:
+    pgl.Viewer.frameGL.setSize(width, height)
+    # We define the background of the scene:
+    pgl.Viewer.frameGL.setBgColor(background_color[0], background_color[1], background_color[2])
+    # We define whether grids are displayed or not:
+    pgl.Viewer.grids.set(grid, grid, grid, grid)
+
+    # pgl.Viewer.light=None
+    # pgl.Viewer.threaded=True
+    # pgl.Viewer.redrawPolicy = True
+
+    return
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# This function enables to plot a shoot MTG with PlantGL:
+def plotting_shoot_MTG(g,
+                       plant_species="faba_bean",
+                       leaf_shape="typical_leaf_shape",
+                       simplified_leaf_shape_for_surface_calculation="ellipse_shape",
+                       petiole_showing=False,
+                       width=1200, height=900,
+                       upscaling_factor=1.,
+                       origin_coordinates=[0.,0.,0.],
+                       x_center=0, y_center=-0, z_center=0.,
+                       x_cam=5., y_cam=5., z_cam=-1,
+                       grid=True,
+                       background_color=[94, 76, 64],
+                       single_color=None,
+                       property_name='radius', cmap='jet', vmin=1e-4, vmax=1e-2, lognorm=True,
+                       recording_plot=True,
+                       plot_name='plot.png'):
+
+    # CREATING THE PLOT:
+    # We first compute the colors of the graph:
+    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
+    # We use the property 'color' of the MTG calculated by the function 'my_colormap':
+    colors = g.property('color')
+
+    # We initialize a turtle in PlantGL:
+    turtle = turt.PglTurtle()
+    turtle.move(origin_coordinates)
+
+    # We initialize a scene:
+    new_scene = pgl.Scene()
+
+    # SETTING THE NEW SCENE WITH THE TURTLE:
+    # We create the scene by moving the turtle along the current MTG:
+    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(plant_species=plant_species,
+                                                          leaf_shape=leaf_shape,
+                                                          simplified_shape=simplified_leaf_shape_for_surface_calculation,
+                                                          upscaling_factor=upscaling_factor,
+                                                          petiole_showing=petiole_showing),
+                             turtle=turtle, gc=False)
+    # We get a dictionnary of all shapes in the scene:
+    shapes = dict((sh.id, sh) for sh in scene)
+
+    # We create a dictionnary of correspondance between shapes ID and vertex ID,
+    # in case several shapes are shown for one single vertex:
+    # vid_for_sid_correspondance = dict()
+
+    # We cover each node of the MTG:
+    for vid in colors:
+        if vid in shapes:
+            n = g.node(vid)
+            if single_color is None:
+                shapes[vid].appearance = pgl.Material(colors[vid], transparency=0.0)
+            else:
+                # Otherwise, we can print it with a unique color:
+                if n.label=="Fallen_leaf":
+                    # If the leaf has fallen, we print in grey, semi-transparent:
+                    shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
+                elif n.label=="Bud":
+                    shapes[vid].appearance = pgl.Material([250, 0, 0], transparency=0.5)
+                else:
+                    shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
+    # We add each shape of the current MTG to the final scene:
+    for shape in scene:
+        new_scene += shape
+
+    # SETTING THE VIEWER OPTIONS:
+    setting_PGLViewer(width=width, height=height,
+                      x_center=x_center, y_center=y_center, z_center=z_center,
+                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
+                      grid=grid,
+                      background_color=background_color)
+
+    # DISPLAYING THE MTG:
+    pgl.Viewer.display(new_scene)
+
+    # RECORDING THE MTG:
+    if recording_plot:
+        print("Saving the PlantGL plot...")
+        pgl.Viewer.saveSnapshot(plot_name, type="PNG", withAlpha=True)
+        print("Plot saved!")
+
+    return
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function that methodically creates each shape (takes a long time for large root systems):
+def plotting_shoots_with_pyvista(g,
+                                 showing=True, recording_image=True, image_file='plot_.png',
+                                 factor_of_higher_resolution=1,
+                                 background_color=[94, 76, 64],
+                                 plot_width=1000, plot_height=750,
+                                 camera_x=2., camera_y=0., camera_z=0.5,
+                                 focal_x=0., focal_y=0., focal_z=0.,
+                                 closing_window=False):
+    """
+    This functions aims to plot a shoot system with Pyvista, creating step by step every shape.
+    :param g: the root MTG to be displayed
+    :param showing: if True, a Pyvista window will be opened
+    :param recording_image: if True, an image file of the plot will be recorded
+    :param image_file: name of the image file
+    :param closing_window: if True, the Pyvista window will be closed after having shown the plot
+    :param background_color: a list containing three integers corresponding to Red, Green and Blue values (0-255)
+    :param plot_width: width of the plot (in pixels)
+    :param plot_height: height of the plot (in pixels)
+    :param camera_x: x-coordinate of the camera position
+    :param camera_y: y-coordinate of the camera position
+    :param camera_z: z-coordinate of the camera position
+    :param focal_x: x-coordinate of the focal point (from which plot is centered and allowed to rotate from)
+    :param focal_y: y-coordinate of the focal point (from which plot is centered and allowed to rotate from)
+    :param focal_z: z-coordinate of the focal point (from which plot is centered and allowed to rotate from)
+    :return:
+    """
+    if pv is None:
+        raise Exception('Install pyvista')
+
+    # We initialize a plot:
+    p = pv.Plotter()
+    # p = pvqt.BackgroundPlotter() # If we want to update the graph when opened
+    if recording_image and not showing:
+        p.off_screen = True
+
+    # We initialize a list of blocks and empty lists:
+    blocks = pv.MultiBlock()
+    colors = []
+    opacity = []
+
+    # CREATING THE SHAPES:
+    ######################
+
+    # The creation of the cylinders with no directions raises a Warning in numpy, but we can ignore it.
+    np.seterr(invalid='ignore')
+
+    print("    > Creating the shapes of the plot...")
+    # We cover all the vertices in the MTG g:
+    for vid in g.vertices_iter(scale=1):
+
+        # We define the current root element as n:
+        n = g.node(vid)
+        # We skip this element if it does not have a positive length:
+        if n.length <= 0.:
+            continue
+
+        # We calculate the geometric features required by pyvista to display a cylinder at the right spot:
+        x1 = n.x1
+        x2 = n.x2
+        y1 = n.y1
+        y2 = n.y2
+        z1 = n.z1
+        z2 = n.z2
+        center_x = (x1 + x2) / 2.
+        center_y = (y1 + y2) / 2.
+        center_z = (z1 + z2) / 2.
+        direction_x = x2 - x1
+        direction_y = y2 - y1
+        direction_z = z2 - z1
+        # normal_x = direction_x * np.cos(90) - direction_y * np.sin(90)
+        # normal_y = direction_x * np.sin(90) + direction_y * np.cos(90)
+        # normal_z = direction_z
+        height = ((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2) ** 0.5
+        radius = n.radius
+        # We add the color and opacity to a list:
+        color = n.color
+        colors.append(color)
+        opacity.append(1)  # Here, all the elements are supposed to be fully opaques
+
+        if n.label == "Internode":
+            # We create a new cylinder with the proper dimensions and position:
+            shape = pv.Cylinder(center=(center_x, center_y, center_z),
+                                direction=(direction_x, direction_y, direction_z),
+                                radius=radius, height=height)
+        elif n.label == "Leaf":
+            shape = pv.Disc(center=(center_x, center_y, center_z), inner=0., outer=n.length / 2., c_res=12,
+                            normal=(-direction_x, -direction_y, direction_z))
+            # shape = pv.Triangle([[x1,y1,z1], [x2-0.1,y2-0.1,z2], [x2+0.1,y2+0.1,z2]])
+            # shape = shape.rotate_vector(vector=(x2, -y2, 0), angle=180, point=(center_x, center_y, center_z))
+            # shape = shape.rotate_vector(vector=(direction_x, direction_y, 0), angle=180, point=(center_x, center_y, center_z))
+        # And we add this shape to the list of blocks:
+        blocks.append(shape)
+
+    # We reset the warning option in Numpy:
+    np.seterr(invalid=None)
+
+    # CREATING THE SCENE:
+    # Adding the multi-blocks to a plot:
+    actor, mapper = p.add_composite(blocks)
+    print("    > Adding the colors and transparencies of the plot...")
+    # We cover each block and set its color and opacity:
+    for i in range(1, blocks.n_blocks + 1):
+        mapper.block_attr[i].color = colors[i - 1]
+        mapper.block_attr[i].opacity = opacity[i - 1]
+
+    # We set the color of the background:
+    p.background_color = background_color
+
+    # ADJUSTING THE CAMERA:
+    # We can define the target position and the camera position:
+    p.camera.focal_point = (focal_x, focal_y, focal_z)
+    p.camera.position = (camera_x, camera_y, camera_z)
+    # Or we can define the relative distance and elevation of the camera compared to the middle of the plot:
+    # p.camera.distance = 0.2
+    # p.camera_elevation = -0.2
+    # p.reset_camera()
+    # p.view_yz()
+    # pv.Axes.origin=(0,0,0.0)
+    p.camera_set = True
+
+    # SETTING AXES:
+    # p.add_axes()
+    # p.add_axes_at_origin()
+
+    # DIVERSE SETTINGS:
+    # We set the background color of the plot:
+    p.background_color = background_color
+    # We set the final size of the window:
+    p.window_size = [plot_width, plot_height]
+    # We can improve the resolution of the image:
+    p.image_scale = factor_of_higher_resolution
+
+    # p.line_smoothing = True
+    # p.add_bounding_box(line_width=3, color='black')
+    # p.enable_terrain_style(mouse_wheel_zooms=True, shift_pans=True)
+
+    print("> The plot has been created!")
+
+    # SHOWING/RECORDING THE PLOT:
+    if recording_image:
+        # p.screenshot(filename='test_MTG.png')
+        p.show(screenshot=image_file, auto_close=closing_window)
+        # # p.close()
+    elif showing:
+        p.show(auto_close=closing_window)
+
+    if closing_window:
+        pv.close_all()
+
+    return p
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for creating a color map for a MTG:
+def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
+    """
+    This function computes a property 'color' on a MTG based on a given MTG's property.
+    :param g: the investigated MTG
+    :param property_name: the name of the property of the MTG that will be displayed
+    :param cmap: the type of color map
+    :param vmin: the min value to be displayed
+    :param vmax: the max value to be displayed
+    :param lognorm: a Boolean describing whether the scale is logarithmic or not
+    :return: the MTG with the corresponding color
+    """
+
+    # We make sure that the user did not accidently switch between vmin and vmax:
+    if vmin >= vmax:
+        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
+    if lognorm and (vmin <= 0 or vmax <= 0):
+        raise Exception(
+            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
+
+    prop = g.property(property_name)
+    keys = prop.keys()
+    values = list(prop.values())
+    # m, M = int(values.min()), int(values.max())
+
+    _cmap = color.get_cmap(cmap)
+    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
+    values = norm(values)
+
+    colors = (_cmap(values)[:, 0:3]) * 255
+    colors = np.array(colors, dtype=int).tolist()
+
+    g.properties()['color'] = dict(zip(keys, colors))
+
+    return g
+#-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
 # Function that distributes plant MTG within a framework:
 def prepare_plants_population(list_of_reference_MTG=[],
                               number_of_plants_per_square_meter=9,
@@ -1336,171 +1689,10 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
                 x = lateral_border_length * upscaling_factor
 
     return scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG
+
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for creating a color map for a MTG:
-def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
-    """
-    This function computes a property 'color' on a MTG based on a given MTG's property.
-    :param g: the investigated MTG
-    :param property_name: the name of the property of the MTG that will be displayed
-    :param cmap: the type of color map
-    :param vmin: the min value to be displayed
-    :param vmax: the max value to be displayed
-    :param lognorm: a Boolean describing whether the scale is logarithmic or not
-    :return: the MTG with the corresponding color
-    """
 
-    # We make sure that the user did not accidently switch between vmin and vmax:
-    if vmin >= vmax:
-        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
-    if lognorm and (vmin <= 0 or vmax <= 0):
-        raise Exception(
-            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
-
-    prop = g.property(property_name)
-    keys = prop.keys()
-    values = list(prop.values())
-    # m, M = int(values.min()), int(values.max())
-
-    _cmap = color.get_cmap(cmap)
-    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
-    values = norm(values)
-
-    colors = (_cmap(values)[:, 0:3]) * 255
-    colors = np.array(colors, dtype=int).tolist()
-
-    g.properties()['color'] = dict(zip(keys, colors))
-
-    return g
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for setting the center anc camera position in a scene:
-def setting_PGLViewer(width=1200, height=1200,
-                      x_center=0., y_center=0., z_center=0.,
-                      x_cam=0., y_cam=0., z_cam=-0.2,
-                      grid=True,
-                      background_color=[255, 255, 255]):
-    """
-    This function sets the center of the graph and the relative position of the camera for displaying a scene in
-    PGL.
-    :param width: width of the window (pixels)
-    :param height: height of the window (pixels)
-    :param x_center: x-coordinate of the center at which the camera looks
-    :param y_center: y-coordinate of the center at which the camera looks
-    :param z_center: z-coordinate of the center at which the camera looks
-    :param x_cam: x-coordinate of the camera position
-    :param y_cam: y-coordinate of the camera position
-    :param z_cam: z-coordinate of the camera position
-    :param grid: if True, all grids will be displayed
-    :param background_color: a RGB vector corresponding to the background color of the graph
-    :return:
-    """
-
-    # We define the coordinates of the point cam_target that will be the center of the graph:
-    cam_target = pgl.Vector3(x_center, y_center, z_center)
-    # We define the coordinates of the point cam_pos that represents the position of the camera:
-    cam_pos = pgl.Vector3(x_cam, y_cam, z_cam)
-    # We position the camera in the scene relatively to the center of the scene:
-    pgl.Viewer.camera.lookAt(cam_pos, cam_target)
-    # We define the dimensions of the graph:
-    pgl.Viewer.frameGL.setSize(width, height)
-    # We define the background of the scene:
-    pgl.Viewer.frameGL.setBgColor(background_color[0], background_color[1], background_color[2])
-    # We define whether grids are displayed or not:
-    pgl.Viewer.grids.set(grid, grid, grid, grid)
-
-    # pgl.Viewer.light=None
-    # pgl.Viewer.threaded=True
-    # pgl.Viewer.redrawPolicy = True
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# This function enables to plot a shoot MTG with PlantGL:
-def plotting_shoot_MTG(g,
-                       plant_species="faba_bean",
-                       leaf_shape="typical_leaf_shape",
-                       simplified_leaf_shape_for_surface_calculation="ellipse_shape",
-                       petiole_showing=False,
-                       width=1200, height=900,
-                       upscaling_factor=1.,
-                       origin_coordinates=[0.,0.,0.],
-                       x_center=0, y_center=-0, z_center=0.,
-                       x_cam=5., y_cam=5., z_cam=-1,
-                       grid=True,
-                       background_color=[94, 76, 64],
-                       single_color=None,
-                       property_name='radius', cmap='jet', vmin=1e-4, vmax=1e-2, lognorm=True,
-                       recording_plot=True,
-                       plot_name='plot.png'):
-
-    # CREATING THE PLOT:
-    # We first compute the colors of the graph:
-    my_colormap(g, property_name=property_name, cmap=cmap, vmin=vmin, vmax=vmax, lognorm=lognorm)
-    # We use the property 'color' of the MTG calculated by the function 'my_colormap':
-    colors = g.property('color')
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-    turtle.move(origin_coordinates)
-
-    # We initialize a scene:
-    new_scene = pgl.Scene()
-
-    # SETTING THE NEW SCENE WITH THE TURTLE:
-    # We create the scene by moving the turtle along the current MTG:
-    scene = turt.TurtleFrame(g, visitor=get_shoot_visitor(plant_species=plant_species,
-                                                          leaf_shape=leaf_shape,
-                                                          simplified_shape=simplified_leaf_shape_for_surface_calculation,
-                                                          upscaling_factor=upscaling_factor,
-                                                          petiole_showing=petiole_showing),
-                             turtle=turtle, gc=False)
-    # We get a dictionnary of all shapes in the scene:
-    shapes = dict((sh.id, sh) for sh in scene)
-
-    # We create a dictionnary of correspondance between shapes ID and vertex ID,
-    # in case several shapes are shown for one single vertex:
-    # vid_for_sid_correspondance = dict()
-
-    # We cover each node of the MTG:
-    for vid in colors:
-        if vid in shapes:
-            n = g.node(vid)
-            if single_color is None:
-                shapes[vid].appearance = pgl.Material(colors[vid], transparency=0.0)
-            else:
-                # Otherwise, we can print it with a unique color:
-                if n.label=="Fallen_leaf":
-                    # If the leaf has fallen, we print in grey, semi-transparent:
-                    shapes[vid].appearance = pgl.Material([0,0,0], transparency=0.8)
-                elif n.label=="Bud":
-                    shapes[vid].appearance = pgl.Material([250, 0, 0], transparency=0.5)
-                else:
-                    shapes[vid].appearance = pgl.Material(single_color, transparency=0.0)
-    # We add each shape of the current MTG to the final scene:
-    for shape in scene:
-        new_scene += shape
-
-    # SETTING THE VIEWER OPTIONS:
-    setting_PGLViewer(width=width, height=height,
-                      x_center=x_center, y_center=y_center, z_center=z_center,
-                      x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
-                      grid=grid,
-                      background_color=background_color)
-
-    # DISPLAYING THE MTG:
-    pgl.Viewer.display(new_scene)
-
-    # RECORDING THE MTG:
-    if recording_plot:
-        print("Saving the PlantGL plot...")
-        pgl.Viewer.saveSnapshot(plot_name, type="PNG", withAlpha=True)
-        print("Plot saved!")
-
-    return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
 # Function for creating a scene with uniques shapes ID:
 def create_plants_population_scene(scene_information={},
                                    list_of_shoot_MTG=[],
@@ -1740,196 +1932,6 @@ def create_plants_population_scene(scene_information={},
     return final_scene, scene_information
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# Function that methodically creates each shape (takes a long time for large root systems):
-def plotting_shoots_with_pyvista(g,
-                                 showing=True, recording_image=True, image_file='plot_.png',
-                                 factor_of_higher_resolution=1,
-                                 background_color=[94, 76, 64],
-                                 plot_width=1000, plot_height=750,
-                                 camera_x=2., camera_y=0., camera_z=0.5,
-                                 focal_x=0., focal_y=0., focal_z=0.,
-                                 closing_window=False):
-    """
-    This functions aims to plot a shoot system with Pyvista, creating step by step every shape.
-    :param g: the root MTG to be displayed
-    :param showing: if True, a Pyvista window will be opened
-    :param recording_image: if True, an image file of the plot will be recorded
-    :param image_file: name of the image file
-    :param closing_window: if True, the Pyvista window will be closed after having shown the plot
-    :param background_color: a list containing three integers corresponding to Red, Green and Blue values (0-255)
-    :param plot_width: width of the plot (in pixels)
-    :param plot_height: height of the plot (in pixels)
-    :param camera_x: x-coordinate of the camera position
-    :param camera_y: y-coordinate of the camera position
-    :param camera_z: z-coordinate of the camera position
-    :param focal_x: x-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_y: y-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_z: z-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :return:
-    """
-    if pv is None:
-        raise Exception('Install pyvista')
-
-    # We initialize a plot:
-    p = pv.Plotter()
-    # p = pvqt.BackgroundPlotter() # If we want to update the graph when opened
-    if recording_image and not showing:
-        p.off_screen = True
-
-    # We initialize a list of blocks and empty lists:
-    blocks = pv.MultiBlock()
-    colors = []
-    opacity = []
-
-    # CREATING THE SHAPES:
-    ######################
-
-    # The creation of the cylinders with no directions raises a Warning in numpy, but we can ignore it.
-    np.seterr(invalid='ignore')
-
-    print("    > Creating the shapes of the plot...")
-    # We cover all the vertices in the MTG g:
-    for vid in g.vertices_iter(scale=1):
-
-        # We define the current root element as n:
-        n = g.node(vid)
-        # We skip this element if it does not have a positive length:
-        if n.length <= 0.:
-            continue
-
-        # We calculate the geometric features required by pyvista to display a cylinder at the right spot:
-        x1 = n.x1
-        x2 = n.x2
-        y1 = n.y1
-        y2 = n.y2
-        z1 = n.z1
-        z2 = n.z2
-        center_x = (x1 + x2) / 2.
-        center_y = (y1 + y2) / 2.
-        center_z = (z1 + z2) / 2.
-        direction_x = x2 - x1
-        direction_y = y2 - y1
-        direction_z = z2 - z1
-        # normal_x = direction_x * np.cos(90) - direction_y * np.sin(90)
-        # normal_y = direction_x * np.sin(90) + direction_y * np.cos(90)
-        # normal_z = direction_z
-        height = ((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2) ** 0.5
-        radius = n.radius
-        # We add the color and opacity to a list:
-        color = n.color
-        colors.append(color)
-        opacity.append(1)  # Here, all the elements are supposed to be fully opaques
-
-        if n.label == "Internode":
-            # We create a new cylinder with the proper dimensions and position:
-            shape = pv.Cylinder(center=(center_x, center_y, center_z),
-                                direction=(direction_x, direction_y, direction_z),
-                                radius=radius, height=height)
-        elif n.label == "Leaf":
-            shape = pv.Disc(center=(center_x, center_y, center_z), inner=0., outer=n.length / 2., c_res=12,
-                            normal=(-direction_x, -direction_y, direction_z))
-            # shape = pv.Triangle([[x1,y1,z1], [x2-0.1,y2-0.1,z2], [x2+0.1,y2+0.1,z2]])
-            # shape = shape.rotate_vector(vector=(x2, -y2, 0), angle=180, point=(center_x, center_y, center_z))
-            # shape = shape.rotate_vector(vector=(direction_x, direction_y, 0), angle=180, point=(center_x, center_y, center_z))
-        # And we add this shape to the list of blocks:
-        blocks.append(shape)
-
-    # We reset the warning option in Numpy:
-    np.seterr(invalid=None)
-
-    # CREATING THE SCENE:
-    # Adding the multi-blocks to a plot:
-    actor, mapper = p.add_composite(blocks)
-    print("    > Adding the colors and transparencies of the plot...")
-    # We cover each block and set its color and opacity:
-    for i in range(1, blocks.n_blocks + 1):
-        mapper.block_attr[i].color = colors[i - 1]
-        mapper.block_attr[i].opacity = opacity[i - 1]
-
-    # We set the color of the background:
-    p.background_color = background_color
-
-    # ADJUSTING THE CAMERA:
-    # We can define the target position and the camera position:
-    p.camera.focal_point = (focal_x, focal_y, focal_z)
-    p.camera.position = (camera_x, camera_y, camera_z)
-    # Or we can define the relative distance and elevation of the camera compared to the middle of the plot:
-    # p.camera.distance = 0.2
-    # p.camera_elevation = -0.2
-    # p.reset_camera()
-    # p.view_yz()
-    # pv.Axes.origin=(0,0,0.0)
-    p.camera_set = True
-
-    # SETTING AXES:
-    # p.add_axes()
-    # p.add_axes_at_origin()
-
-    # DIVERSE SETTINGS:
-    # We set the background color of the plot:
-    p.background_color = background_color
-    # We set the final size of the window:
-    p.window_size = [plot_width, plot_height]
-    # We can improve the resolution of the image:
-    p.image_scale = factor_of_higher_resolution
-
-    # p.line_smoothing = True
-    # p.add_bounding_box(line_width=3, color='black')
-    # p.enable_terrain_style(mouse_wheel_zooms=True, shift_pans=True)
-
-    print("> The plot has been created!")
-
-    # SHOWING/RECORDING THE PLOT:
-    if recording_image:
-        # p.screenshot(filename='test_MTG.png')
-        p.show(screenshot=image_file, auto_close=closing_window)
-        # # p.close()
-    elif showing:
-        p.show(auto_close=closing_window)
-
-    if closing_window:
-        pv.close_all()
-
-    return p
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for creating a color map for a MTG:
-def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
-    """
-    This function computes a property 'color' on a MTG based on a given MTG's property.
-    :param g: the investigated MTG
-    :param property_name: the name of the property of the MTG that will be displayed
-    :param cmap: the type of color map
-    :param vmin: the min value to be displayed
-    :param vmax: the max value to be displayed
-    :param lognorm: a Boolean describing whether the scale is logarithmic or not
-    :return: the MTG with the corresponding color
-    """
-
-    # We make sure that the user did not accidently switch between vmin and vmax:
-    if vmin >= vmax:
-        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
-    if lognorm and (vmin <= 0 or vmax <= 0):
-        raise Exception(
-            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
-
-    prop = g.property(property_name)
-    keys = prop.keys()
-    values = list(prop.values())
-    # m, M = int(values.min()), int(values.max())
-
-    _cmap = color.get_cmap(cmap)
-    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
-    values = norm(values)
-
-    colors = (_cmap(values)[:, 0:3]) * 255
-    colors = np.array(colors, dtype=int).tolist()
-
-    g.properties()['color'] = dict(zip(keys, colors))
-
-    return g
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
 # This function enables to plot a shoot MTG with PlantGL:
 def plotting_whole_plant(shoot_MTG, root_MTG,
                          width=1200, height=900,
@@ -1938,6 +1940,7 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
                          grid=True,
+                         displaying_soil_surface=False,
                          plant_species="rapeseed",
                          leaf_shape="rapeseed_leaf_shape",
                          simplified_leaf_shape_for_surface_calculation="ellipse_shape",
@@ -2030,9 +2033,25 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
 
     # DEFINING THE FINAL SCENE:
     if shoots_overlapping_roots:
-        final_scene = new_scene_for_root + new_scene_for_shoot
+        final_scene += new_scene_for_root + new_scene_for_shoot
     else:
-        final_scene = new_scene_for_shoot + new_scene_for_root
+        final_scene += new_scene_for_shoot + new_scene_for_root
+
+    # If a soil surface is to be displayed in the scene, we add it first:
+    if displaying_soil_surface:
+        scene_length = 0.1
+        scene_width = 0.1
+        # We create a "soil surface" corresponding to the limits of the scene:
+        points = [(-scene_length / 2. * upscaling_factor, -scene_width / 2. * upscaling_factor, 0),
+                  (scene_length / 2. * upscaling_factor, -scene_width / 2. * upscaling_factor, 0),
+                  (scene_length / 2. * upscaling_factor, scene_width / 2. * upscaling_factor, 0),
+                  (0, scene_width / 2. * upscaling_factor, 0)]
+        normals = [(0, 0, 1) for i in range(4)]
+        indices = [(0, 1, 2, 3)]
+        square = pgl.QuadSet(points, indices, normals, indices)
+        # We define the same color for each of the 4 points:
+        square.colorList = [pgl.Color4(96, 76, 64, 150) for i in range(4)]
+        final_scene += square
 
     # SETTING THE VIEWER OPTIONS:
 
@@ -2064,6 +2083,7 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
                          number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
                          scene_lengths_dict={"rapeseed": 1., "faba_bean": 1.},
                          scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
+                         sowing_depths_dict={"rapeseed": 0.008, "faba_bean": 0.08},
                          width=1200, height=900,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
@@ -2096,39 +2116,40 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
         indices = [(0, 1, 2, 3)]
         square = pgl.QuadSet(points, indices, normals, indices)
         # We define the same color for each of the 4 points:
-        square.colorList = [pgl.Color4(96, 76, 64, 0) for i in range(4)]
+        square.colorList = [pgl.Color4(96, 76, 64, 150) for i in range(4)]
         final_scene += square
 
     # ADDING THE PLANTS:
     # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
-        # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
-        scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG = prepare_heterogeneous_plants_population(
-            genotype_names_list=genotype_names_list,
-            parameters_dict=parameters_dict,
-            shoot_MTG_dict=shoot_MTG_dict,
-            root_MTG_dict=root_MTG_dict,
-            numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
-            inter_row_distances_dict=inter_row_distances_dict,
-            number_of_rows_to_show_dict=number_of_rows_to_show_dict,
-            scene_lengths_dict=scene_lengths_dict,
-            scene_widths_dict=scene_widths_dict,
-            upscaling_factor=upscaling_factor)
+    # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+    scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG = prepare_heterogeneous_plants_population(
+        genotype_names_list=genotype_names_list,
+        parameters_dict=parameters_dict,
+        shoot_MTG_dict=shoot_MTG_dict,
+        root_MTG_dict=root_MTG_dict,
+        numbers_of_plants_per_square_meter_dict=numbers_of_plants_per_square_meter_dict,
+        inter_row_distances_dict=inter_row_distances_dict,
+        number_of_rows_to_show_dict=number_of_rows_to_show_dict,
+        scene_lengths_dict=scene_lengths_dict,
+        scene_widths_dict=scene_widths_dict,
+        sowing_depths_dict=sowing_depths_dict,
+        upscaling_factor=upscaling_factor)
 
-        # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
-        scene, scene_information = create_plants_population_scene(scene_information=scene_information,
-                                                                  genotype_names_list=genotype_names_list,
-                                                                  parameters_dict=parameters_dict,
-                                                                  list_of_shoot_MTG=list_of_all_shoot_MTG,
-                                                                  list_of_root_MTG=list_of_all_root_MTG,
-                                                                  leaf_shape=plotting_leaf_shape,
-                                                                  simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
-                                                                  single_color_shoot=single_color_shoot,
-                                                                  single_color_root=single_color_root,
-                                                                  property_name_shoot=property_name_shoot, cmap_shoot=cmap_shoot,
-                                                                  vmin_shoot=vmin_shoot, vmax_shoot=vmax_shoot, lognorm_shoot=lognorm_shoot,
-                                                                  property_name_root=property_name_root, cmap_root=cmap_root,
-                                                                  vmin_root=vmin_root, vmax_root=vmax_root,lognorm_root=lognorm_root,
-                                                                  upscaling_factor=upscaling_factor)
+    # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+    scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+                                                              genotype_names_list=genotype_names_list,
+                                                              parameters_dict=parameters_dict,
+                                                              list_of_shoot_MTG=list_of_all_shoot_MTG,
+                                                              list_of_root_MTG=list_of_all_root_MTG,
+                                                              leaf_shape=plotting_leaf_shape,
+                                                              simplified_leaf_shape_for_surface_calculation=simplified_leaf_shape_for_surface_calculation,
+                                                              single_color_shoot=single_color_shoot,
+                                                              single_color_root=single_color_root,
+                                                              property_name_shoot=property_name_shoot, cmap_shoot=cmap_shoot,
+                                                              vmin_shoot=vmin_shoot, vmax_shoot=vmax_shoot, lognorm_shoot=lognorm_shoot,
+                                                              property_name_root=property_name_root, cmap_root=cmap_root,
+                                                              vmin_root=vmin_root, vmax_root=vmax_root,lognorm_root=lognorm_root,
+                                                              upscaling_factor=upscaling_factor)
 
     # IF NEEDED - SORTING SHAPES ACCORDING TO THE DISTANCE FROM THE CAMERA:
     # # We sort the shapes, so that they are ordered according to the position of the camera.

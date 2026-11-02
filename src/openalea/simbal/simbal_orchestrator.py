@@ -1572,6 +1572,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
     cam_y_dict = {}
     cam_z_dict = {}
     cam_index_dict = {}
+    recording_steps_list_dict = {}
 
     # We initially consider the simulation as possible, and will change this if a condition is not met:
     simulation_allowed = True
@@ -1902,7 +1903,9 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
         # RECORDING THE INITIAL PROPERTIES OF THE WHOLE PLANT:
         # We initialize the dictionary containing the general properties of the plant:
-        results_dict = recording_main_plant_properties(plant, shoot_g, root_g, final_time_in_days=0., thermal_time_in_degree_days=0.)
+        results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
+                                                       final_time_in_days=starting_time_in_days,
+                                                       thermal_time_in_degree_days=starting_thermal_time_in_degree_days)
         # We add a few more entries:
         results_dict["Air temperature (degree_Celsius)"] = "NA"
         results_dict["Soil temperature (degree_Celsius)"] = "NA"
@@ -1939,11 +1942,14 @@ def run_simulation_for_a_plant_cover(my_path=None):
     elapsed_time_in_days_since_last_leaf_emergence = 0.
 
     # We initiate actual and thermal time at the end of each step:
-    actual_time_in_days = starting_time_in_days
+    actual_time_in_days = starting_time_in_days + time_step_in_days
     thermal_time_in_degree_days = starting_thermal_time_in_degree_days
+    # We initialize the initial step to a default value:
+    initial_step_number = 1
 
     # READING THE INPUT FILE:
     # -----------------------
+    # If there is an input file to be read and at least one input is not forced by a constant:
     if input_file and not (forcing_constant_aboveground_environment and forcing_constant_belowground_environment):
         # We use the function 'formatted inputs' to create a table containing the input data for each time step:
         input_frame = formatted_inputs(original_input_file=os.path.join(my_path, "simulation", "inputs", input_file),
@@ -1952,24 +1958,32 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                        final_time_step_in_days=time_step_in_days,
                                        simulation_period_in_days=simulation_period_in_days,
                                        do_not_execute_if_file_with_suitable_size_exists=False)
+        # We then modify the initial step according to the match between the "step_number" column and the "time_in_days"
+        # column, based on the starting_time_in_days prescribed in the parameters:
+        initial_step_number \
+            = input_frame[input_frame.initial_time_in_days >= starting_time_in_days]['step_number'].iloc[0]
 
-        # We then initialize the step and time according to the first line of the new inputs dataframe:
-        initial_step_number = input_frame['step_number'].loc[0]
-        stating_time_in_days = input_frame['initial_time_in_days'].loc[0]
-    else:
-        # We then initialize the step and time at 1:
-        initial_step_number = 1
-        starting_time_in_days = 0.
-    # In any case, the value of 'step' is initialized:
-    step = initial_step_number
+    #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+    # FOR EACH DISTINCT PLANT GENOTYPE TO BE SIMULATED:
+    for plant_genotype_name in genotype_names_list:
+        # We update the parameters specific to this genotype:
+        param.__dict__.update(parameters_dict[plant_genotype_name])
+        # For saving all results at specified time intervals, we create a list with corresponding time steps:
+        recording_steps_list_dict[plant_genotype_name] = list(
+            range(initial_step_number - 1,
+                  initial_step_number + n_steps,
+                  round(param.recording_interval_in_days / time_step_in_days)))
+    #///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    # CONSIDERING CAMERA ROTATION WHEN PLOTTING:
-    #-------------------------------------------
     #\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     # FOR THE POPULATION AND EACH DISTINCT PLANT GENOTYPE TO BE SIMULATED:
     for name in population_and_genotypes_names_list:
         # We update the parameters from the original python file with the parameters read in the Excel file:
         param.__dict__.update(parameters_dict[name])
+
+        # CONSIDERING CAMERA ROTATION WHEN PLOTTING:
+        # -------------------------------------------
+
         if param.camera_movement is True:
             # In case the camera needs to rotate around the target and/or to move away from it or to move up/down:
             if param.step_back_coefficient != 0. or param.step_up_coefficient != 0.:
@@ -2673,38 +2687,41 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # RECORDING THE CURRENT STATE:
             ##############################
 
-            print("    Recording the results for", plant_genotype_name + "...")
+            # If the current iteration correspond to the time where one full time interval for recording has been reached:
+            if step in recording_steps_list_dict[plant_genotype_name]:
 
-            # ACCESSING THE CURRENT PLANT AND DIRECTORIES:
-            shoot_g = shoot_MTG_dict[plant_genotype_name]
-            root_g = root_MTG_dict[plant_genotype_name]
-            sub_outputs_directory = outputs_directories[plant_genotype_name]
-            shoot_MTG_properties_directory = shoot_MTG_properties_directories[plant_genotype_name]
-            root_MTG_properties_directory = root_MTG_properties_directories[plant_genotype_name]
-            shoot_MTG_files_directory = shoot_MTG_directories[plant_genotype_name]
-            root_MTG_files_directory = root_MTG_directories[plant_genotype_name]
+                print("    Recording the results for", plant_genotype_name + "...")
 
-            # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
-            if param.simulation_option != "roots_only":
-                # We can record the main properties of the plant:
-                recording_MTG_properties(shoot_g, file_name=os.path.join(shoot_MTG_properties_directory, 'MTG_%.5d.csv' % step))
+                # ACCESSING THE CURRENT PLANT AND DIRECTORIES:
+                shoot_g = shoot_MTG_dict[plant_genotype_name]
+                root_g = root_MTG_dict[plant_genotype_name]
+                sub_outputs_directory = outputs_directories[plant_genotype_name]
+                shoot_MTG_properties_directory = shoot_MTG_properties_directories[plant_genotype_name]
+                root_MTG_properties_directory = root_MTG_properties_directories[plant_genotype_name]
+                shoot_MTG_files_directory = shoot_MTG_directories[plant_genotype_name]
+                root_MTG_files_directory = root_MTG_directories[plant_genotype_name]
 
-            # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
-            if param.simulation_option != "shoot_only":
-                # We can record the main properties of the plant:
-                recording_MTG_properties(root_g, file_name=os.path.join(root_MTG_properties_directory, 'MTG_%.5d.csv' % step))
+                # RECORDING THE PROPERTIES OF THE SHOOT MTG FOR THIS TIME STEP:
+                if param.simulation_option != "roots_only":
+                    # We can record the main properties of the plant:
+                    recording_MTG_properties(shoot_g, file_name=os.path.join(shoot_MTG_properties_directory, 'MTG_%.5d.csv' % step))
 
-            # RECORDING THE SHOOT MTG FILE FOR THIS TIME STEP:
-            if param.simulation_option != "roots_only":
-                g_file_name = os.path.join(shoot_MTG_files_directory, 'shoot%.5d.pckl')
-                with open(g_file_name % step, 'wb') as output:
-                    pickle.dump(shoot_g, output, protocol=2)
+                # RECORDING THE PROPERTIES OF THE ROOT MTG FOR THIS TIME STEP:
+                if param.simulation_option != "shoot_only":
+                    # We can record the main properties of the plant:
+                    recording_MTG_properties(root_g, file_name=os.path.join(root_MTG_properties_directory, 'MTG_%.5d.csv' % step))
 
-            # RECORDING THE ROOT MTG FILE FOR THIS TIME STEP:
-            if param.simulation_option != "shoots_only":
-                g_file_name = os.path.join(root_MTG_files_directory, 'root%.5d.pckl')
-                with open(g_file_name % step, 'wb') as output:
-                    pickle.dump(root_g, output, protocol=2)
+                # RECORDING THE SHOOT MTG FILE FOR THIS TIME STEP:
+                if param.simulation_option != "roots_only":
+                    g_file_name = os.path.join(shoot_MTG_files_directory, 'shoot%.5d.pckl')
+                    with open(g_file_name % step, 'wb') as output:
+                        pickle.dump(shoot_g, output, protocol=2)
+
+                # RECORDING THE ROOT MTG FILE FOR THIS TIME STEP:
+                if param.simulation_option != "shoots_only":
+                    g_file_name = os.path.join(root_MTG_files_directory, 'root%.5d.pckl')
+                    with open(g_file_name % step, 'wb') as output:
+                        pickle.dump(root_g, output, protocol=2)
 
             # RECORDING THE FINAL RESULTS AT PLANT SCALE:
             results_dict = recording_main_plant_properties(plant, shoot_g, root_g,
@@ -2802,12 +2819,14 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                          number_of_rows_to_show_dict=number_of_rows_to_show_dict,
                                          scene_lengths_dict=scene_lengths_dict,
                                          scene_widths_dict=scene_widths_dict,
+                                         sowing_depths_dict=sowing_depths_dict,
                                          width=1200, height=1200,
                                          upscaling_factor=zoom_factor,
                                          x_center=x_center * zoom_factor,
                                          y_center=y_center * zoom_factor,
                                          z_center=z_center * zoom_factor,
-                                         x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor,
+                                         x_cam=x_cam * zoom_factor,
+                                         y_cam=y_cam * zoom_factor,
                                          z_cam=z_cam * zoom_factor,
                                          grid=False,
                                          background_color=plot_background_color,
