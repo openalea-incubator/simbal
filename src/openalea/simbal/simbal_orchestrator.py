@@ -1377,7 +1377,6 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
 #                     C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_emergence(
 #                         shoot_system=plant,
 #                         shoot_MTG=shoot_g,
-#                         new_initiation=True,
 #                         thermal_time_since_initiation=thermal_time_since_initiation,
 #                         actual_time_since_initiation=actual_time_since_initiation,
 #                         thermal_time_since_emergence=thermal_time_since_emergence,
@@ -1860,9 +1859,10 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     plant.shoot_labile_N_deficit += n.labile_N_deficit
                 except:
                     print("!!! ERROR: we could not compute the initial properties of the shoot element", vid, "in the shoot MTG", i)
-            # We add an extra-property to the base of the shoot system, corresponding to the time since the last phytomer
+            # We add an extra-property to the apex of the main stem, corresponding to the time since the last phytomer
             # was formed (used together with the phyllochron later on):
-            shoot_g.node(0).thermal_time_since_last_phytomer_formation = 0.
+            base = shoot_g.node(0)
+            base.thermal_time_since_last_phytomer_formation = 0.
             # We record the properties in the initial state of the shoot MTG in an external file:
             recording_MTG_properties(shoot_g, os.path.join(shoot_MTG_properties_directory, 'MTG_00000.csv'))
             # We record the initial shoot MTG file:
@@ -2133,7 +2133,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # TRANSFER OF C FROM SHOOTS TO ROOTS:
             #####################################
 
-            print("\n    > Computing shoot-to-root C transfer for" + plant_genotype_name + "...")
+            print("\n    > Computing shoot-to-root C transfer for " + plant_genotype_name + "...")
             # We compute the rate of net C transfer from shoots to roots:
             computing_shoot_root_exchange_rates(plant, computing_C_exchange=True, computing_N_exchange=False,
                                                 time_step_in_seconds=time_step_in_seconds,
@@ -2572,7 +2572,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                       "{:.2E}".format(Decimal(N_consumption_rate_for_extension * time_step_in_seconds)),
                       "gN over the shoot system...")
 
-                # NEW PHYTOMERS: We now consider the initiation of the structure of new phytomers, based on the phyllochrone.
+                # NEW PHYTOMERS: We now consider the initiation of the structure of new phytomers, based on the phyllochron.
                 # We increment the time since the last phytomer was formed at the top of the main stem:
                 thermal_time_since_last_phytomer_formation \
                     = shoot_g.node(0).thermal_time_since_last_phytomer_formation + thermal_time_step_in_seconds_shoots
@@ -2583,10 +2583,11 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 total_C_costs_for_new_phytomers = 0.
                 total_N_costs_for_new_phytomers = 0.
                 # If the period since the last phytomer was formed is higher than the phyllochron:
-                if thermal_time_since_last_phytomer_formation > phyllochron:
+                if (thermal_time_since_last_phytomer_formation > phyllochron
+                        and shoot_g.node(1).thermal_time_since_aboveground_emergence > 0.):
                     print("A new phytomer should be formed!")
-                    # Then at least one phytomer should be formed on the main stem.
-                    # We keep looping until all phytomers have been formed:
+                    # Then at least one phytomer should be formed on the main stem, and additional one on ramifications,
+                    # if any. We keep looping until all phytomers have been formed:
                     while thermal_time_since_last_phytomer_formation - phyllochron > 0:
                         # We calculate the exact thermal time elapsed since the phytomer has actually emerged:
                         thermal_time_since_emergence \
@@ -2604,7 +2605,6 @@ def run_simulation_for_a_plant_cover(my_path=None):
                         C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_emergence(
                             shoot_system=plant,
                             shoot_MTG=shoot_g,
-                            new_initiation=True,
                             thermal_time_since_initiation=thermal_time_since_initiation,
                             actual_time_since_initiation=actual_time_since_initiation,
                             thermal_time_since_emergence=thermal_time_since_emergence,
@@ -2612,7 +2612,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                             initial_leaf_length=param.initial_leaf_length,
                             initial_internode_length=param.initial_internode_length,
                             time_step_in_seconds=time_step_in_seconds)
-                        print("> A new phytomer has been formed! The C & N costs were",
+                        print("> New phytomers have been formed! The C & N costs were",
                               "{:.2E}".format(Decimal(C_cost_for_new_phytomers)), "gC and",
                               "{:.2E}".format(Decimal(N_cost_for_new_phytomers)), "gN.")
                         # We increase the total costs with the cost of this new phytomer:

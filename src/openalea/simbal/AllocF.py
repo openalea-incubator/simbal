@@ -145,7 +145,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                      properties_identical_to_parent=properties_identical_to_parent,
                                      nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
-    internode.node_rank = parent_element.node_rank + 1
+    internode.node_rank = parent_element.node_rank +1
     internode.radius = internode_radius
     internode.potential_radius = internode_radius
     internode.length = internode_length
@@ -181,7 +181,7 @@ def ADDING_A_PHYTOMER(parent_element,
                                 properties_identical_to_parent=properties_identical_to_parent,
                                 nil_properties=nil_properties)
     # We specified some properties that may be distinct from the parent element:
-    leaf.node_rank = parent_element.node_rank + 1
+    leaf.node_rank = parent_element.node_rank +1
     leaf.length = leaf_length
     leaf.radius = leaf_length * param.leaf_width_to_length_ratio / 2.
     leaf.angle_down = param.leaf_insertion_angle
@@ -226,7 +226,7 @@ def ADDING_A_PHYTOMER(parent_element,
     bud.potential_length = bud_length
     # The angle_down of the bud is defined according to the angle down of the turtle
     # (we go back on the axis direction, then we apply the insertion angle of the bud):
-    bud.angle_down = - param.leaf_insertion_angle + param.bud_insertion_angle
+    bud.angle_down = param.bud_insertion_angle - param.leaf_insertion_angle - 90
     bud.angle_roll = 0.
     # We assign the surfaces and volumes:
     bud.surface = 0.
@@ -263,7 +263,7 @@ def ADDING_A_PHYTOMER(parent_element,
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for starting the formation of new phytomers on the shoot MTG:
 def new_phytomers_emergence(shoot_system,
-                            shoot_MTG, new_initiation = True,
+                            shoot_MTG,
                             thermal_time_since_initiation=0.,
                             actual_time_since_initiation=0.,
                             thermal_time_since_emergence = 0.,
@@ -277,7 +277,6 @@ def new_phytomers_emergence(shoot_system,
     ----------
     shoot_system: the object corresponding to the whole shoot system (not the MTG)
     shoot_MTG: the shoot MTG containing all shoot elements
-    new_initiation: a condition for allowing the creation of new phytomers (True by default)
     initial_internode_length: the initial length of the internode of the phytomers to be created (meters)
     initial_leaf_length: the initial length of the leaf of the phytomers to be created (meters)
 
@@ -290,9 +289,6 @@ def new_phytomers_emergence(shoot_system,
     list_of_apices = [shoot_MTG.node(vid) for vid in shoot_MTG.vertices_iter(scale=1)
                       if shoot_MTG.node(vid).label == "Apex"]
 
-    # We initialize a condition defining whether new phytomers should develop from a given apex:
-    apparition_condition = new_initiation
-
     # We initialize the structural mass produced by the apparition of new phytomers:
     new_structural_mass = 0.
 
@@ -302,8 +298,10 @@ def new_phytomers_emergence(shoot_system,
         for apex in list_of_apices:
             # We remove the current apex from the list, so that it is not considered next time:
             list_of_apices.remove(apex)
-            # If the conditions for developing a new phytomer are OK:
-            if apparition_condition is True:
+            # If the conditions for a new phytomer to emerge are met, i.e. the total number of phytomers on the axis has
+            # not been determined yet or if the number of emerged phytomer is below the number of initiated phytomers on the axis:
+            if (apex.number_of_phytomers_left_to_emerge_on_the_axis == -1
+                    or apex.number_of_phytomers_left_to_emerge_on_the_axis < apex.number_of_phytomers_initiated_on_the_axis):
                 # Then we add a new phytomer at the top of the current apex:
                 [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                            internode_radius=apex.radius,
@@ -317,8 +315,10 @@ def new_phytomers_emergence(shoot_system,
                                                            properties_identical_to_parent=False,
                                                            nil_properties=True
                                                            )
-                # We remove the previous apex:
-                shoot_MTG.remove_vertex(apex.index(), reparent_child=True)
+                internode.radius = apex.radius
+                internode.ramification_order = apex.ramification_order
+                leaf.ramification_order = apex.ramification_order
+                bud.ramification_order = apex.ramification_order
                 # And we add a new apex at the top of the new internode, of length 0:
                 new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                                 edge_type="<",
@@ -326,8 +326,22 @@ def new_phytomers_emergence(shoot_system,
                                                 properties_identical_to_parent = False,
                                                 nil_properties=True)
                 new_apex.radius = internode.radius
+                # The new apex will have the same number of phytomers initiated as the previous one:
+                new_apex.number_of_phytomers_initiated_on_the_axis = apex.number_of_phytomers_initiated_on_the_axis
+                # If the number of phytomers left to emerge on the current axis has been determined (default = -1):
+                if apex.number_of_phytomers_left_to_emerge_on_the_axis != - 1:
+                    # Then this number is decreased by one because of the emergence of the new phytomer:
+                    new_apex.number_of_phytomers_left_to_emerge_on_the_axis\
+                        = apex.number_of_phytomers_left_to_emerge_on_the_axis - 1
+                    new_apex.number_of_phytomers_already_emerged_on_the_axis += 1
+                else:
+                    new_apex.number_of_phytomers_left_to_emerge_on_the_axis = -1
+                # We also define the rank number of the apex:
+                new_apex.node_rank = apex.node_rank + 1
+                # We finally remove the previous apex:
+                shoot_MTG.remove_vertex(apex.index(), reparent_child=True)
 
-                # For each new element of the new phytomer:
+                # Then for each new element of the new phytomer:
                 for element in [internode, leaf, bud]:
 
                     # REGISTERING THE COST OF THE FORMATION FOR THE NEW PHYTOMER:
@@ -444,7 +458,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
     new_internode.labile_C = initial_labile_C_concentration * new_internode.struct_mass
     new_internode.labile_N = initial_labile_N_concentration * new_internode.struct_mass
 
-    # We define the ramification order of this first internode as 0:
+    # We define the ramification order of the main stem as 0:
     new_internode.ramification_order = 0
 
     # We define the time since initiation and emergence of the hypocotyl and cotyledons:
@@ -478,8 +492,10 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                actual_time_since_emergence=actual_time_since_emergence,
                                                                thermal_time_since_emergence=thermal_time_since_emergence,
                                                                properties_identical_to_parent = True)
-        # We set the thermal time since the phytomer formed according to the phyllochron:
+        # We (re)set the node rank at 0 for the element supporting the cotyledon:
         new_internode.node_rank = 0
+        # We set the ramification order to 0, as it is still the main stem:
+        new_internode.ramification_order = 0
         # We define the type of the internode:
         new_internode.type = "Cotyledon_supporting_segment"
         new_internode.angle_roll = 180
@@ -489,12 +505,14 @@ def create_shoot_MTG(number_of_cotyledons=2,
         # We define the leaf as a cotyledon:
         new_leaf.type = "Cotyledon"
         new_leaf.node_rank = 0
+        new_leaf.ramification_order = 0
         new_leaf.surface_max = param.cotyledon_area_max
         # For cotyledons, we create a special indicator expliciting the time since the cotyledon has reached soil surface:
         new_leaf.thermal_time_since_aboveground_emergence = 0.
         # We set the bud diameter to 0, so that it will never be able to emerge:
         new_bud.radius = 0.
         new_bud.node_rank = 0
+        new_bud.ramification_order = 0
 
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
@@ -541,13 +559,21 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                     label="Apex",
                                     nil_properties=True)
     new_apex.length = 0.
-    new_apex.node_rank = 0
+    new_apex.node_rank = number_of_phytomers
+
+    new_apex.number_of_phytomers_initiated_on_the_axis = -1
+    new_apex.number_of_phytomers_left_to_emerge_on_the_axis = -1
+    new_apex.number_of_phytomers_already_emerged_on_the_axis = number_of_phytomers
 
     # Eventually, we add special properties specific to the base of the shoot system that are not expected elsewhere
     # in the shoot system:
     base = g.node(0)
     # The following property will allow ramification to start:
     base.ramification_allowed = False
+    # On the hypocotyl (first element), we also initiate the thermal time since hypocotyl has emerged from the ground:
+    hypocotyl = g.node(1)
+    hypocotyl.actual_time_since_aboveground_emergence = 0.
+    hypocotyl.thermal_time_since_aboveground_emergence = 0.
 
     return g
 #-----------------------------------------------------------------------------------------------------------------------
@@ -597,12 +623,19 @@ def geometry_evolution(shoot_MTG,
     for vid in shoot_MTG.vertices_iter(scale=1):
         n = shoot_MTG.node(vid)
 
-        # COMPUTING LEAF INSERTION ANGLE:
+        # COMPUTING LEAF (AND BUD) INSERTION ANGLE:
         # If the organ is a leaf:
         if n.label == "Leaf":
+            # We set the insertion angle of the current leaf:
             n.angle_down = leaf_insertion_angle_evolution(leaf=n,
                                                           plant_genotype_name=plant_genotype_name,
                                                           plant_thermal_age_in_degree_days=plant_thermal_age_in_degree_days)
+            # As the bud (or emerged ramification) is considered in the shoot MTG as the child of the leaf,
+            # its insertion angle compared to the leaf needs to be modified as well to reflect the correct insertion
+            # angle towards the stem:
+            child = n.children()[0]
+            child.angle_down = param.bud_insertion_angle - n.angle_down - 90
+
     return shoot_MTG
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception(shoot_MTG,
@@ -937,7 +970,6 @@ def computing_light_interception_on_plant_population(scene,
         #   Eabs (float): the surfacic density of energy absorbed (m-2)
         #   Ei (float): the surfacic density of energy incoming (m-2)
         # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
-
         # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
         list_of_plant_id = scene_information["plant_id"]
         # For each plant in the population:
@@ -946,15 +978,18 @@ def computing_light_interception_on_plant_population(scene,
             g = list_of_scene_MTG[plant_id]
             # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
             reindexer = scene_information["new_index_to_old_index_shoot"][plant_id]
-            # We get the corresponding result of the Caribu-computed intercepted light fo this plant:
-            sub_Ei = {reindexer[id]: agg["Ei"][id] for id in reindexer.keys()}
-            sub_Eabs = {reindexer[id]: agg["Eabs"][id] for id in reindexer.keys()}
-            sub_area = {reindexer[id]: agg["area"][id] for id in reindexer.keys()}
-            # We update the properties of the current MTG with this new property that has been reindexed to correspond to the original vid:
-            g.properties()["Caribu_area"].update(sub_area)
-            g.properties()["Caribu_Ei"].update(sub_Ei)
-            g.properties()["Caribu_Eabs"].update(sub_Eabs)
-            g.properties()["PAR_intercepted"].update(sub_Eabs)
+            try:
+                # We get the corresponding result of the Caribu-computed intercepted light for this plant:
+                sub_Ei = {reindexer[id]: agg["Ei"][id] for id in reindexer.keys()}
+                sub_Eabs = {reindexer[id]: agg["Eabs"][id] for id in reindexer.keys()}
+                sub_area = {reindexer[id]: agg["area"][id] for id in reindexer.keys()}
+                # We update the properties of the current MTG with this new property that has been reindexed to correspond to the original vid:
+                g.properties()["Caribu_area"].update(sub_area)
+                g.properties()["Caribu_Ei"].update(sub_Ei)
+                g.properties()["Caribu_Eabs"].update(sub_Eabs)
+                g.properties()["PAR_intercepted"].update(sub_Eabs)
+            except:
+                print("OUPS!")
 
     except Exception as e:
         print("!!! ERROR: Caribu could not be run! Here is the error:")
@@ -1547,7 +1582,7 @@ def potential_shoot_growth(shoot_MTG,
                 # The radius, which is half of the width, is also calculated based on the allometric coefficient:
                 n.potential_radius = n.potential_length * param.leaf_width_to_length_ratio / 2.
 
-        # CASE 2: the shoot element is the hypocothyl that has not reached soil surface yet:
+        # CASE 2: the shoot element is the hypocotyl that has not reached soil surface yet:
         #--------------------------------------------------------------------------------------
         elif n.type == "Hypocotyl" and n.z2 < 0.:
             potential_elongation_rate = elong_hypocotyl * temperature_adjustement
@@ -1597,7 +1632,8 @@ def potential_shoot_growth(shoot_MTG,
                     son_section = child.potential_radius ** 2 * pi
                 # Otherwise if the child belongs to a lateral axis, it is a leaf:
                 elif child.properties()['edge_type'] == '+':
-                    # The we go the the child of this leaf, which corresponds to an unemerged bud or the internode of a ramification:
+                    # The we go the the child of this leaf, which corresponds to an unemerged bud or the internode
+                    # of a ramification:
                     grand_child = child.children()[0]
                     # If its length is positive, it is a lateral ramification:
                     if grand_child.length  > 0.:
@@ -1609,6 +1645,7 @@ def potential_shoot_growth(shoot_MTG,
             if (theoretical_radius - n.radius) <= 0.001 * n.radius:
                 # Then we reset the theoretical radius value to the initial value to avoid computational problems:
                 theoretical_radius = n.radius
+
             # We also estimate the maximal thickening rate (meter per second) according to air temperature:
             thickening_rate = param.max_internode_thickening * n.radius * temperature_adjustement
             # The maximal possible new radius according to this regulation is therefore:
@@ -1845,18 +1882,16 @@ def actual_shoot_growth(shoot_MTG,
                     # The radius is however not increased.
                 # Otherwise, we can perform the elongation up to the full potential:
                 else:
-                    # First, we calculate the volume increment corresponding to this elongation:
-                    volume_increment_by_elongation = (n.radius ** 2 * pi) * (n.potential_length - n.length)
+                    volume_increment_by_elongation = (n.potential_length - n.length) * n.radius ** 2 * pi
                     # We increase the actual length of the internode up to its potential length:
                     n.length =  n.potential_length
-                    # And we increase the radius according to the remaining "volume_increment" that is left:
-                    remaining_volume_increment = final_volume_increment - volume_increment_by_elongation
-                    new_radius = sqrt((n.volume + remaining_volume_increment) / (n.length * pi))
+                    # And we compute the new radius according to the final volume and final length:
+                    new_radius = sqrt((n.volume + final_volume_increment) / (n.length * pi))
                     # We make sure that the new radius is not lower than the previous one:
                     if (new_radius - n.radius) < 0.:
-                        # print("!!! WATCH OUT: the new computed radius of the internode", vid,
-                        #       "was lower than the final radius by",
-                        #       abs(new_radius - n.radius) / n.radius * 100, "%!")
+                        print("!!! WATCH OUT: the new computed radius of the internode", vid,
+                              "was lower than the final radius by",
+                              abs(new_radius - n.radius) / n.radius * 100, "%!")
                         # In such case, we don't modify the radius and we reduce the final volume increment
                         # to the volume increment by elongation only:
                         final_volume_increment = volume_increment_by_elongation
@@ -1983,11 +2018,19 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
                 except:
                     print("ERROR: the time since the cotyledon emerged from the ground could not be computed!")
                     time_since_aboveground_emergence = 0.
+                # We register the new time since aboveground emergence in the current cotyledon:
                 element.actual_time_since_aboveground_emergence = time_since_aboveground_emergence
                 element.thermal_time_since_aboveground_emergence = time_since_aboveground_emergence * temperature_adjustment
+                # In addition, we register this new time since aboveground emergence in the hypocotyl:
+                if time_since_aboveground_emergence > hypocotyl.actual_time_since_aboveground_emergence:
+                    hypocotyl.actual_time_since_aboveground_emergence = time_since_aboveground_emergence
+                    hypocotyl.thermal_time_since_aboveground_emergence = time_since_aboveground_emergence * temperature_adjustment
             else:
                 element.actual_time_since_aboveground_emergence += time_step_in_seconds
                 element.thermal_time_since_aboveground_emergence += time_step_in_seconds * temperature_adjustment
+                hypocotyl = shoot_MTG.node(1)
+                hypocotyl.actual_time_since_aboveground_emergence += time_step_in_seconds
+                hypocotyl.thermal_time_since_aboveground_emergence += time_step_in_seconds * temperature_adjustment
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2053,7 +2096,7 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     # DEFINING THE CONDITIONS OF TURNING DORMANT BUDS INTO ACTIVE BUDS:
     # We cover a first time each organ n of the shoot, from the base to the tip:
     for vid in pre_order(g, root):
-        if g.node(vid).label != "Bud":
+        if g.node(vid).label != "Bud" or g.node(vid).radius <= 0.:
             continue
         else:
             bud = g.node(vid)
@@ -2073,12 +2116,22 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                     print("> The first ramification should emerge from bud", vid)
                     # We modify the general property "ramification_allowed" for the shoot system:
                     base.ramification_allowed = True
+                    # We will initiate ramification as the transformation of buds into active apices below.
+                    # Here, we also need to assign the final number of phytomers to the apex of the main stem:
+                    apex = [shoot_MTG.node(vid) for vid in shoot_MTG.vertices_iter(scale=1) if shoot_MTG.node(vid).label == "Apex"][0]
+                    apex.number_of_phytomers_initiated_on_the_axis = np.round(apex.thermal_time_since_initiation / param.plastochron)
+                    # From this, we also initialize the number of phytomers that still need to emerge on this axis:
+                    apex.number_of_phytomers_left_to_emerge_on_the_axis\
+                        = apex.number_of_phytomers_initiated_on_the_axis - apex.number_of_phytomers_already_emerged_on_the_axis
             else:
                 # We define the conditions of bud emergence according to its thermal age only:
                 if bud.thermal_time_since_emergence >= param.bud_minimal_dormancy_period:
-                    bud.emergence_possibility = True
+                    if param.shoot_order_limitation and bud.ramification_order >= param.shoot_order_treshold:
+                        bud.emergence_possibility = False
+                    else:
+                        bud.emergence_possibility = True
 
-    # TRANSFORMING THE ACTIVE BUDS INTO A PHYTOMER AND PHYTOMER:
+    # TRANSFORMING THE ACTIVE BUDS INTO AN ACTIVE PHYTOMER AND APEX:
     # We initialize the total costs of phytomer production:
     total_C_costs_for_new_phytomers = 0.
     total_N_costs_for_new_phytomers = 0.
@@ -2089,6 +2142,13 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
     while list_of_apices != []:
         # We cover each bud present in the list:
         for apex in list_of_apices:
+
+            # We define the total number of phytomers that have already been virtually created by the bud, based on the
+            # time since the bud was initiated and the plastochron parameter:
+            number_of_phytomers_initiated_on_the_axis = np.round(apex.thermal_time_since_initiation / param.plastochron)
+            # From this, we also initialize the number of phytomers that still need to emerge on this axis:
+            number_of_phytomers_left_to_emerge_on_the_axis = number_of_phytomers_initiated_on_the_axis
+
             # We add a new phytomer at the top of the current apex:
             [internode, leaf, bud] = ADDING_A_PHYTOMER(apex,
                                                        internode_radius=apex.radius,
@@ -2099,13 +2159,15 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                                        nil_properties=True
                                                        )
             print("> A new ramification has emerged from bud", apex.index())
+            internode.radius = apex.radius
             # We correct the angle down of the new internode, so that its direction corresponds to the one from the initial bud:
             internode.angle_down = apex.angle_down
-            # print("For the new internode created from the bud", apex.index(), "the angle down is", internode.angle_down)
+            # We increase the node rank of the emerged ramification:
+            internode.ramification_order = apex.ramification_order + 1
+            leaf.ramification_order = apex.ramification_order + 1
+            bud.ramification_order = apex.ramification_order + 1
             # By default, we set the bud as dormant:
             bud.emergence_possibility = False
-            # We remove the previous apex, as a new one will now be formed on the top of the new phytomer:
-            g.remove_vertex(apex.index(), reparent_child=True)
             # And we add a new apex at the top of the new internode, of length 0:
             new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                             edge_type="<",
@@ -2113,7 +2175,15 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                             properties_identical_to_parent=False,
                                             nil_properties=True)
             new_apex.radius = internode.radius
-            # We remove the former apex from the list, so that it is not considered next time:
+            new_apex.ramification_order = apex.ramification_order + 1
+            # We register the humber of phytomers already initiated as a property of the new apex:
+            new_apex.number_of_phytomers_initiated_on_the_axis = number_of_phytomers_initiated_on_the_axis
+            # We register the humber of phytomers left to emerge on the axis, taking into account the new phytomer that
+            # has just emerged;:
+            new_apex.number_of_phytomers_left_to_emerge_on_the_axis = number_of_phytomers_left_to_emerge_on_the_axis - 1
+            # We remove the previous apex, as a new one will now be formed on the top of the new phytomer:
+            g.remove_vertex(apex.index(), reparent_child=True)
+            # We also remove the previous apex from the list, so that it is not considered next time:
             list_of_apices.remove(apex)
             # TODO: WATCH OUT BELOW, IN CASE YOU WANT TO CONTINUE ADDING PHYTOMERS
             # # Finally, we update the list of apices by adding the new apex that has been formed,

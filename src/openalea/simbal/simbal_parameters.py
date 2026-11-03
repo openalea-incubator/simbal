@@ -166,6 +166,12 @@ phyllochron = 5. * (60.*60.*24.)
 # We define the plastochron, i.e. the period separating two leaf primordia formation (seconds at the reference growth temperature):
 plastochron = 3. * (60.*60.*24.)
 
+# Option to limit the emergence of shoot ramification above a specific order (True/False):
+shoot_order_limitation = True
+
+# Maximal order of shoot ramification that can emerge:
+shoot_order_treshold = 1
+
 # We define a maximal duration of "youth", above which the organ will start senescing
 # (seconds at the reference growth temperature):
 thermal_youth_duration = 60. * (60.*60.*24.)
