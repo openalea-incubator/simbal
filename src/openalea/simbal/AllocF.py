@@ -315,10 +315,26 @@ def new_phytomers_emergence(shoot_system,
                                                            properties_identical_to_parent=False,
                                                            nil_properties=True
                                                            )
-                internode.radius = apex.radius
+                # We set the ramification order, which is the same as that of the previous phytomer on the same axis:
                 internode.ramification_order = apex.ramification_order
                 leaf.ramification_order = apex.ramification_order
                 bud.ramification_order = apex.ramification_order
+                # We set the list of previous light intensity shares, containing the share of light intensity perceived
+                # by the organ relatively to the whole plant for a defined period. Here, we assume that the new internode
+                # and leaf have the same list of previous intensity shares as the phytomer below them:
+                try:
+                    # We get the index of the internode and leaf below the new phytomer:
+                    old_internode_vid = shoot_MTG.Father(apex.index(), EdgeType='<')
+                    old_leaf_vid = shoot_MTG.Sons(old_internode_vid, EdgeType='+')[0]
+                    # We assign the corresponding lists to the new internode and leaf:
+                    internode.previous_light_intensity_shares\
+                        = shoot_MTG.node(old_internode_vid).previous_light_intensity_shares
+                    internode.previous_PAR_intercepted_values\
+                        = shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values
+                    leaf.previous_light_intensity_shares = shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares
+                    leaf.previous_PAR_intercepted_values = shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values
+                except:
+                    print("ERROR: we could not access the list of previous light intensity shares below the apex", apex.index())
                 # And we add a new apex at the top of the new internode, of length 0:
                 new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                                 edge_type="<",
@@ -638,256 +654,259 @@ def geometry_evolution(shoot_MTG,
 
     return shoot_MTG
 #-----------------------------------------------------------------------------------------------------------------------
-def computing_light_interception(shoot_MTG,
-                                 incoming_light_density = 400,
-                                 isolated_plant=False,
-                                 zenithal_light=False,
-                                 infinite=False,
-                                 number_of_plants_per_square_meter=33,
-                                 inter_row_distance=0.45,
-                                 scene_length=0.3,
-                                 scene_width=1.,
-                                 leaf_shape="oval",
-                                 averaging_light_intensity_share=False,
-                                 period_of_light_intensity_averaging_in_days=1,
-                                 time_step_in_days=1/24.
-                                 ):
-    """
-    This function computes the light intercepted by a plant within a specific population design defined by a scene.
-
-    Parameters
-    ----------
-    shoot_MTG: the MTG structure of a plant
-    incoming_light_density: the density of incoming light above the plant (in micromoles of photons per square meter of land per second)
-    isolated_plant: if True, the plant will be considered isolated from any other plants; otherwise, the light will be computed for a population of plants
-    zenithal_light: if True, light will be considered coming as only a vertical vector; otherwise, it will come from all directions
-    infinite: if True, the scene will be mutliplied on each side to precisely define the intercepted light
-    number_of_plants_per_square_meter: the density of plants in the scene (plants per square meter of land)
-    inter_row_distance: the distance between two rows (meters)
-    scene_length: the length of the scene (meters)
-    scene_width: the width of the scene (meters)
-    leaf_shape: option to design the shape of the leaves to be displayed ('oval', 'typical_leaf_shape', 'unileaflet', 'drop_shape')
-    averaging_light_intensity_share: if True, the property "light_intensity_share" will be computed based on this time step and the light_intensity_share computed previously
-    period_of_light_intensity_averaging_in_days: the period over which the light intensity share should be averaged (days)
-    time_step_in_days: the time step of the simulation (days)
-
-    Returns
-    -------
-    [Nothing is returned; the shoot MTG has been updated with the properties 'PAR_intercepted' and 'Caribu_area', 'Caribu_Ei', 'Caribu_Eabs']
-    """
-
-    # We rename the shoot MTG as 'g':
-    g = shoot_MTG
-
-    # We initialize the total PAR intercepted by the shoot (umol of photons per second)
-    # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
-    total_PAR_intercepted = 0.
-    total_surface = 0.
-    sum_of_surfacic_PAR = 0.
-
-    # LIGHT INTERCEPTION BY CARIBU:
-    ###############################
-
-    # can = scene3d(g)
-    # zenith = [(100, (0, 0, -1))]
-    # (xmin,ymin,xmax,ymax)=(0,0,1,1)
-    # cs = CaribuScene(scene=can, light=zenith, pattern=(0,0,1,1))
-    # raw, agg = cs.run(infinite=True, simplify=True, direct=False)
-
-    # We initialize a turtle in PlantGL:
-    turtle = turt.PglTurtle()
-    # We create the scene with the plant(s).
-    # If we want to study the light interception by the isolated plant:
-    if isolated_plant:
-        # Then we create a scene with only one plant with the classical PlantGL turtle:
-        my_scene = turt.TurtleFrame(g,
-                                    visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=100),
-                                    turtle=turtle, gc=False, all_roots=True)
-    else:
-        # Otherwise, we simulate a population of plants, from which the central plant will be the one on which Caribu
-        # will compute the light interception:
-
-        # # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
-        # scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
-        #     = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["plant"],
-        #                                               list_of_distinct_shoot_MTG=[shoot_g],
-        #                                               list_of_distinct_root_MTG=[],
-        #                                               list_of_numbers_of_plants_per_square_meter=[number_of_plants_per_square_meter],
-        #                                               list_of_inter_row_distances=[inter_row_distance],
-        #                                               list_of_number_of_rows_to_show=[5],
-        #                                               list_of_scene_lengths=[scene_length],
-        #                                               list_of_scene_widths=[scene_width],
-        #                                               upscaling_factor=100)
-        # # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
-        # my_scene, scene_information = create_plants_population_scene(scene_information=scene_information,
-        #                                                              list_of_shoot_MTG=list_of_scene_shoot_MTG,
-        #                                                              list_of_root_MTG=[],
-        #                                                              leaf_shape=leaf_shape,
-        #                                                              simplified_leaf_shape_for_surface_calculation="diamond_shape",
-        #                                                              upscaling_factor=100)
-        my_scene = create_a_scene_with_plants_popuplation(g,
-                                                          number_of_plants_per_square_meter=number_of_plants_per_square_meter,
-                                                          inter_row_distance=inter_row_distance,
-                                                          scene_length=scene_length,
-                                                          scene_width=scene_width,
-                                                          leaf_shape=leaf_shape,
-                                                          upscaling_factor=100)
-
-    # # EXAMPLES FROM ALINEA:
-    # can = str(data_path('f331s1_100plantes.can'))
-    # opts = map(str, [data_path('par.opt'), data_path('nir.opt')])
-    # pattern = str(data_path('filter.8'))
-    # pattern_file = pd.read_csv(pattern, delim_whitespace=True, header=None)
-
-    # If only the zenithal light is considered
-    if zenithal_light:
-       # We set only one vertical light direction:
-       light_direction = (0, 0, -1)
-       LIGHT = [(incoming_light_density,light_direction)]
-    else:
-        # We open the standard light input file as a dataframe:
-        sky = str(data_path('Turtle16soc.light'))
-
-        # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
-        # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
-        reference_light_file = pd.read_csv(sky,
-                                           # delim_whitespace=True,
-                                           delimiter=" ",
-                                           header=None)
-
-        # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
-        # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
-        # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
-        # We transform the dataframe into a new "light" file by multiplying the first column corresponding to the reference
-        # radiation by the incoming light density:
-        reference_light_file.iloc[:,0] = reference_light_file.iloc[:,0] * incoming_light_density
-        # We initialize the final list corresponding to the light inputs:
-        LIGHT = []
-        # For each light source:
-        for row_index in range(0,len(reference_light_file)):
-            # We get the coordinates of the light vector in the last 3 rows:
-            coordinates = reference_light_file.loc[row_index, 1:4].values.flatten().tolist()
-            # We create a tuple containing the irradiance, then the tuple of coordinates:
-            line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
-            # And we add this new line to the light file:
-            LIGHT.append(line)
-
-    # In case we want to replicate the scene to infinity:
-    if infinite:
-        # We create a pattern based on the size of the scene:
-        pattern = tuple([0*unit_factor,0*unit_factor,scene_length*unit_factor,scene_width*unit_factor])
-    else:
-        pattern = None
-
-    # Finally, we create the Caribu scene and run the light interception:
-    try:
-        cs = CaribuScene(scene=my_scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
-        raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
-        # The resulting dictionnaries "agg" contains three dictionnaries for each "active" vertex if the MTG:
-        #   area (float): the individual areas (m2)
-        #   Eabs (float): the surfacic density of energy absorbed (m-2)
-        #   Ei (float): the surfacic density of energy incoming (m-2)
-        # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
-        # We update the properties of the MTG with these dictionnaries (i.e. one value for each vertex):
-        g.properties()["Caribu_area"].update(agg['area'])
-        g.properties()["Caribu_Eabs"].update(agg['Eabs'])
-        g.properties()["Caribu_Ei"].update(agg['Ei'])
-    except Exception as e:
-        print("!!! ERROR: Caribu could not be run! Here is the error:")
-        print(e)
-        print("!!! We therefore set an arbitrary intercepted light by the plant:")
-        total_PAR_intercepted = 0
-        sum_of_surfacic_PAR = 0
-
-    # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
-    ################################################################
-
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
-        try:
-            n.PAR_intercepted = n.Caribu_Eabs * n.Caribu_area
-            total_PAR_intercepted += n.Caribu_Eabs * n.Caribu_area
-            total_surface += n.Caribu_area
-            n.surfacic_PAR_intercepted = n.Caribu_Eabs
-            sum_of_surfacic_PAR += n.Caribu_Eabs
-        except:
-            print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
-            print("We therefore set it to 0 umol m-2 s-1.")
-            n.PAR_intercepted = 0.
-            n.surfacic_PAR_intercepted = 0.
-
-    # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE OVER TIME:
-    #######################################################
-
-    # If we need to consider previous light intensity shares:
-    if averaging_light_intensity_share:
-        # Then we will need the number of previous actual shares to include in the calculation of the average share:
-        number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
-
-    # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
-    sum_of_light_fractions = 0.
-
-    # We cover each organ n of the shoot:
-    for vid in g.vertices_iter(scale=1):
-        n = g.node(vid)
-
-        # We first compute the actual share of light intensity for this time step, based on surfacic PAR,
-        # or else based on the share of surfaces within the plant:
-        if sum_of_surfacic_PAR > 0.:
-            new_light_intensity_share = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
-        elif total_surface > 0.:
-            new_light_intensity_share = n.Caribu_area / total_surface
-        else:
-            new_light_intensity_share = 0.
-
-        # If we do not take into account previous light intensity share:
-        if not averaging_light_intensity_share:
-            # Then the light intensity share is directly the one that has just been determined
-            # based on the light intercepted at this time step:
-            n.light_intensity_share = new_light_intensity_share
-        # Otherwise, if we need to consider previous light intensity shares:
-        else:
-            # If light was intercepted at this time step, then we add the share of light intensity for this organ
-            # to the list of previous light intensity shares:
-            if sum_of_surfacic_PAR > 0.:
-                # If the previously recorded list does not contain yet the right number of shares to be averaged:
-                if len(n.previous_light_intensity_shares) < number_of_previous_shares:
-                    # Then we just add the current actual share to the list:
-                    n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
-                else:
-                    # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
-                    n.previous_light_intensity_shares.pop(0)
-                    n.previous_PAR_intercepted_values.pop(0)
-                    # And we add at the end of the list the new actual share of light intensity for this time step:
-                    n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
-            # Finally, we calculate the new average light intensity share based on previously computed shares:
-            if len(n.previous_light_intensity_shares) > 0.:
-                n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
-                n.surfacic_PAR_averaged_over_time = np.mean(n.previous_PAR_intercepted_values)
-            else:
-                n.light_intensity_share = new_light_intensity_share
-                n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
-
-        # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
-        sum_of_light_fractions += n.light_intensity_share
-
-    # CONTROL & ADJUSTMENTS:
-    # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
-    if abs(sum_of_light_fractions - 1) > 1e-14:
-        print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was not equal to 1!")
-        print("We therefore adjusted each light intensity share to correct this!")
-        # We will adjust the light intensity share of each organ so that their sum is now equal to 1.
-        # We cover each organ n of the shoot:
-        for vid in g.vertices_iter(scale=1):
-            n = g.node(vid)
-            # We adjust the light intensity share so that the sum of all shares now equals 0:
-            n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
-
-    return total_PAR_intercepted, sum_of_surfacic_PAR
-#-----------------------------------------------------------------------------------------------------------------------
+# def computing_light_interception(shoot_MTG,
+#                                  incoming_light_density = 400,
+#                                  isolated_plant=False,
+#                                  zenithal_light=False,
+#                                  infinite=False,
+#                                  number_of_plants_per_square_meter=33,
+#                                  inter_row_distance=0.45,
+#                                  scene_length=0.3,
+#                                  scene_width=1.,
+#                                  leaf_shape="oval",
+#                                  averaging_light_intensity_share=False,
+#                                  period_of_light_intensity_averaging_in_days=1,
+#                                  time_step_in_days=1/24.
+#                                  ):
+#     """
+#     This function computes the light intercepted by a plant within a specific population design defined by a scene.
+#
+#     Parameters
+#     ----------
+#     shoot_MTG: the MTG structure of a plant
+#     incoming_light_density: the density of incoming light above the plant (in micromoles of photons per square meter of land per second)
+#     isolated_plant: if True, the plant will be considered isolated from any other plants; otherwise, the light will be computed for a population of plants
+#     zenithal_light: if True, light will be considered coming as only a vertical vector; otherwise, it will come from all directions
+#     infinite: if True, the scene will be mutliplied on each side to precisely define the intercepted light
+#     number_of_plants_per_square_meter: the density of plants in the scene (plants per square meter of land)
+#     inter_row_distance: the distance between two rows (meters)
+#     scene_length: the length of the scene (meters)
+#     scene_width: the width of the scene (meters)
+#     leaf_shape: option to design the shape of the leaves to be displayed ('oval', 'typical_leaf_shape', 'unileaflet', 'drop_shape')
+#     averaging_light_intensity_share: if True, the property "light_intensity_share" will be computed based on this time step and the light_intensity_share computed previously
+#     period_of_light_intensity_averaging_in_days: the period over which the light intensity share should be averaged (days)
+#     time_step_in_days: the time step of the simulation (days)
+#
+#     Returns
+#     -------
+#     [Nothing is returned; the shoot MTG has been updated with the properties 'PAR_intercepted' and 'Caribu_area', 'Caribu_Ei', 'Caribu_Eabs']
+#     """
+#
+#     # We rename the shoot MTG as 'g':
+#     g = shoot_MTG
+#
+#     # We initialize the total PAR intercepted by the shoot (umol of photons per second)
+#     # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
+#     total_PAR_intercepted = 0.
+#     total_surface = 0.
+#     sum_of_surfacic_PAR = 0.
+#
+#     # LIGHT INTERCEPTION BY CARIBU:
+#     ###############################
+#
+#     # can = scene3d(g)
+#     # zenith = [(100, (0, 0, -1))]
+#     # (xmin,ymin,xmax,ymax)=(0,0,1,1)
+#     # cs = CaribuScene(scene=can, light=zenith, pattern=(0,0,1,1))
+#     # raw, agg = cs.run(infinite=True, simplify=True, direct=False)
+#
+#     # We initialize a turtle in PlantGL:
+#     turtle = turt.PglTurtle()
+#     # We create the scene with the plant(s).
+#     # If we want to study the light interception by the isolated plant:
+#     if isolated_plant:
+#         # Then we create a scene with only one plant with the classical PlantGL turtle:
+#         my_scene = turt.TurtleFrame(g,
+#                                     visitor=get_shoot_visitor(leaf_shape=leaf_shape, upscaling_factor=100),
+#                                     turtle=turtle, gc=False, all_roots=True)
+#     else:
+#         # Otherwise, we simulate a population of plants, from which the central plant will be the one on which Caribu
+#         # will compute the light interception:
+#
+#         # # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
+#         # scene_information, list_of_scene_shoot_MTG, list_of_scene_root_MTG \
+#         #     = prepare_heterogeneous_plants_population(list_of_distinct_plant_names=["plant"],
+#         #                                               list_of_distinct_shoot_MTG=[shoot_g],
+#         #                                               list_of_distinct_root_MTG=[],
+#         #                                               list_of_numbers_of_plants_per_square_meter=[number_of_plants_per_square_meter],
+#         #                                               list_of_inter_row_distances=[inter_row_distance],
+#         #                                               list_of_number_of_rows_to_show=[5],
+#         #                                               list_of_scene_lengths=[scene_length],
+#         #                                               list_of_scene_widths=[scene_width],
+#         #                                               upscaling_factor=100)
+#         # # We create an updated scene, with reindexed shapes compared to the original indices in the list of MTG:
+#         # my_scene, scene_information = create_plants_population_scene(scene_information=scene_information,
+#         #                                                              list_of_shoot_MTG=list_of_scene_shoot_MTG,
+#         #                                                              list_of_root_MTG=[],
+#         #                                                              leaf_shape=leaf_shape,
+#         #                                                              simplified_leaf_shape_for_surface_calculation="diamond_shape",
+#         #                                                              upscaling_factor=100)
+#         my_scene = create_a_scene_with_plants_popuplation(g,
+#                                                           number_of_plants_per_square_meter=number_of_plants_per_square_meter,
+#                                                           inter_row_distance=inter_row_distance,
+#                                                           scene_length=scene_length,
+#                                                           scene_width=scene_width,
+#                                                           leaf_shape=leaf_shape,
+#                                                           upscaling_factor=100)
+#
+#     # # EXAMPLES FROM ALINEA:
+#     # can = str(data_path('f331s1_100plantes.can'))
+#     # opts = map(str, [data_path('par.opt'), data_path('nir.opt')])
+#     # pattern = str(data_path('filter.8'))
+#     # pattern_file = pd.read_csv(pattern, delim_whitespace=True, header=None)
+#
+#     # If only the zenithal light is considered
+#     if zenithal_light:
+#        # We set only one vertical light direction:
+#        light_direction = (0, 0, -1)
+#        LIGHT = [(incoming_light_density,light_direction)]
+#     else:
+#         # We open the standard light input file as a dataframe:
+#         sky = str(data_path('Turtle16soc.light'))
+#
+#         # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
+#         # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
+#         reference_light_file = pd.read_csv(sky,
+#                                            # delim_whitespace=True,
+#                                            delimiter=" ",
+#                                            header=None)
+#
+#         # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
+#         # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
+#         # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
+#         # We transform the dataframe into a new "light" file by multiplying the first column corresponding to the reference
+#         # radiation by the incoming light density:
+#         reference_light_file.iloc[:,0] = reference_light_file.iloc[:,0] * incoming_light_density
+#         # We initialize the final list corresponding to the light inputs:
+#         LIGHT = []
+#         # For each light source:
+#         for row_index in range(0,len(reference_light_file)):
+#             # We get the coordinates of the light vector in the last 3 rows:
+#             coordinates = reference_light_file.loc[row_index, 1:4].values.flatten().tolist()
+#             # We create a tuple containing the irradiance, then the tuple of coordinates:
+#             line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
+#             # And we add this new line to the light file:
+#             LIGHT.append(line)
+#
+#     # In case we want to replicate the scene to infinity:
+#     if infinite:
+#         # We create a pattern based on the size of the scene:
+#         pattern = tuple([0*unit_factor,0*unit_factor,scene_length*unit_factor,scene_width*unit_factor])
+#     else:
+#         pattern = None
+#
+#     # Finally, we create the Caribu scene and run the light interception:
+#     try:
+#         cs = CaribuScene(scene=my_scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
+#         raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
+#         # The resulting dictionnaries "agg" contains three dictionnaries for each "active" vertex if the MTG:
+#         #   area (float): the individual areas (m2)
+#         #   Eabs (float): the surfacic density of energy absorbed (m-2)
+#         #   Ei (float): the surfacic density of energy incoming (m-2)
+#         # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
+#         # We update the properties of the MTG with these dictionnaries (i.e. one value for each vertex):
+#         g.properties()["Caribu_area"].update(agg['area'])
+#         g.properties()["Caribu_Eabs"].update(agg['Eabs'])
+#         g.properties()["Caribu_Ei"].update(agg['Ei'])
+#     except Exception as e:
+#         print("!!! ERROR: Caribu could not be run! Here is the error:")
+#         print(e)
+#         print("!!! We therefore set an arbitrary intercepted light by the plant:")
+#         total_PAR_intercepted = 0
+#         sum_of_surfacic_PAR = 0
+#
+#     # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
+#     ################################################################
+#
+#     # We cover each organ n of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#         n = g.node(vid)
+#         try:
+#             n.PAR_intercepted = n.Caribu_Eabs * n.Caribu_area
+#             total_PAR_intercepted += n.Caribu_Eabs * n.Caribu_area
+#             total_surface += n.Caribu_area
+#             n.surfacic_PAR_intercepted = n.Caribu_Eabs
+#             sum_of_surfacic_PAR += n.Caribu_Eabs
+#         except:
+#             print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
+#             print("We therefore set it to 0 umol m-2 s-1.")
+#             n.PAR_intercepted = 0.
+#             n.surfacic_PAR_intercepted = 0.
+#
+#     # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE OVER TIME:
+#     #######################################################
+#
+#     # If we need to consider previous light intensity shares:
+#     if averaging_light_intensity_share:
+#         # Then we will need the number of previous actual shares to include in the calculation of the average share:
+#         number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
+#
+#     # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
+#     sum_of_light_fractions = 0.
+#
+#     # We cover each organ n of the shoot:
+#     for vid in g.vertices_iter(scale=1):
+#         n = g.node(vid)
+#
+#         if n.length <= 0.:
+#             continue
+#
+#         # We first compute the actual share of light intensity for this time step, based on surfacic PAR,
+#         # or else based on the share of surfaces within the plant:
+#         if sum_of_surfacic_PAR > 0.:
+#             new_light_intensity_share = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+#         elif total_surface > 0.:
+#             new_light_intensity_share = n.Caribu_area / total_surface
+#         else:
+#             new_light_intensity_share = 0.
+#
+#         # If we do not take into account previous light intensity share:
+#         if not averaging_light_intensity_share:
+#             # Then the light intensity share is directly the one that has just been determined
+#             # based on the light intercepted at this time step:
+#             n.light_intensity_share = new_light_intensity_share
+#         # Otherwise, if we need to consider previous light intensity shares:
+#         else:
+#             # If light was intercepted at this time step, then we add the share of light intensity for this organ
+#             # to the list of previous light intensity shares:
+#             if sum_of_surfacic_PAR > 0.:
+#                 # If the previously recorded list does not contain yet the right number of shares to be averaged:
+#                 if len(n.previous_light_intensity_shares) < number_of_previous_shares:
+#                     # Then we just add the current actual share to the list:
+#                     n.previous_light_intensity_shares.append(new_light_intensity_share)
+#                     n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
+#                 else:
+#                     # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
+#                     n.previous_light_intensity_shares.pop(0)
+#                     n.previous_PAR_intercepted_values.pop(0)
+#                     # And we add at the end of the list the new actual share of light intensity for this time step:
+#                     n.previous_light_intensity_shares.append(new_light_intensity_share)
+#                     n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
+#             # Finally, we calculate the new average light intensity share based on previously computed shares:
+#             if len(n.previous_light_intensity_shares) > 0.:
+#                 n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
+#                 n.surfacic_PAR_averaged_over_time = np.mean(n.previous_PAR_intercepted_values)
+#             else:
+#                 n.light_intensity_share = new_light_intensity_share
+#                 n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
+#
+#         # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
+#         sum_of_light_fractions += n.light_intensity_share
+#
+#     # CONTROL & ADJUSTMENTS:
+#     # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
+#     if abs(sum_of_light_fractions - 1) > 1e-14:
+#         print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was not equal to 1!")
+#         print("We therefore adjusted each light intensity share to correct this!")
+#         # We will adjust the light intensity share of each organ so that their sum is now equal to 1.
+#         # We cover each organ n of the shoot:
+#         for vid in g.vertices_iter(scale=1):
+#             n = g.node(vid)
+#             # We adjust the light intensity share so that the sum of all shares now equals 0:
+#             n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
+#
+#     return total_PAR_intercepted, sum_of_surfacic_PAR
+# #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def computing_light_interception_on_plant_population(scene,
                                                      scene_information,
@@ -906,79 +925,74 @@ def computing_light_interception_on_plant_population(scene,
     This function computes the light intercepted by a plant within a specific population design defined by a scene.
     """
 
-    # We initialize the total PAR intercepted by the shoot (umol of photons per second)
-    # and the sum of surfacic PAR of each organ (umol of photons per square meter of organ per second):
+    # We initialize dictionaries for the total PAR intercepted by the shoot (umol of photons per second) and the sum of
+    # surfacic PAR of each organ (umol of photons per square meter of organ per second) for each plant genotype:
     total_PAR_intercepted_dict = {}
     sum_of_surfacic_PAR_dict = {}
 
     # We verify that the light input is not nil:
-    if incoming_light_density <= 0.:
-        for genotype_name in genotype_names_list:
-            total_PAR_intercepted_dict[genotype_name] = 0.
-            sum_of_surfacic_PAR_dict[genotype_name] = 0.
-        return total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict
+    if incoming_light_density > 0.:
 
-    # LIGHT INTERCEPTION BY CARIBU:
-    ###############################
+        # LIGHT INTERCEPTION BY CARIBU:
+        ###############################
 
-    # If only the zenithal light is considered
-    if zenithal_light:
-        # We set only one vertical light direction:
-        light_direction = (0, 0, -1)
-        LIGHT = [(incoming_light_density,light_direction)]
-    else:
-        # We open the standard light input file as a dataframe:
-        sky = str(data_path('Turtle16soc.light'))
+        # If only the zenithal light is considered
+        if zenithal_light:
+            # We set only one vertical light direction:
+            light_direction = (0, 0, -1)
+            LIGHT = [(incoming_light_density,light_direction)]
+        else:
+            # We open the standard light input file as a dataframe:
+            sky = str(data_path('Turtle16soc.light'))
 
-        # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
-        # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
-        reference_light_file = pd.read_csv(sky,
-                                           # delim_whitespace=True,
-                                           delimiter=" ",
-                                           header=None)
+            # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
+            # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
+            reference_light_file = pd.read_csv(sky,
+                                               # delim_whitespace=True,
+                                               delimiter=" ",
+                                               header=None)
 
-        # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
-        # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
-        # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
-        # We transform the dataframe into a new "light" file by multiplying the first column corresponding to the reference
-        # radiation by the incoming light density:
-        reference_light_file.iloc[:,0] = reference_light_file.iloc[:,0] * incoming_light_density
-        # We initialize the final list corresponding to the light inputs:
-        LIGHT = []
-        # For each light source:
-        for row_index in range(0,len(reference_light_file)):
-            # We get the coordinates of the light vector in the last 3 rows:
-            coordinates = reference_light_file.loc[row_index, 1:4].values.flatten().tolist()
-            # We create a tuple containing the irradiance, then the tuple of coordinates:
-            line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
-            # And we add this new line to the light file:
-            LIGHT.append(line)
+            # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
+            # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
+            # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
+            # We transform the dataframe into a new "light" file by multiplying the first column corresponding to the reference
+            # radiation by the incoming light density:
+            reference_light_file.iloc[:,0] = reference_light_file.iloc[:,0] * incoming_light_density
+            # We initialize the final list corresponding to the light inputs:
+            LIGHT = []
+            # For each light source:
+            for row_index in range(0,len(reference_light_file)):
+                # We get the coordinates of the light vector in the last 3 rows:
+                coordinates = reference_light_file.loc[row_index, 1:4].values.flatten().tolist()
+                # We create a tuple containing the irradiance, then the tuple of coordinates:
+                line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
+                # And we add this new line to the light file:
+                LIGHT.append(line)
 
-    # In case we want to replicate the scene to infinity:
-    if infinite:
-        # We create a pattern based on the size of the scene:
-        pattern = tuple([0*unit_factor,0*unit_factor,scene_length*unit_factor,scene_width*unit_factor])
-    else:
-        pattern = None
+        # In case we want to replicate the scene to infinity:
+        if infinite:
+            # We create a pattern based on the size of the scene:
+            pattern = tuple([0*unit_factor,0*unit_factor,scene_length*unit_factor,scene_width*unit_factor])
+        else:
+            pattern = None
 
-    # Finally, we create the Caribu scene and run the light interception:
-    try:
-        cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
-        raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
-        # The resulting dictionnaries "agg" contains three dictionnaries for each "active" vertex if the MTG:
-        #   area (float): the individual areas (m2)
-        #   Eabs (float): the surfacic density of energy absorbed (m-2)
-        #   Ei (float): the surfacic density of energy incoming (m-2)
-        # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
-        # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
-        list_of_plant_id = scene_information["plant_id"]
-        # For each plant in the population:
-        for plant_id in list_of_plant_id:
-            # We get the corresponding MTG in the list:
-            g = list_of_scene_MTG[plant_id]
-            # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
-            reindexer = scene_information["new_index_to_old_index_shoot"][plant_id]
-            try:
+        # Finally, we create the Caribu scene and run the light interception:
+        try:
+            cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
+            raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
+            # The resulting dictionnaries "agg" contains three dictionnaries for each "active" vertex if the MTG:
+            #   area (float): the individual areas (m2)
+            #   Eabs (float): the surfacic density of energy absorbed (m-2)
+            #   Ei (float): the surfacic density of energy incoming (m-2)
+            # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
+            # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
+            list_of_plant_id = scene_information["plant_id"]
+            # For each plant in the population:
+            for plant_id in list_of_plant_id:
+                # We get the corresponding MTG in the list:
+                g = list_of_scene_MTG[plant_id]
+                # We get the dictionnary which allocated new id to original id of each shape corresponding to the plant:
+                reindexer = scene_information["new_index_to_old_index_shoot"][plant_id]
                 # We get the corresponding result of the Caribu-computed intercepted light for this plant:
                 sub_Ei = {reindexer[id]: agg["Ei"][id] for id in reindexer.keys()}
                 sub_Eabs = {reindexer[id]: agg["Eabs"][id] for id in reindexer.keys()}
@@ -988,75 +1002,93 @@ def computing_light_interception_on_plant_population(scene,
                 g.properties()["Caribu_Ei"].update(sub_Ei)
                 g.properties()["Caribu_Eabs"].update(sub_Eabs)
                 g.properties()["PAR_intercepted"].update(sub_Eabs)
-            except:
-                print("OUPS!")
+        except Exception as e:
+            print("!!! ERROR: Caribu could not be run! Here is the error:")
+            print(e)
 
-    except Exception as e:
-        print("!!! ERROR: Caribu could not be run! Here is the error:")
-        print(e)
+        # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
+        ################################################################
 
-    # ASSIGNING LIGHT INTENSITY AMONG THE ORGANS AND COMPUTING SUMS:
-    ################################################################
+        # We cover the distinct shoot MTG for which we want to update the light properties:
+        for genotype_name in genotype_names_list:
 
-    # We cover the distinct shoot MTG for which we want to update the light properties:
-    for genotype_name in genotype_names_list:
+            # We initialize the total properties for the plant:
+            total_PAR_intercepted = 0.
+            total_surface = 0.
+            sum_of_surfacic_PAR = 0.
 
-        # We initialize the total properties for the plant:
-        total_PAR_intercepted = 0.
-        total_surface = 0.
+            # We access the corresponding original MTG:
+            g = shoot_MTG_dict[genotype_name]
+            # We get the ID number of the copied MTG in the middle of the scene for which light properties should be taken:
+            middle_id = scene_information["middle_plant_id_" + genotype_name][0]
+            # We access the copied MTG:
+            scene_g = list_of_scene_MTG[middle_id]
+
+            # We cover each organ n of the original shoot MTG:
+            for vid in g.vertices_iter(scale=1):
+                n = g.node(vid)
+                scene_n = scene_g.node(vid)
+                try:
+                    # If the mean z-position of the current organ is below 0, then it is belowground and cannot intercept light:
+                    if np.average([n.z1, n.z2]) < 0.:
+                        continue
+                    # Otherwise, we assign to the organ the computed light interception:
+                    n.Caribu_area = scene_n.Caribu_area
+                    n.Caribu_Ei = scene_n.Caribu_Ei
+                    n.Caribu_Eabs = scene_n.Caribu_Eabs
+                    n.PAR_intercepted = scene_n.Caribu_Eabs * scene_n.Caribu_area
+                    total_PAR_intercepted += scene_n.Caribu_Eabs * scene_n.Caribu_area
+                    total_surface += scene_n.Caribu_area
+                    n.surfacic_PAR_intercepted = scene_n.Caribu_Eabs
+                    sum_of_surfacic_PAR += scene_n.Caribu_Eabs
+                except:
+                    print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
+                    print("We therefore set it to 0 umol m-2 s-1.")
+                    n.PAR_intercepted = 0.
+                    n.surfacic_PAR_intercepted = 0.
+
+            # We record the total intercepted PAR and the sum of surfacic PAR for this plant:
+            total_PAR_intercepted_dict[genotype_name] = total_PAR_intercepted
+            sum_of_surfacic_PAR_dict[genotype_name] = sum_of_surfacic_PAR
+
+   # Otherwise, if there was no light input:
+    else:
+        # We set the sum of surfacic PAR to 0:
         sum_of_surfacic_PAR = 0.
+        # And we assign 0 to the intercepted PAR for each genotype:
+        for genotype_name in genotype_names_list:
+            total_PAR_intercepted_dict[genotype_name] = 0.
+            sum_of_surfacic_PAR_dict[genotype_name] = 0.
+
+    # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE SURFACIC PAR OVER TIME:
+    #####################################################################
+
+    # With or without light input, we cover the distinct shoot MTG for which we want to compute "light intensity"
+    # and the corresponding share for each organ within the plant:
+    for genotype_name in genotype_names_list:
 
         # We access the corresponding original MTG:
         g = shoot_MTG_dict[genotype_name]
-        # We get the ID number of the copied MTG in the middle of the scene for which light properties should be taken:
-        middle_id = scene_information["middle_plant_id_" + genotype_name][0]
-        # We access the copied MTG:
-        scene_g = list_of_scene_MTG[middle_id]
 
-        # We cover each organ n of the original shoot MTG:
-        for vid in g.vertices_iter(scale=1):
-            n = g.node(vid)
-            scene_n = scene_g.node(vid)
-            try:
-                # If the mean z-position of the current organ is below 0, then it is belowground and cannot intercept light:
-                if np.average([n.z1, n.z2]) < 0.:
-                    continue
-                # Otherwise, we assign to the organ the computed light interception:
-                n.Caribu_area = scene_n.Caribu_area
-                n.Caribu_Ei = scene_n.Caribu_Ei
-                n.Caribu_Eabs = scene_n.Caribu_Eabs
-                n.PAR_intercepted = scene_n.Caribu_Eabs * scene_n.Caribu_area
-                total_PAR_intercepted += scene_n.Caribu_Eabs * scene_n.Caribu_area
-                total_surface += scene_n.Caribu_area
-                n.surfacic_PAR_intercepted = scene_n.Caribu_Eabs
-                sum_of_surfacic_PAR += scene_n.Caribu_Eabs
-            except:
-                print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
-                print("We therefore set it to 0 umol m-2 s-1.")
-                n.PAR_intercepted = 0.
-                n.surfacic_PAR_intercepted = 0.
-
-        # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE SURFACIC PAR OVER TIME:
-        #####################################################################
+        # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
+        sum_of_light_fractions = 0.
 
         # If we need to consider previous light intensity shares:
         if averaging_light_intensity_share:
             # Then we will need the number of previous actual shares to include in the calculation of the average share:
             number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
 
-        # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
-        sum_of_light_fractions = 0.
-
         # We cover each organ n of the shoot:
         for vid in g.vertices_iter(scale=1):
             n = g.node(vid)
 
-            # We first compute the actual share of light intensity for this time step, based on surfacic PAR,
-            # or else based on the share of surfaces within the plant:
+            # We exclude organs with no length:
+            if n.length <= 0.:
+                continue
+
+            # We first compute the actual share of light intensity for this time step, based on surfacic PAR:
             if sum_of_surfacic_PAR > 0.:
                 new_light_intensity_share = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
-            elif total_surface > 0.:
-                new_light_intensity_share = n.Caribu_area / total_surface
             else:
                 new_light_intensity_share = 0.
 
@@ -1074,7 +1106,10 @@ def computing_light_interception_on_plant_population(scene,
                     if sum_of_surfacic_PAR > 0.:
                         # Then we just add the current actual share to the list:
                         n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    # Whether light was present or not at this time step:
+                    if len(n.previous_PAR_intercepted_values) >= number_of_previous_shares:
+                        # We remove the first element of the list:
+                        n.previous_PAR_intercepted_values.pop(0)
+                    # Whether light was present or not at this time step, we add the surfacic PAR intercepted:
                     n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
                 else:
                     # If light was intercepted at this time step:
@@ -1112,10 +1147,6 @@ def computing_light_interception_on_plant_population(scene,
                     n.light_intensity_share = n.light_intensity_share * 1. / sum_of_light_fractions
                 else:
                     n.light_intensity_share = 0.
-
-        # We record the total intercepted PAR and the sum of surfacic PAR for this plant:
-        total_PAR_intercepted_dict[genotype_name] = total_PAR_intercepted
-        sum_of_surfacic_PAR_dict[genotype_name] = sum_of_surfacic_PAR
 
     return total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict
 #-----------------------------------------------------------------------------------------------------------------------
@@ -2584,7 +2615,7 @@ def shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_
         shoot_g.properties()["photosynthetic_area"].update(empty_dict)
         # WATCH OUT: we don't reinitialize light intensity share as it needs to remain positive,
         # even if there is no light at the current time step!
-        # shoot_g.properties()["light_intensity_share"].update(empty_dict)
+        shoot_g.properties()["light_intensity_share"].update(empty_dict)
 
     if reinitializing_amounts:
         shoot_g.properties()["labile_C"].update(empty_dict)

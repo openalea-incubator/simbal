@@ -459,6 +459,8 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
     difference = shoot_total_C - (previous_shoot_C + shoot_C_inputs - shoot_C_outputs)
     if abs(difference) > 1e-16:
         print("    > The C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
+    if abs(difference) > 1e-8:
+        print("PROBLEM!")
     difference = root_total_C - (previous_root_C + root_C_inputs - root_C_outputs)
     if abs(difference) > 1e-16:
         print("    > The C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
@@ -2033,6 +2035,12 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # We set up the constant values:
             light_input = constant_light_irradiation
             air_temperature = constant_air_temperature_in_Celsius
+            # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+            # FOR EACH DISTINCT PLANT GENOTYPE TO BE SIMULATED:
+            for plant_genotype_name in genotype_names_list:
+                # We assume that germination of each genotype has already started:
+                growth_stages_dict[plant_genotype_name] = 1
+            # ///////////////////////////////////////////////////////////////////////////////////////////////////////////
         # Otherwise, if there is an input file to be used:
         elif input_file:
             # We extract the information on incident light and air temperature from the input file:
@@ -2321,6 +2329,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
         #///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         # LIGHT INTERCEPTION:
+        #********************
+
         # If light interception is necessary for the population and/or at least one genotype, we compute it:
         if computing_light_interception:
             print("\n    Preparing the scene for light interception...")
@@ -2406,16 +2416,13 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 plant.total_PAR_intercepted = total_PAR_intercepted
 
                 # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
-                # If the distribution of labile C and N is based on PAR intercepted and if no light interception
-                # has been computed so far:
-                if len(n.previous_PAR_intercepted_values) == 0:
-                    total_shoot_struct_mass = sum(shoot_g.properties()["struct_mass"].values())
+                #****************************************
 
                 # Redistributing labile C into each shoot organ:
                 #-----------------------------------------------
                 # The total amount of labile C to redistribute into the shoot organs is defined as:
                 shoot_available_C = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
-                # SPECIAL CASE: if the hypocothyl can grow, then it receives all available labile C
+                # SPECIAL CASE: if the tip of hypocothyl is belowground, it can grow and receives all available labile C
                 hypocotyl = shoot_g.node(1)
                 if hypocotyl.z2 < 0.:
                     # We calculate the rate of net N input to this organ corresponding to N distribution:
@@ -2428,36 +2435,33 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     for vid in shoot_g.vertices_iter(scale=1):
                         # We access the current organ "n":
                         n = shoot_g.node(vid)
-                        if n.surface <= 0.:
+                        if n.surface <= 0. or n.length <= 0.:
                             continue
-                        # If there is no labile C to be distributed, the shoot labile C will remain 0:
+                        # If there is no labile C to be distributed, the labile C in the shoot element will remain 0:
                         if shoot_available_C <= 0.:
                             labile_C_target = 0.
-                            # We calculate the rate of net N input to this organ corresponding from this redistribution:
+                            # We calculate the rate of net C input to this organ corresponding to this redistribution:
                             n.shoot_C_distribution_rate = (labile_C_target - (
                                     n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
                             # We now redefine the local pool of labile C according to this target level:
                             n.labile_C_deficit = -labile_C_target
                             n.labile_C = 0.
-                        # Otherwise, if there is labile C in the shoot:
+                        # Otherwise, if there is labile C in the shoot to be redistributed:
                         else:
                             #TODO: WATCH OUT BELOW
-                            # We define the fraction of shoot available C allocated to this organ based on the previously
-                            # computed light intensity share:
+                            # We define the fraction of shoot available C allocated to this organ based
+                            # on the previously computed light intensity share.
                             # If no light interception was computed so far:
-                            if len(n.previous_PAR_intercepted_values) == 0:
-                                # Then the fraction of labile N allocated to this organ will be based on its structural mass:
-                                fraction = n.struct_mass / total_shoot_struct_mass
+                            if len(n.previous_light_intensity_shares) == 0:
+                                # Then the fraction of labile C allocated to this organ will be based on its structural mass:
+                                fraction = n.struct_mass / plant.shoot_struct_mass
                             else:
                                 fraction = n.light_intensity_share
                             # The eventual shoot labile C to be targeted after redistribution is:
                             labile_C_target = shoot_available_C * fraction
                             # We calculate the rate of net N input to this organ corresponding from this redistribution:
-                            n.shoot_C_distribution_rate = (labile_C_target - (
-                                    n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
+                            n.shoot_C_distribution_rate = (labile_C_target - (n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
                             # We now redefine the local pool of labile C according to this target level:
-                            # n.labile_C_deficit = -labile_C_target
-                            # n.labile_C = 0.
                             n.labile_C = labile_C_target
                             n.labile_C_deficit = 0.
 
@@ -2495,9 +2499,9 @@ def run_simulation_for_a_plant_cover(my_path=None):
                             # We define the fraction of shoot available N allocated to this organ based on the previously
                             # computed light intensity share.
                             # If no light interception was computed so far:
-                            if len(n.previous_PAR_intercepted_values) == 0:
+                            if len(n.previous_light_intensity_shares) == 0:
                                 # Then the fraction of labile N allocated to this organ will be based on its structural mass:
-                                fraction =  n.struct_mass / total_shoot_struct_mass
+                                fraction =  n.struct_mass / plant.shoot_struct_mass
                             else:
                                 fraction = n.light_intensity_share
                             # The eventual shoot labile N to be targeted after redistribution is:
