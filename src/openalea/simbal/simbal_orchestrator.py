@@ -2478,8 +2478,11 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     hypocotyl.labile_N = shoot_available_N
                     hypocotyl.labile_N_deficit = 0.
                 else:
+
+                    sum_check = 0.
                     # We cover each organ of the shoot:
                     for vid in shoot_g.vertices_iter(scale=1):
+
                         # We access the current organ "n":
                         n = shoot_g.node(vid)
                         if n.surface <= 0.:
@@ -2502,8 +2505,10 @@ def run_simulation_for_a_plant_cover(my_path=None):
                             if len(n.previous_light_intensity_shares) == 0:
                                 # Then the fraction of labile N allocated to this organ will be based on its structural mass:
                                 fraction =  n.struct_mass / plant.shoot_struct_mass
+                                print("Coucou!")
                             else:
                                 fraction = n.light_intensity_share
+                            print("Calculation for vid", vid, "with fraction", fraction)
                             # The eventual shoot labile N to be targeted after redistribution is:
                             labile_N_target = shoot_available_N * fraction
                             # We calculate the rate of net N input to this organ corresponding from this redistribution:
@@ -2513,6 +2518,9 @@ def run_simulation_for_a_plant_cover(my_path=None):
                             # n.labile_N_deficit = -labile_N_target
                             n.labile_N = labile_N_target
                             n.labile_N_deficit = 0.
+                        sum_check = sum_check + labile_N_target
+                    if abs(sum_check - shoot_available_N) > 1e-8:
+                        print("ERROR!")
 
                 # POSSIBLE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
                 # If the elapsed thermal time is lower than the prescribed duration of supply from the seed:

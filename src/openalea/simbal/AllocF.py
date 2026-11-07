@@ -321,18 +321,20 @@ def new_phytomers_emergence(shoot_system,
                 bud.ramification_order = apex.ramification_order
                 # We set the list of previous light intensity shares, containing the share of light intensity perceived
                 # by the organ relatively to the whole plant for a defined period. Here, we assume that the new internode
-                # and leaf have the same list of previous intensity shares as the phytomer below them:
+                # and leaf have memorized the last item of the list of previous intensity shares from the phytomer below them:
                 try:
                     # We get the index of the internode and leaf below the new phytomer:
                     old_internode_vid = shoot_MTG.Father(apex.index(), EdgeType='<')
                     old_leaf_vid = shoot_MTG.Sons(old_internode_vid, EdgeType='+')[0]
                     # We assign the corresponding lists to the new internode and leaf:
                     internode.previous_light_intensity_shares\
-                        = shoot_MTG.node(old_internode_vid).previous_light_intensity_shares
+                        = [shoot_MTG.node(old_internode_vid).previous_light_intensity_shares[-1]]
                     internode.previous_PAR_intercepted_values\
-                        = shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values
-                    leaf.previous_light_intensity_shares = shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares
-                    leaf.previous_PAR_intercepted_values = shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values
+                        = [shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values[-1]]
+                    leaf.previous_light_intensity_shares\
+                        = [shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares[-1]]
+                    leaf.previous_PAR_intercepted_values\
+                        = [shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values[-1]]
                 except:
                     print("ERROR: we could not access the list of previous light intensity shares below the apex", apex.index())
                 # And we add a new apex at the top of the new internode, of length 0:
@@ -930,8 +932,18 @@ def computing_light_interception_on_plant_population(scene,
     total_PAR_intercepted_dict = {}
     sum_of_surfacic_PAR_dict = {}
 
-    # We verify that the light input is not nil:
-    if incoming_light_density > 0.:
+    # We verify that at least one organ of one shoot MTG is aboveground and can intercept light.
+    shoot_MTG_has_emerged = False
+    # We cover the distinct shoot MTG:
+    for genotype_name in genotype_names_list:
+        # We access the corresponding original MTG:
+        g = shoot_MTG_dict[genotype_name]
+        hypocotyl = g.node(1)
+        if hypocotyl.actual_time_since_aboveground_emergence > 0.:
+            shoot_MTG_has_emerged = True
+
+    # If light interception is to be computed:
+    if incoming_light_density > 0. and shoot_MTG_has_emerged:
 
         # LIGHT INTERCEPTION BY CARIBU:
         ###############################
@@ -2190,13 +2202,36 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                                                        nil_properties=True
                                                        )
             print("> A new ramification has emerged from bud", apex.index())
-            internode.radius = apex.radius
             # We correct the angle down of the new internode, so that its direction corresponds to the one from the initial bud:
             internode.angle_down = apex.angle_down
-            # We increase the node rank of the emerged ramification:
+            # We reset the node rank of the emerged ramification:
+            internode.ramification_order = 1
+            leaf.ramification_order = 1
+            bud.ramification_order = 1
+            # We increase the ramification order of the emerged ramification:
             internode.ramification_order = apex.ramification_order + 1
             leaf.ramification_order = apex.ramification_order + 1
             bud.ramification_order = apex.ramification_order + 1
+            # We set the list of previous PAR intercepted and light intensity shares, containing the share of light
+            # intensity perceived by the organ relatively to the whole plant for a defined period. Here, we assume that
+            # the new internode and leaf have memorized the last value in the list of the parent phytomer:
+            try:
+                # We get the index of the parent internode and leaf of the new ramification:
+                old_leaf_vid = shoot_MTG.Father(apex.index(), EdgeType='+')
+                old_internode_vid = shoot_MTG.Father(old_leaf_vid, EdgeType='+')
+                # We assign the last element of the corresponding lists to the new internode and leaf:
+                internode.previous_light_intensity_shares \
+                    = [shoot_MTG.node(old_internode_vid).previous_light_intensity_shares[-1]]
+                internode.previous_PAR_intercepted_values \
+                    = [shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values[-1]]
+                leaf.previous_light_intensity_shares\
+                    = [shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares[-1]]
+                leaf.previous_PAR_intercepted_values\
+                    = [shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values[-1]]
+            except:
+                print("ERROR: we could not access the list of previous light intensity shares below the apex",
+                      apex.index())
+
             # By default, we set the bud as dormant:
             bud.emergence_possibility = False
             # And we add a new apex at the top of the new internode, of length 0:
