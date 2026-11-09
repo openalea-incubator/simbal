@@ -45,12 +45,18 @@ def ADDING_A_CHILD_ORGAN(parent_element,
     """
     This function enables to add a child element on the parent element, with properties equal to those of the parent,
     or to 0.
-    :param parent_element: the element of the MTG onto which we add a new child element
-    :param edge_type: the type of connection between the child and the parent ('<' or '+')
-    :param label: the label of the child
-    :param properties_identical_to_parent: if True, most properties of the child will be identical to those of the parent
-    :param nil_properties: if True, most properties of the child will be 0
-    :return: the new child element
+
+    Parameters
+    ----------
+    parent_element: the element of the MTG onto which we add a new child element
+    edge_type: the type of connection between the child and the parent ('<' or '+')
+    label: the label of the child
+    properties_identical_to_parent: if True, most properties of the child will be identical to those of the parent
+    nil_properties
+
+    Returns
+    -------
+    The new child element is returned.
     """
 
     # We add a new element on the parent:
@@ -116,7 +122,7 @@ def ADDING_A_PHYTOMER(parent_element,
                       ):
     """
     This function adds one phytomer (internode + leaf + bud) on the same axis as the parent element. Note that the leaf
-     is defined as the direct child of the internod, and the bud is the direct child of the leaf (not the internode).
+    is defined as the direct child of the internod, and the bud is the direct child of the leaf (not the internode).
 
     Parameters
     ----------
@@ -125,9 +131,12 @@ def ADDING_A_PHYTOMER(parent_element,
     minimal_leaf_thickness: the tickness of the leaf to be created (meters)
     internode_radius: the radius of the internode to be created (meters)
     internode_length: the length of the internode to be created (meters)
-    leaf_width: the width of the leaf to be created (meters)
     leaf_length: the length of the leaf to be created (meters)
     bud_length: the length of the bud to be created (meters)
+    actual_time_since_initiation: the actual time since the new phytomer has been initiated in the apex (seconds)
+    thermal_time_since_initiation: the thermal time since the new phytomer should have been initiated in the apex (seconds equivalent to reference temperature)
+    actual_time_since_emergence: the actual time since the new phytomer has emerged (seconds)
+    thermal_time_since_emergence: the thermal time since the new phytomer has emerged (seconds equivalent to reference temperature)
     properties_identical_to_parent: if True, the non-geometrical properties of the phytomers will be derived from those of the parent element
     nil_properties: if True, the non-geometrical properties of the phytomers will be set to 0
 
@@ -277,12 +286,18 @@ def new_phytomers_emergence(shoot_system,
     ----------
     shoot_system: the object corresponding to the whole shoot system (not the MTG)
     shoot_MTG: the shoot MTG containing all shoot elements
+    actual_time_since_initiation: the actual time since the new phytomer has been initiated in the apex (seconds)
+    thermal_time_since_initiation: the thermal time since the new phytomer should have been initiated in the apex (seconds equivalent to reference temperature)
+    actual_time_since_emergence: the actual time since the new phytomer has emerged (seconds)
+    thermal_time_since_emergence: the thermal time since the new phytomer has emerged (seconds equivalent to reference temperature)
     initial_internode_length: the initial length of the internode of the phytomers to be created (meters)
     initial_leaf_length: the initial length of the leaf of the phytomers to be created (meters)
+    time_step_in_seconds: the time step of the simulation (seconds)
 
     Returns
     -------
-    [Nothing is returned, the shoot system has been updated with new elements corresponding to the new phytomers]
+    C_cost, N_cost: the total cost in labile C and N used to produce the new phytomers
+    [Note that the shoot system has been updated with new elements corresponding to the new phytomers]
     """
 
     # We initialize the current list of apices in the shoot system that may produce new phytomers:
@@ -894,6 +909,9 @@ def computing_light_interception_on_plant_population(scene,
             sum_of_light_fractions += n.light_intensity_share
 
         # CONTROL & ADJUSTMENTS:
+        if abs(sum_of_light_fractions - 1) > 2:
+            print("PROBLEM!!!")
+
         # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
         if abs(sum_of_light_fractions - 1) > 1e-14:
             print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was", sum_of_light_fractions, "and not 1!")
@@ -1087,7 +1105,7 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def potential_shoot_growth(shoot_MTG,
-                           SFQN = 1,
+                           leaf_potential_growth_option="by_SFQN",
                            leaf_minimal_thickness = 1e-3,
                            leaf_shape="diamond_shape",
                            elong_hypocotyl = 5e-7,
@@ -1133,14 +1151,12 @@ def potential_shoot_growth(shoot_MTG,
         #------------------------------------
         if n.label == "Leaf":
 
-            # # We calculate the potential surface based on the available N in the leaf:
-            # potential_leaf_surface = SFQN * n.labile_N
-
-            #TODO: WATCH OUT - here we remove SFQN law and make a direct relationship with light interception!
-            # We define a coefficient of surface increase per day at 20°C as a function of PAR:
-            SIP = 1e-4 / 400. # We assume a potential increase by 1 cm2 per day for a PAR of 400 µmol m-2 s-1
-            # potential_leaf_surface = n.surface * (1 + SIP * n.surfacic_PAR_intercepted * thermal_time_step_in_days/1.)
-            potential_leaf_surface = n.surface + SIP * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days/1.
+            if leaf_potential_growth_option == "by_SFQN":
+                # We calculate the potential surface based on the available N in the leaf:
+                potential_leaf_surface = n.labile_N * param.SFQN
+            elif leaf_potential_growth_option == "by_light_intensity":
+                # We define a coefficient of surface increase per day at 20°C as a function of PAR:
+                potential_leaf_surface = n.surface * (1 + param.relative_leaf_surface_increase_rate * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days/(60.*60.*24.))
             # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
 
@@ -1232,8 +1248,8 @@ def potential_shoot_growth(shoot_MTG,
                         sum_of_lateral_sections += grand_child.potential_radius ** 2 * pi
             # Eventually, we calculate the theoretical new radius of the initial internode according to its children:
             theoretical_radius = sqrt(son_section / pi + param.SGC_shoot * sum_of_lateral_sections / pi)
-            # If the net difference is below 0.1% of the initial radius:
-            if (theoretical_radius - n.radius) <= 0.001 * n.radius:
+            # If the net difference is below 0.01% of the initial radius:
+            if (theoretical_radius - n.radius) <= 0.0001 * n.radius:
                 # Then we reset the theoretical radius value to the initial value to avoid computational problems:
                 theoretical_radius = n.radius
 

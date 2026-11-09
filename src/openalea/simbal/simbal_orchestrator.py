@@ -134,12 +134,6 @@ def computing_shoot_root_exchange_rates(plant,
         # We first compute the net amount of labile C in shoots and roots, taking into account possible deficits:
         net_shoot_C = (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
         net_root_C = (plant.root_labile_C_pool - plant.root_labile_C_deficit)
-        # TODO: WATCH OUT BELOW:
-        # To avoid problems linked to deficits, we do not allow the net amounts to be negative because of deficits:
-        if net_shoot_C < 0.:
-            net_shoot_C = 0.
-        if net_root_C < 0.:
-            net_root_C = 0.
 
         # If C is to be exchanged by diffusion based on the labile pools in shoots and roots:
         if C_option == "by_diffusion":
@@ -194,11 +188,6 @@ def computing_shoot_root_exchange_rates(plant,
         # We first compute the net amount of labile N in shoots and roots, taking into account possible deficits:
         net_shoot_N = (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
         net_root_N = (plant.root_labile_N_pool - plant.root_labile_N_deficit)
-        # To avoid problems, we do not allow the net amounts to be negative because of deficits:
-        if net_shoot_N < 0.:
-            net_shoot_N = 0.
-        if net_root_N < 0.:
-            net_root_N = 0.
 
         # If N is to be exchanged by diffusion based on the labile pools in shoots and roots:
         if N_option == "by_diffusion":
@@ -243,14 +232,14 @@ def computing_shoot_root_exchange_rates(plant,
         expected_N_exchange = net_N_transfer_from_root_to_shoot_rate * time_step_in_seconds
 
         # CASE 1: The expected N transferred from root to shoot is positive, but there is not enough N in the root:
-        if expected_N_exchange > net_root_N:
+        if expected_N_exchange > net_root_N and net_root_N > 0.:
             # Then the amount of N exchanged is limited to a fraction of the amount of N available in roots:
             fraction = param.fraction_of_root_N_leftover_remaining_in_roots
             net_final_N_exchange = net_root_N * fraction
             print("WATCH OUT: all the N from roots should have been allocated to shoots!")
             print("We therefore allocated only", fraction*100,"% of it to the roots." )
         # CASE 2: The flow from shoot to root is positive but there is not enough N in the shoot to sustain it:
-        elif expected_N_exchange < 0. and -expected_N_exchange > -net_shoot_N:
+        elif expected_N_exchange < 0. and abs(expected_N_exchange) > net_shoot_N:
             # Then the amount of N exchanged is limited to the amount of N available in shoots:
             net_final_N_exchange = - net_shoot_N
             print("WATCH OUT: a net transfer of N from shoots to roots of", "{:.2E}".format(Decimal(-net_shoot_N)), "gN has occured!")
@@ -454,12 +443,12 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
                   "is wrong! The net difference between the current state and the expected state is",
                   "{:.2E}".format(Decimal(difference)), "gC!")
     difference = shoot_total_C - (previous_shoot_C + shoot_C_inputs - shoot_C_outputs)
-    if abs(difference) > 1e-16:
+    if abs(difference) > 1e-12:
         print("    > The C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
     if abs(difference) > 1e-8:
         print("PROBLEM!")
     difference = root_total_C - (previous_root_C + root_C_inputs - root_C_outputs)
-    if abs(difference) > 1e-16:
+    if abs(difference) > 1e-12:
         print("    > The C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
 
     # CHECKING N BALANCE:
@@ -485,7 +474,7 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
                   - ((previous_shoot_N + previous_root_N)
                      + (shoot_N_inputs + root_N_inputs)
                      - (shoot_N_outputs + root_N_outputs)))
-    if abs(difference) > 1e-15:
+    if abs(difference) > 1e-12:
         if genotype_name == "":
             print("!!! ERROR: the N balance in the whole plant is wrong!",
                   "The net difference between the current state and the expected state is",
@@ -495,10 +484,10 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
                   "is wrong! The net difference between the current state and the expected state is",
                   "{:.2E}".format(Decimal(difference)), "gN!")
     difference = shoot_total_N - (previous_shoot_N + shoot_N_inputs - shoot_N_outputs)
-    if abs(difference) > 1e-15:
+    if abs(difference) > 1e-12:
         print("    > The N balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
     difference = root_total_N - (previous_root_N + root_N_inputs - root_N_outputs)
-    if abs(difference) > 1e-15:
+    if abs(difference) > 1e-12:
         print("    > The N balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gN!")
 
     # We finally return the current amounts of C and N in the shoots and the roots:
@@ -1044,6 +1033,19 @@ def run_simulation_for_a_plant_cover(my_path=None):
               "{:.2f}".format(Decimal(soil_temperature)), "degree Celsius.")
         print("    Incoming light is", "{:.0f}".format(Decimal(light_input)), "micromol of photons per square meter per second.")
         print("    Soil available N is", "{:.2E}".format(Decimal(soil_available_nitrogen)), "gN per gram of dry soil.")
+        # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+        # FOR EACH DISTINCT PLANT GENOTYPE TO BE SIMULATED:
+        # We get its "growth stage" from the input file, e.g. 0 = absent:
+        for plant_genotype_name in genotype_names_list:
+            print("\n    > For", plant_genotype_name, "root labile C pool is",
+                  "{:.2E}".format(Decimal(plant.root_labile_C_pool - plant.root_labile_C_deficit)),
+                  "gram of C, and labile N pool is",
+                  "{:.2E}".format(Decimal(plant.root_labile_N_pool - plant.root_labile_N_deficit)), "gram of N.")
+            print("    > For", plant_genotype_name, "shoot labile C pool is",
+                  "{:.2E}".format(Decimal(plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)),
+                  "gram of C, and labile N pool is",
+                  "{:.2E}".format(Decimal(plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)), "gram of N.")
+        # //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         # CALCULATING AN EQUIVALENT OF THERMAL TIME:
         # ------------------------------------------
@@ -1119,7 +1121,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                                 C_option="by_diffusion")
             print("    > The net transfer of C should be",
                   "{:.2E}".format(Decimal(plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds)), "gC.")
-            # Note that only the rate has been computed here, the labile C pools have not been updated yet!
+            # NOTE: only the rate has been computed here, the labile C pools have not been updated yet!
             # We limit the transfer of C from shoots to roots (or from roots to shoots) to the maximal amount of labile C
             # available in the source compartment.
             # We first calculate the expected amount of C that should be exchanged based on the flux:
@@ -1129,23 +1131,41 @@ def run_simulation_for_a_plant_cover(my_path=None):
             if expected_C_exchange > 0. and expected_C_exchange > (
                     plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit):
                 # Then the amount of C exchanged is limited to the amount of C available in shoots:
-                final_C_exchange = plant.shoot_labile_C_pool
+                final_C_exchange = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
                 #  The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                plant.shoot_labile_C_pool -= final_C_exchange
-                plant.root_labile_C_pool += final_C_exchange
+                if final_C_exchange >= 0.:
+                    plant.shoot_labile_C_pool -= final_C_exchange
+                    plant.shoot_labile_C_deficit = 0.
+                    plant.root_labile_C_pool += final_C_exchange
+                else:
+                    print("ERROR: the shoot-to-root C exchange is wrong!")
+                    plant.shoot_labile_C_pool = 0.
+                    plant.shoot_labile_C_deficit = -final_C_exchange
+                    plant.root_labile_C_pool += -final_C_exchange
+
             # CASE 2: The flux from root to shoot is positive but there is not enough C in the root to sustain it:
             elif expected_C_exchange < 0. and abs(expected_C_exchange) > (
                     plant.root_labile_C_pool - plant.root_labile_C_deficit):
-                final_C_exchange = plant.root_labile_C_pool
+                final_C_exchange = plant.root_labile_C_pool - plant.root_labile_C_deficit
                 # The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                plant.shoot_labile_C_pool += final_C_exchange
-                plant.root_labile_C_pool -= final_C_exchange
+                if final_C_exchange >= 0.:
+                    plant.shoot_labile_C_pool += final_C_exchange
+                    plant.root_labile_C_pool -= final_C_exchange
+                    plant_root_labile_C_deficit = 0.
+                else:
+                    print("ERROR: the root-to-shoot C exchange is wrong!")
+                    plant.shoot_labile_C_pool = -final_C_exchange
+                    plant.root_labile_C_pool = 0.
+                    plant_root_labile_C_deficit = final_C_exchange
+
             # CASE 3 (EXPECTED CASE): There is enough C in the source compartment to sustain the transfer:
             else:
                 final_C_exchange = expected_C_exchange
                 # Then the amount of labile C in shoots and roots is updated according to the initial computed exchange:
                 plant.shoot_labile_C_pool -= expected_C_exchange
                 plant.root_labile_C_pool += expected_C_exchange
+                # We reset the deficit to 0 since it has been acounted for in the calculation of the exchange rate:
+                plant.shoot_labile_C_deficit = 0.
             print("    ... The net transfer of C was eventually", "{:.2E}".format(Decimal(final_C_exchange)), "gC.")
 
             # TRANSFER OF N FROM ROOTS TO SHOOTS:
@@ -1168,25 +1188,42 @@ def run_simulation_for_a_plant_cover(my_path=None):
             if expected_N_exchange > 0. and expected_N_exchange > (
                     plant.root_labile_N_pool - plant.root_labile_N_deficit):
                 # Then the amount of N exchanged is limited to the amount of N available in roots:
-                final_N_exchange = plant.root_labile_N_pool
+                final_N_exchange = plant.root_labile_N_pool - plant.root_labile_N_deficit
                 # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                plant.shoot_labile_N_pool += final_N_exchange
-                plant.root_labile_N_pool -= final_N_exchange
+                if final_N_exchange >= 0.:
+                    plant.shoot_labile_N_pool += final_N_exchange
+                    plant.root_labile_N_pool -= final_N_exchange
+                    plant.root_labile_N_deficit = 0.
+                else:
+                    print("ERROR: the root-to-shoot N exchange is wrong!")
+                    plant.shoot_labile_N_pool += -final_N_exchange
+                    plant.root_labile_N_pool = 0.
+                    plant.root_labile_N_deficit += -final_N_exchange
+
             # CASE 2: The flux from shoot to root is positive but there is not enough N in the shoot to sustain it:
             elif expected_N_exchange < 0. and abs(expected_N_exchange) > (
                     plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit):
                 # Then the amount of N exchanged is limited to the amount of N available in shoots:
-                final_N_exchange = plant.shoot_labile_N_pool
+                final_N_exchange = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
                 # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                plant.shoot_labile_N_pool -= final_N_exchange
-                plant.root_labile_N_pool += final_N_exchange
+                if final_N_exchange >= 0.:
+                    plant.shoot_labile_N_pool -= final_N_exchange
+                    plant.shoot_labile_N_deficit = 0.
+                    plant.root_labile_N_pool += final_N_exchange
+                else:
+                    print("ERROR: the shoot-to-root N exchange is wrong!")
+                    plant.shoot_labile_N_pool = 0.
+                    plant.shoot_labile_N_deficit += -final_N_exchange
+                    plant.root_labile_N_pool += -final_N_exchange
+
             # CASE 3 (EXPECTED CASE): There is enough N in the source compartment to sustain the transfer.
             else:
                 # Then the amount of labile N in shoots and roots is updated according to the computed exchange:
                 final_N_exchange = expected_N_exchange
                 plant.shoot_labile_N_pool += expected_N_exchange
+                plant_shoot_labile_N_pool = 0.
                 plant.root_labile_N_pool -= expected_N_exchange
-            print("    ... The net transfer of N was eventually", "{:.2E}".format(Decimal(final_N_exchange)), "gC.")
+            print("    ... The net transfer of N was eventually", "{:.2E}".format(Decimal(final_N_exchange)), "gN.")
 
             # CALLING SUCCESSIVELY THE DIFFERENT ROOT MODULES:
             ##################################################
@@ -1296,7 +1333,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # We access the shoot MTG:
                 shoot_g = shoot_MTG_dict[plant_genotype_name]
                 # We reset all local properties to 0:
-                AllocF.shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=True)
+                AllocF.shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=False)
         #///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         # LIGHT INTERCEPTION:
@@ -1435,12 +1472,13 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
                 # EXTENSION: We calculate the possible increase in volume for each organ:
                 AllocF.potential_shoot_growth(shoot_g,
-                                              SFQN=param.SFQN, # TODO: is SFQN constant over the whole range of (0, LA_max)? Is it two distinct curves?
+                                              # leaf_potential_growth_option="by_SFQN",
+                                              leaf_potential_growth_option=param.leaf_potential_growth_option,
                                               leaf_minimal_thickness=param.leaf_minimal_thickness,
                                               leaf_shape=param.simplified_leaf_shape_for_surface_calculation,
-                                              elong_hypocotyl=param.elong_internode,
-                                              elong_internode_slow=param.elong_internode/10.,
-                                              elong_internode_fast=param.elong_internode,
+                                              elong_hypocotyl=param.elong_hypocotyl,
+                                              elong_internode_slow=param.elong_internode_phase_1,
+                                              elong_internode_fast=param.elong_internode_phase_2,
                                               time_step_in_seconds=time_step_in_seconds,
                                               air_temperature_in_degree_Celsius=air_temperature)
                 # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
@@ -1509,7 +1547,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                               "{:.2E}".format(Decimal(N_cost_for_new_phytomers)), "gN.")
                         # We increase the total costs with the cost of this new phytomer:
                         total_C_costs_for_new_phytomers += C_cost_for_new_phytomers
-                        total_N_costs_for_new_phytomers += total_N_costs_for_new_phytomers
+                        total_N_costs_for_new_phytomers += N_cost_for_new_phytomers
                         # We now subtract the value of the phyllochron to the time since last phytomer was formed, and loop:
                         thermal_time_since_last_phytomer_formation -= phyllochron
                 # Once all phytomers have been added, we update the time since the last one was formed,
@@ -1566,9 +1604,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
             #####################################
 
             print("    C and N balance check on", plant_genotype_name + "...")
-
-            # We compute the current amounts of total C and N in the shoots and roots, and compare it with the previous ones
-            # when altered by the new inputs and outputs computed at this time step:
+            # We compute the current amounts of total C and N in the shoots and roots, and compare it with the
+            # previous ones when altered by the new inputs and outputs computed at this time step:
             (shoot_total_C_dict[plant_genotype_name], root_total_C_dict[plant_genotype_name],
              shoot_total_N_dict[plant_genotype_name], root_total_N_dict[plant_genotype_name]) \
                 = balance_check(plant,
