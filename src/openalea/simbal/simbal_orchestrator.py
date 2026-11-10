@@ -34,7 +34,8 @@ import pickle
 # We define a class that will contain the properties of the interface between shoot and roots (amounts and rates):
 class whole_plant(object):
     """
-    This class defines a whole plant, defined with general properties for shoots and roots.
+    This class defines a whole plant, defined with general properties for shoots and roots. It does not correspond to
+    a MTG, and can be used to store generic plant properties that both shoot MTG or root MTG can access over time.
     """
     # We initiate the object:
     def __init__(self):
@@ -278,13 +279,19 @@ def recording_main_plant_properties(plant, shoot_MTG, root_MTG, final_time_in_da
     Parameters
     ----------
     plant: the object corresponding to the whole plant, containing shoot and root-related variables
+    shoot_MTG: the MTG corresponding to the shoot system, containing all shoot organs
+    root_MTG: the MTG corresponding to the root system, containing all root organs
     final_time_in_days: the time step of the simulation (seconds)
+    thermal_time_in_degree_days: the thermal time expressed in growth degree-days (GDD)
 
     Returns
     -------
-    A dictionary containing the main properties of the plant object (e.g. labile C and N pools, structural mass
-    and rates in shoots and roots
+    results_dict: a dictionary containing the main properties of the plant object (e.g. labile C and N pools, structural
+    mass and rates in shoots and roots)
     """
+
+    # We create the dictionary containing the results at the scale of the plant, from the properties read in the plant
+    # and in the corresponding MTG:
     results_dict = {"Final time (days)": final_time_in_days,
                     "Final thermal time (degree-days)": thermal_time_in_degree_days,
                     "Shoot structural mass (gDW)":
@@ -388,12 +395,13 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
     """
     This function controls whether the information stored in the plant object are coherent in terms of C and N balance,
     by comparing the current amounts of C or N in the shoots and the roots with the amounts expected given the previous
-    recorded state and the new inputs and outputs for each compartment.
+    recorded state and the new inputs and outputs for each compartment of the plant object.
 
     Parameters
     ----------
     plant: the plant object where the information is stored.
     time_step_in_seconds: the time step of the simulation (seconds)
+    genotype_name: the name of the plant genotype
     previous_shoot_C: the total amount of C in the shoots determined at the previous time step (gC per plant)
     previous_root_C: the total amount of C in the roots determined at the previous time step (gC per plant)
     previous_shoot_N: the total amount of N in the shoots determined at the previous time step (gN per plant)
@@ -401,7 +409,8 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
 
     Returns
     -------
-    current_C_and_N_levels: a list containing the current amounts of shoot C, root C, shoot N and root N
+    shoot_total_C, root_total_C, shoot_total_N, root_total_N: the current amounts of shoot C, root C, shoot N and root N,
+    either as labile or structural form (gC or gN per plant)
 
     """
 
@@ -445,8 +454,6 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
     difference = shoot_total_C - (previous_shoot_C + shoot_C_inputs - shoot_C_outputs)
     if abs(difference) > 1e-12:
         print("    > The C balance in the shoots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
-    if abs(difference) > 1e-8:
-        print("PROBLEM!")
     difference = root_total_C - (previous_root_C + root_C_inputs - root_C_outputs)
     if abs(difference) > 1e-12:
         print("    > The C balance in the roots is wrong! The net difference between the current state and the expected state is", "{:.2E}".format(Decimal(difference)), "gC!")
@@ -496,10 +503,20 @@ def balance_check(plant, time_step_in_seconds = 60.*60., genotype_name="",
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for calling the main functions in a specific order and run the whole simulation:
 def run_simulation_for_a_plant_cover(my_path=None):
-
     """
+    This function initiates a plant object and the corresponding MTG for each plant genotype, based on the instructions
+    read in the parameters files. It then performs a simulation of the evolution of these plants in a plant cover over
+    time. The instruction read in "parameters_population" file are used to construct and plot the scene containing the
+    plant cover. The instructions read in each "parameters_[plant_genotype_name]" file control the simulation for each
+    plant genotype within the plant population to be computed separately.
+
+    Parameters
+    ----------
+    my_path: the explicit path of the main folder where the Python file containing this code should be located
+
     Returns
     -------
+    [Nothing is returned; the simulation is done]
     """
 
     # We make sure that there is a path to the main folder:
@@ -509,7 +526,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
         # We first define the path and the file to read as a .csv:
         my_path = os.path.join('../../..', os.getcwd())
 
-    # We initialize an upscaling factor that allows to have better resolution on PlantGL graphs:
+    # We initialize an upscaling factor that allows to have better resolution on PlantGL graphs (e.g. for light
+    # interception):
     zoom_factor = 100
 
     # We initiate dictionaries that will contain items for each of the distinct genotype to be treated:
@@ -1378,7 +1396,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                                                                         incoming_light_density=light_input,
                                                                         zenithal_light=False,
                                                                         infinite=False,
-                                                                        averaging_light_intensity_share=True,
+                                                                        averaging_surfacic_PAR_over_time=True,
                                                                         period_of_light_intensity_averaging_in_days=1.,
                                                                         time_step_in_days=time_step_in_days
                                                                         )
@@ -1430,8 +1448,8 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     time_step_in_seconds=time_step_in_seconds,
                     shoot_available_C=plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit,
                     shoot_available_N=plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit,
-                    # distribution_option="by_light_density")
-                    distribution_option="by_growth_demand")
+                    distribution_option="by_light_intensity")
+                    # distribution_option="by_growth_demand")
 
                 # POSSIBLE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
                 #########################################################
@@ -1830,24 +1848,14 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
 if __name__ == '__main__':
 
-    current_wd = os.getcwd()
     main_simbal_folder = os.path.join(os.getcwd(), os.pardir, os.pardir, os.pardir)
     # main_simbal_folder = 'C:\\Users\\frees\\fspm\\simbal'
-
-    # # RUNNING SIMULATION ON ONE MONOCROP:
-    # #####################################
-    # # We run the whole simulation according to the instructions and parameters defined in the 'simbal_parameters.xlsx'
-    # # file (otherwise, default parameters from the 'simbal_parameters.py' file or from the function will be used):
-    # run_simulation_for_one_plant(my_path=main_simbal_folder,
-    #                              parameters_file="simbal_parameters.xlsx",
-    #                              input_file=os.path.join(main_simbal_folder, "simulation", "inputs", "inputs_over_time.csv"),
-    #                              input_file_time_step_in_days=1/24.)
-
-    # RUNNING SIMULATION ON AN HETEROGENEOUS PLANT COVER:
-    #####################################################
 
     # We run the simulation for the heterogeneous plant cover:
     run_simulation_for_a_plant_cover(my_path=main_simbal_folder)
     print("Simulation done!")
 
-#TODO: finish ramification
+#TODO: add reserve management
+#TODO: improve the architecture of faba bean
+#TODO: perform a reference scenario based on IMPULSE or SILIGOOT for oilseed rape and faba bean
+#TODO: check the compatibility with Root-BRIDGES

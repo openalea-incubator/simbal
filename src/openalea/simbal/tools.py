@@ -40,7 +40,9 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
     Parameters
     ----------
-    leaf_shape: ...
+    plant_species: the name of the plant genotype to be shown here
+    leaf_shape: the normal leaf shape to be shown in the scene
+    simplified_shape: the simplified leaf shape to be used in calculations for linking leaf surface to leaf length and width
     upscaling_factor: number by which all dimensions will be multiplied (useful for solving plot resolution issues)
     petiole_showing: if True, cylinders corresponding to petioles will be shown, in addition to leaf shapes
 
@@ -49,6 +51,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
     A shoot_visitor controling the movement of the turtle within the shoot system.
     """
 
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     # We define a function for returning the curving coordinates for any point of the blade:
     def arc_coordinates(arc_length=1., radius=1.):
         """
@@ -72,7 +75,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         y = 0.
         z = radius * (1 - np.cos(alpha))
         return [x, y, z]
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def oval_shape(length=1., width=1.):
         """
         This simple function generates a PlantGL shape of an ellipse, defined by a length and a width.
@@ -93,7 +96,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         # And we now 'deform' the disc so that it becomes an ellipse characterized by a length and a width:
         shape = pgl.Scaled((length, width, 1), disc)
         return shape
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def diamond_shape(petiole_length=0.2, blade_length=1., blade_length_for_max_width=0.5,
                       blade_width=1., blade_radius=1.):
         """
@@ -143,39 +146,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         shape = pgl.QuadSet(points, indices, normals, indices)
         # pgl.Viewer.display(shape)
         return shape
-
-    def typical_leaf_shape(length=1.):
-        """
-        This function returns a typical leaf shape with empirical curving.
-
-        Parameters
-        ----------
-        length: the length of the leaf (m)
-
-        Returns
-        -------
-        A PlantGL shape corresponding to the leaf
-        """
-        scale_factor = length
-        leaf_shape = pgl.NurbsPatch(
-            [[(-0.0241355 * scale_factor, -0.0549754 * scale_factor, -0.00804807 * scale_factor, 1),
-              # (-0.00877065*scale_factor, -0.00933309*scale_factor, 0.00100194*scale_factor, 1),
-              # (0.0221632*scale_factor, 0.0405477*scale_factor, -0.00898557*scale_factor, 1),
-              (-0.00223729 * scale_factor, -0.00247516 * scale_factor, 0.000385988 * scale_factor, 1)],
-             [(0.314084 * scale_factor, -0.472921 * scale_factor, 0.392759 * scale_factor, 1),
-              # (0.000957513*scale_factor, 0.000400347*scale_factor, 0.33376*scale_factor, 1),
-              # (-0.00092555*scale_factor, 0.00517653*scale_factor, 0.332921*scale_factor, 1),
-              (0.408856 * scale_factor, 0.483731 * scale_factor, 0.413612 * scale_factor, 1)],
-             [(0.329337 * scale_factor, -0.501345 * scale_factor, 0.730665 * scale_factor, 1),
-              # (0.000326354*scale_factor, 0.0164005*scale_factor, 0.665257*scale_factor, 1),
-              # (-0.000118909*scale_factor, 0.019707*scale_factor, 0.66817*scale_factor, 1),
-              (0.414001 * scale_factor, 0.558038 * scale_factor, 0.74373 * scale_factor, 1)],
-             [(0.00223079 * scale_factor, 0.0223592 * scale_factor, 0.999352 * scale_factor, 1),
-              # (0.00112035*scale_factor, 0.028812*scale_factor, 1.0005*scale_factor, 1),
-              # (-0.000767699*scale_factor, 0.0327184*scale_factor, 0.999658*scale_factor, 1),
-              (-0.0011293 * scale_factor, 0.0361733 * scale_factor, 1.00279 * scale_factor, 1)]])
-        return (leaf_shape)
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def rapeseed_leaf_shape(length=1.):
         """
         This function returns a single shape of rapeseed leaf with a petiole and a blade.
@@ -199,7 +170,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # # TEST WITH C-SPLINE:
         # # We create points through which the perimeter of the shape will have to pass through:
-        # Points=[]        #
+        # Points=[]
         # Points.append((0,
         #                petiole_diameter / 2, # The leaf will start at the full petiole width
         #                0))
@@ -434,7 +405,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # Finally, we return the final leaf shape of petiole & blade:
         return (final_shape)
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def cotyledon_shape(length=1.):
         """
         This function returns a single shape of cotyledon with a petiole and a blade.
@@ -456,6 +427,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         blade_width = length * param.cotyledon_width_to_length_ratio
         blade_radius = length / param.cotyledon_blade_length_to_radius_ratio
 
+        #jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
         # USE OF BEZIER CURVES:
         # We quickly define a function for generating appropriate PlantGL vectors:
         pts = lambda x, y, z: pgl.Vector4(x, y, z, 1.0)
@@ -518,6 +490,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                                        0,
                                        arc_coordinates(arc_length=blade_length, radius= blade_radius)[2]))
             return Points_Beziers
+        #jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
 
         # We compute Bezier points from the current dimensions, but without considering curving:
         Points_Beziers_0 = Beziers_points_list(petiole_length, petiole_diameter,
@@ -577,8 +550,24 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # Finally, we return the final cotyledon shape of petiole & blade:
         return (final_shape)
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def leaflet_shape(base_shape="Bezier", leaflet_length=1., leaflet_width=1., u=9, v=2):
+        """
+        This function creates the shape of a leaflet for PlantGL (e.g. useful for showing leaves with leaflets,
+        such as in faba bean).
+
+        Parameters
+        ----------
+        base_shape: the name of the shape to be used
+        leaflet_length: the length of the leaflet (m)
+        leaflet_width: the width of the leaflet (m)
+        u:
+        v:
+
+        Returns
+        -------
+        A PlantGL shape corresponding to the leaflet
+        """
 
         # CASE OF A NON-REGULAR SHAPE:
         if base_shape == "Bezier":
@@ -644,8 +633,21 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 
         # leaflet_shape = pgl.Scaled((leaflet_length, leaflet_width, 1), leaflet_shape)
         return (leaflet_shape)
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     def computing_leaflets_number_per_leaf(rank):
+        """
+        This function computes the number of leaflets per leaf, based on leaf rank (e.g. useful for species such as faba
+         bean).
+
+        Parameters
+        ----------
+        rank: the rank number of the leaf supporting the leaflets
+
+        Returns
+        -------
+        An integer corresponding to the number of leaflets per leaf
+        """
+
         if rank <= 6:
             nb_leaflets = 2
         elif rank == 7:
@@ -655,7 +657,7 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
         elif (rank >= 8 & rank <= 9):
             nb_leaflets = 4
         return nb_leaflets
-
+    #iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
     # Now we define the actual shoot visitor by moving the turtle:
     def shoot_visitor(g, v, turtle):
         """
@@ -791,8 +793,8 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                         else:
                             number_of_petioles = nb_leaflets // 2
                         # We defined the length between two pairs of leaflets:
-                        petiole_leaflet_length_1 = total_petiole_length * 0.4
-                        petiole_leaflet_length_2 = total_petiole_length * 0.3
+                        petiole_leaflet_length_1 = total_petiole_length / number_of_petioles
+                        petiole_leaflet_length_2 = total_petiole_length / number_of_petioles
                         # We reorientate the leaflet, either to the left or to the right of the petiole axis,
                         # by performing two successive rotations along the z-axis, then the y-axis:
                         leaflet_left = pgl.AxisRotated(axis=(0, 0, 1), angle = -param.leaflet_angle * pi / 180, geometry=leaflet)
@@ -871,10 +873,6 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
                                                             blade_width = length * param.leaf_width_to_length_ratio,
                                                             blade_radius = length / param.blade_length_to_radius_ratio))
 
-                    # OPTION WITH 'TYPICAL' LEAF SHAPE:
-                    elif leaf_shape == "typical_leaf_shape":
-                        turtle.customGeometry(typical_leaf_shape(length=length))
-
                     # OPTION WITH RAPESEED LEAF SHAPE:
                     elif leaf_shape == "complex_shape":
 
@@ -924,6 +922,19 @@ def get_shoot_visitor(plant_species="rapeseed", leaf_shape="complex_shape", simp
 def leaf_insertion_angle_evolution(leaf,
                                    plant_genotype_name = "rapeseed",
                                    plant_thermal_age_in_degree_days=0.):
+    """
+    This function computes the angle of leaf insertion on the stem, based on plant species and thermal age of the plant.
+
+    Parameters
+    ----------
+    leaf: the leaf element containing information
+    plant_genotype_name: the name of the plant genotype
+    plant_thermal_age_in_degree_days: the thermal age of the plant in growth degree days (GDD)
+
+    Returns
+    -------
+    The angle of leaf insertion
+    """
 
     # We get the age of the leaf:
     leaf_age_in_degree_days = leaf.thermal_time_since_emergence / (24. * 60. * 60.) * param.T_ref_growth
@@ -952,7 +963,14 @@ def leaf_insertion_angle_evolution(leaf,
 def get_root_visitor(upscaling_factor=1.):
     """
     This function describes the movement of the 'turtle' along the root MTG for creating a 3D graph of roots on PlantGL.
-    :return: root_visitor
+
+    Parameters
+    ----------
+    upscaling_factor: number by which all dimensions will be multiplied (useful for solving plot resolution issues)
+
+    Returns
+    -------
+    A root_visitor controling the movement of the turtle within the root system.
     """
 
     def root_visitor(g, v, turtle):
@@ -1060,6 +1078,17 @@ def circle_coordinates(x_center=0., y_center=0., z_center=0., radius=1.,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 def updating_coordinates(g):
+    """
+    This function updates the coordinates of each element of a given MTG "g".
+
+    Parameters
+    ----------
+    g: the MTG containing objects in 3D-space
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with new (x,y,z) coordinates for each element]
+    """
 
     # We define "root" as the starting point of the loop below:
     root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
@@ -1210,6 +1239,41 @@ def plotting_shoot_MTG(g,
                        property_name='radius', cmap='jet', vmin=1e-4, vmax=1e-2, lognorm=True,
                        recording_plot=True,
                        plot_name='plot.png'):
+    """
+    This function creates a PlantGL plot of one shoot MTG.
+
+    Parameters
+    ----------
+    g: the shoot MTG to be shown
+    plant_species: the name of the plant genotype
+    leaf_shape: the name of the leaf shape to be shown, e.g. "complex_shape"
+    simplified_leaf_shape_for_surface_calculation: the name of the leaf shape to be used for computation, e.g. "diamond_shape"
+    petiole_showing: if True, additional petioles wil be shown prior to the leaf (only relevant if the leaf itself does not contain a petiole...)
+    width: the width of the scene (meters)
+    height: the height of the scene (meters)
+    upscaling_factor: the number by which all dimensions should be multiplied (e.g. for solving resolution issues on PlantGL)
+    origin_coordinates: the coordinates of the origin of the graph
+    x_center: the x-coordinate of the center at which the camera looks
+    y_center: the y-coordinate of the center at which the camera looks
+    z_center: the z-coordinate of the center at which the camera looks
+    x_cam: the x-coordinate of the camera position
+    y_cam: the y-coordinate of the camera position
+    z_cam: the z-coordinate of the camera position
+    grid: if True, a grid showing the three axes of the graph will be shown
+    background_color: a list containing the RGB values of the background color
+    single_color: a list containing the RGB values of the single color to be shown for the MTG (if None, a property will be displayed instead)
+    property_name: the name of the property to be shown
+    cmap: the name of the color map
+    vmin: the minimum value to be shown on the color map
+    vmax: the maximum value to be shown on the color map
+    lognorm: if True, a logarithmic scale will be shown
+    recording_plot: if True, an image of the plot will be saved
+    plot_name: the name under which the image of the plot will be saved
+
+    Returns
+    -------
+    [Nothing; the plot has been displayed and/or saved]
+    """
 
     # CREATING THE PLOT:
     # We first compute the colors of the graph:
@@ -1275,196 +1339,6 @@ def plotting_shoot_MTG(g,
         print("Plot saved!")
 
     return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function that methodically creates each shape (takes a long time for large root systems):
-def plotting_shoots_with_pyvista(g,
-                                 showing=True, recording_image=True, image_file='plot_.png',
-                                 factor_of_higher_resolution=1,
-                                 background_color=[94, 76, 64],
-                                 plot_width=1000, plot_height=750,
-                                 camera_x=2., camera_y=0., camera_z=0.5,
-                                 focal_x=0., focal_y=0., focal_z=0.,
-                                 closing_window=False):
-    """
-    This functions aims to plot a shoot system with Pyvista, creating step by step every shape.
-    :param g: the root MTG to be displayed
-    :param showing: if True, a Pyvista window will be opened
-    :param recording_image: if True, an image file of the plot will be recorded
-    :param image_file: name of the image file
-    :param closing_window: if True, the Pyvista window will be closed after having shown the plot
-    :param background_color: a list containing three integers corresponding to Red, Green and Blue values (0-255)
-    :param plot_width: width of the plot (in pixels)
-    :param plot_height: height of the plot (in pixels)
-    :param camera_x: x-coordinate of the camera position
-    :param camera_y: y-coordinate of the camera position
-    :param camera_z: z-coordinate of the camera position
-    :param focal_x: x-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_y: y-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :param focal_z: z-coordinate of the focal point (from which plot is centered and allowed to rotate from)
-    :return:
-    """
-    if pv is None:
-        raise Exception('Install pyvista')
-
-    # We initialize a plot:
-    p = pv.Plotter()
-    # p = pvqt.BackgroundPlotter() # If we want to update the graph when opened
-    if recording_image and not showing:
-        p.off_screen = True
-
-    # We initialize a list of blocks and empty lists:
-    blocks = pv.MultiBlock()
-    colors = []
-    opacity = []
-
-    # CREATING THE SHAPES:
-    ######################
-
-    # The creation of the cylinders with no directions raises a Warning in numpy, but we can ignore it.
-    np.seterr(invalid='ignore')
-
-    print("    > Creating the shapes of the plot...")
-    # We cover all the vertices in the MTG g:
-    for vid in g.vertices_iter(scale=1):
-
-        # We define the current root element as n:
-        n = g.node(vid)
-        # We skip this element if it does not have a positive length:
-        if n.length <= 0.:
-            continue
-
-        # We calculate the geometric features required by pyvista to display a cylinder at the right spot:
-        x1 = n.x1
-        x2 = n.x2
-        y1 = n.y1
-        y2 = n.y2
-        z1 = n.z1
-        z2 = n.z2
-        center_x = (x1 + x2) / 2.
-        center_y = (y1 + y2) / 2.
-        center_z = (z1 + z2) / 2.
-        direction_x = x2 - x1
-        direction_y = y2 - y1
-        direction_z = z2 - z1
-        # normal_x = direction_x * np.cos(90) - direction_y * np.sin(90)
-        # normal_y = direction_x * np.sin(90) + direction_y * np.cos(90)
-        # normal_z = direction_z
-        height = ((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2) ** 0.5
-        radius = n.radius
-        # We add the color and opacity to a list:
-        color = n.color
-        colors.append(color)
-        opacity.append(1)  # Here, all the elements are supposed to be fully opaques
-
-        if n.label == "Internode":
-            # We create a new cylinder with the proper dimensions and position:
-            shape = pv.Cylinder(center=(center_x, center_y, center_z),
-                                direction=(direction_x, direction_y, direction_z),
-                                radius=radius, height=height)
-        elif n.label == "Leaf":
-            shape = pv.Disc(center=(center_x, center_y, center_z), inner=0., outer=n.length / 2., c_res=12,
-                            normal=(-direction_x, -direction_y, direction_z))
-            # shape = pv.Triangle([[x1,y1,z1], [x2-0.1,y2-0.1,z2], [x2+0.1,y2+0.1,z2]])
-            # shape = shape.rotate_vector(vector=(x2, -y2, 0), angle=180, point=(center_x, center_y, center_z))
-            # shape = shape.rotate_vector(vector=(direction_x, direction_y, 0), angle=180, point=(center_x, center_y, center_z))
-        # And we add this shape to the list of blocks:
-        blocks.append(shape)
-
-    # We reset the warning option in Numpy:
-    np.seterr(invalid=None)
-
-    # CREATING THE SCENE:
-    # Adding the multi-blocks to a plot:
-    actor, mapper = p.add_composite(blocks)
-    print("    > Adding the colors and transparencies of the plot...")
-    # We cover each block and set its color and opacity:
-    for i in range(1, blocks.n_blocks + 1):
-        mapper.block_attr[i].color = colors[i - 1]
-        mapper.block_attr[i].opacity = opacity[i - 1]
-
-    # We set the color of the background:
-    p.background_color = background_color
-
-    # ADJUSTING THE CAMERA:
-    # We can define the target position and the camera position:
-    p.camera.focal_point = (focal_x, focal_y, focal_z)
-    p.camera.position = (camera_x, camera_y, camera_z)
-    # Or we can define the relative distance and elevation of the camera compared to the middle of the plot:
-    # p.camera.distance = 0.2
-    # p.camera_elevation = -0.2
-    # p.reset_camera()
-    # p.view_yz()
-    # pv.Axes.origin=(0,0,0.0)
-    p.camera_set = True
-
-    # SETTING AXES:
-    # p.add_axes()
-    # p.add_axes_at_origin()
-
-    # DIVERSE SETTINGS:
-    # We set the background color of the plot:
-    p.background_color = background_color
-    # We set the final size of the window:
-    p.window_size = [plot_width, plot_height]
-    # We can improve the resolution of the image:
-    p.image_scale = factor_of_higher_resolution
-
-    # p.line_smoothing = True
-    # p.add_bounding_box(line_width=3, color='black')
-    # p.enable_terrain_style(mouse_wheel_zooms=True, shift_pans=True)
-
-    print("> The plot has been created!")
-
-    # SHOWING/RECORDING THE PLOT:
-    if recording_image:
-        # p.screenshot(filename='test_MTG.png')
-        p.show(screenshot=image_file, auto_close=closing_window)
-        # # p.close()
-    elif showing:
-        p.show(auto_close=closing_window)
-
-    if closing_window:
-        pv.close_all()
-
-    return p
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
-# Function for creating a color map for a MTG:
-def my_colormap(g, property_name, cmap='jet', vmin=None, vmax=None, lognorm=True):
-    """
-    This function computes a property 'color' on a MTG based on a given MTG's property.
-    :param g: the investigated MTG
-    :param property_name: the name of the property of the MTG that will be displayed
-    :param cmap: the type of color map
-    :param vmin: the min value to be displayed
-    :param vmax: the max value to be displayed
-    :param lognorm: a Boolean describing whether the scale is logarithmic or not
-    :return: the MTG with the corresponding color
-    """
-
-    # We make sure that the user did not accidently switch between vmin and vmax:
-    if vmin >= vmax:
-        raise Exception("Sorry, the vmin and vmax values of the color scale of the graph are wrong!")
-    if lognorm and (vmin <= 0 or vmax <= 0):
-        raise Exception(
-            "Sorry, it is not possible to represent negative values in a log scale - check vmin and vmax!")
-
-    prop = g.property(property_name)
-    keys = prop.keys()
-    values = list(prop.values())
-    # m, M = int(values.min()), int(values.max())
-
-    _cmap = color.get_cmap(cmap)
-    norm = color.Normalize(vmin, vmax) if not lognorm else color.LogNorm(vmin, vmax)
-    values = norm(values)
-
-    colors = (_cmap(values)[:, 0:3]) * 255
-    colors = np.array(colors, dtype=int).tolist()
-
-    g.properties()['color'] = dict(zip(keys, colors))
-
-    return g
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function that distributes plant MTG within a framework:
@@ -1550,7 +1424,7 @@ def prepare_plants_population(list_of_reference_MTG=[],
 
     return scene_information, list_of_MTG
 #-----------------------------------------------------------------------------------------------------------------------
-
+#-----------------------------------------------------------------------------------------------------------------------
 # Function that distributes distinct plants within a framework:
 def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "faba_bean"],
                                             parameters_dict={},
@@ -1567,25 +1441,31 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
 
     """
     This function distributes distinct plants within a spatial framework based on plant density and inter row distance
-    for each plant with distinct properties, and, when provided with a (list of) reference MTG, generates a list of
-    plant MTG to be used in this population.
+    for each plant genotype with distinct properties, and, when provided with a (list of) reference MTG, generates a list
+    of plant MTG to be used in this population. The functions returns a dictionary of scene information and the list of
+    all plant MTG to be used for constructing the scene.
 
     Parameters
     ----------
-    list_of_reference_MTG: a list containing zero, one or several (e.g. in case of multiple species) refence plant
-                           MTG to be duplicated in the population
-    number_of_plants_per_square_meter: plant density for this population (plants per square meter)
-    inter_row_distance: the distance between two rows (meters)
-    scene_length: length of the zone to populate with plants (meters)
-    scene_width: width of the zone to populate with plants (meters)
-    upscaling_factor: a factor by which all dimensions should be multiplied
-                      (e.g. 100 to convert dimensions from meters to centimeters)
+    genotype_names_list: a list containing the names of the distinct plant genotypes in the population
+    parameters_dict: a dictionary where each plant genotype name is associated to one dictionary of genotype-specific parameters
+    shoot_MTG_dict: a dictionary where each plant genotype name is associated to one shoot MTG
+    root_MTG_dict: a dictionary where each plant genotype name is associated to one root MTG
+    numbers_of_plants_per_square_meter_dict: a dictionary where each plant genotype name is associated to a specific plant density (plants per square meter)
+    sowing_depths_dict: a dictionary where each plant genotype name is associated to a specific positive sowing depth (meters)
+    inter_row_distances_dict: a dictionary where each plant genotype name is associated to an inter-row distance (meters)
+    number_of_rows_to_show_dict: a dictionary where each plant genotype name is associated to the number of rows to show in the scene
+    scene_lengths_dict: a dictionary where each plant genotype name is associated to a specific scene length (meters)
+    scene_widths_dict: a dictionary where each plant genotype name is associated to a specific scene width (meters)
+    option: either "shoots_only", "roots_only", or "shoots_and_roots" for showing/hidding shoots or roots
+    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. 100 to convert dimensions from meters to centimeters)
 
     Returns
     -------
-    scene_information: a dictionnary containing a list of plant indices and a list of their corresponding positions
-    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
-                 has been provided as an input of the function)
+    scene_information: a dictionary associating lists of plant indices, genotypes and (x,y,z) positions in the scene
+    list_of_all_shoot_MTG: a list of (possibly duplicated) shoot MTG used to populate the scene to be created
+    list_of_all_root_MTG: a list of (possibly duplicated) root MTG used to populate the scene to be created
+
     """
 
     # We initialize the outputs of this function, i.e. the list of MTG in the scene and their positions:
@@ -1689,18 +1569,14 @@ def prepare_heterogeneous_plants_population(genotype_names_list=["rapeseed", "fa
                 x = lateral_border_length * upscaling_factor
 
     return scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG
-
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-
 # Function for creating a scene with uniques shapes ID:
 def create_plants_population_scene(scene_information={},
                                    list_of_shoot_MTG=[],
                                    list_of_root_MTG=[],
-                                   option="shoots_and_roots",
                                    genotype_names_list=["rapeseed", "faba_bean"],
                                    parameters_dict={},
-                                   upscaling_factor=1,
                                    leaf_shape="oval_shape",
                                    simplified_leaf_shape_for_surface_calculation="ellipse_shape",
                                    single_color_shoot=None,
@@ -1709,35 +1585,48 @@ def create_plants_population_scene(scene_information={},
                                    lognorm_shoot=True,
                                    property_name_root='radius', cmap_root='jet', vmin_root=1e-4, vmax_root=1e-2,
                                    lognorm_root=True,
+                                   option="shoots_and_roots",
+                                   upscaling_factor=1
                                    ):
 
     """
-    This function generates a PlantGL scene corresponding to the scene information and the list of plant MTG
-    to display in the scene. The scene created by this function contains a shape coinciding with each
-    visible plant element and characterized by a unique identifyer. The function also updates the plant MTG with
-    their actual spatial coordinates, and updates the scene information with plant rotation and with the list
-    of initial and reindexed indices of shapes.
+    This function generates a PlantGL scene corresponding to the scene information and the list of shoot and root MTG
+    to display in the scene. The scene created by this function contains a shape coinciding with each visible plant
+    element and characterized by a unique identifyer. The function also updates each plant MTG with its actual spatial
+    coordinates, and updates the scene information with plant rotation and with the list of initial and reindexed
+    indices of shapes.
 
     Parameters
     ----------
-    scene_information: a dictionnary containing a list of plant indices ("plant_id") and a list
-                       of their corresponding positions ("position"), each represented as a tuple (x,y,z)
-    list_of_MTG: a list of plant MTG used to populate the scene
-    scene_length: length of the zone to populate with plants (meters)
-    scene_width: width of the zone to populate with plants (meters)
-    upscaling_factor: a factor by which all dimensions should be multiplied
-                      (e.g. 100 to convert dimensions from meters to centimeters)
-    leaf_shape: a string describing the type of leaf shape to be used (see get_shoot_visitor)
+    scene_information: a dictionnary containing a list of plant indices ("plant_id"), of genotypes names ("plant_type), and a list of their corresponding positions ("position"), each represented as a tuple (x,y,z)
+    list_of_shoot_MTG: a list of (possibly duplicated) shoot MTG used to populate the scene to be created
+    list_of_root_MTG: a list of (possibly duplicated) root MTG used to populate the scene to be created
+    genotype_names_list: a list containing the names of the distinct plant genotypes in the population
+    parameters_dict: a dictionary where each plant genotype name is associated to one dictionary of genotype-specific parameters
+    leaf_shape: the name of the leaf shape to be shown, e.g. "complex_shape"
+    simplified_leaf_shape_for_surface_calculation: the name of the leaf shape to be used for computation, e.g. "diamond_shape"
+    single_color_shoot: a list containing the RGB code of the single to be used for showing shoots (if None, a specific property will be mapped)
+    single_color_root: a list containing the RGB code of the single to be used for showing roots (if None, a specific property will be mapped)
+    property_name_shoot: the name of the MTG property to be color-mapped on shoots
+    cmap_shoot: the name of the color map for shoots
+    vmin_shoot: the minimum value to show on the color map for shoots
+    vmax_shoot: the maximum value to show on the color map for shoots
+    lognorm_shoot: if True, a logarithmic scale will be used for mapping shoots
+    property_name_root: the name of the MTG property to be color-mapped on roots
+    cmap_root: the name of the color map for roots
+    vmin_root: the minimum value to show on the color map for roots
+    vmax_root: the maximum value to show on the color map for roots
+    lognorm_root: if True, a logarithmic scale will be used for mapping roots
+    option: either "shoots_only", "roots_only", or "shoots_and_roots" for showing/hidding shoots or roots
+    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. 100 to convert dimensions from meters to centimeters)
 
     Returns
     -------
-
+    final_scene: the new scene containing the plant population, to be shown in PlantGL
     scene_information: a dictionnary containing a list of plant indices, a list of their corresponding positions,
                        a list of their relative rotation, the list of all shapes and the list of all triangles
                        in the scene, and a dictionnary associating the reindexed ID of shapes with the original ID
                        in each plant MTG
-    list_of_MTG: a list of plant MTG used to populate the scene to be created (the list is empty if no reference MTG
-                 has been provided as an input of the function)
     """
 
     # We initialize additional properties of scene_information:
@@ -1932,7 +1821,7 @@ def create_plants_population_scene(scene_information={},
     return final_scene, scene_information
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# This function enables to plot a shoot MTG with PlantGL:
+# This function enables to plot a single shoot MTG and a single root MTG together in PlantGL:
 def plotting_whole_plant(shoot_MTG, root_MTG,
                          width=1200, height=900,
                          upscaling_factor=1.,
@@ -1952,6 +1841,48 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
                          recording_plot=True,
                          plot_name='plot.png',
                          shoots_overlapping_roots=True):
+    """
+    This function enables to plot a single shoot MTG and a single root MTG together in PlantGL.
+
+    Parameters
+    ----------
+    shoot_MTG: the shoot MTG to plot
+    root_MTG: the root MTG to plot
+    width: the width of the plot image
+    height: the height of the plot image
+    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. 100 to convert dimensions from meters to centimeters)
+    origin_coordinates: the coordinates of the origin of the graph
+    x_center: the x-coordinate of the center at which the camera looks
+    y_center: the y-coordinate of the center at which the camera looks
+    z_center: the z-coordinate of the center at which the camera looks
+    x_cam: the x-coordinate of the camera position
+    y_cam: the y-coordinate of the camera position
+    z_cam: the z-coordinate of the camera position
+    grid: if True, a grid showing the three axes of the graph will be shown
+    displaying_soil_surface: if True, a square soil surface will be shown
+    plant_species: the plant genotype name
+    leaf_shape: the name of the leaf shape to be shown, e.g. "complex_shape"
+    simplified_leaf_shape_for_surface_calculation: the name of the leaf shape to be used for computation, e.g. "diamond_shape"
+    single_color_shoot: a list containing the RGB code of the single to be used for showing shoots (if None, a specific property will be mapped)
+    single_color_root: a list containing the RGB code of the single to be used for showing roots (if None, a specific property will be mapped)
+    property_name_shoot: the name of the MTG property to be color-mapped on shoots
+    cmap_shoot: the name of the color map for shoots
+    vmin_shoot: the minimum value to show on the color map for shoots
+    vmax_shoot: the maximum value to show on the color map for shoots
+    lognorm_shoot: if True, a logarithmic scale will be used for mapping shoots
+    property_name_root: the name of the MTG property to be color-mapped on roots
+    cmap_root: the name of the color map for roots
+    vmin_root: the minimum value to show on the color map for roots
+    vmax_root: the maximum value to show on the color map for roots
+    lognorm_root: if True, a logarithmic scale will be used for mapping roots
+    recording_plot: if True, the plot image will be saved
+    plot_name: the name of the plot image to save
+    shoots_overlapping_roots: if True, roots are created first, then shoots - else, the opposite
+
+    Returns
+    -------
+    [Nothing; the plot has been displayed and/or saved]
+    """
 
     # CREATING THE PLOT:
     #-------------------
@@ -2054,7 +1985,6 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
         final_scene += square
 
     # SETTING THE VIEWER OPTIONS:
-
     setting_PGLViewer(width=width, height=height,
                       x_center=x_center, y_center=y_center, z_center=z_center,
                       x_cam=x_cam, y_cam=y_cam, z_cam=z_cam,
@@ -2074,16 +2004,17 @@ def plotting_whole_plant(shoot_MTG, root_MTG,
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
 def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
                          parameters_dict={},
                          shoot_MTG_dict={},
                          root_MTG_dict={},
                          numbers_of_plants_per_square_meter_dict={"rapeseed": 33, "faba_bean": 16.5},
+                         sowing_depths_dict={"rapeseed": 0.008, "faba_bean": 0.08},
                          inter_row_distances_dict={"rapeseed": 0.20, "faba_bean": 0.20},
                          number_of_rows_to_show_dict={"rapeseed": 3, "faba_bean": 2},
                          scene_lengths_dict={"rapeseed": 1., "faba_bean": 1.},
                          scene_widths_dict={"rapeseed": 0.5, "faba_bean": 0.5},
-                         sowing_depths_dict={"rapeseed": 0.008, "faba_bean": 0.08},
                          width=1200, height=900,
                          x_center=0, y_center=-0, z_center=0.,
                          x_cam=5., y_cam=5., z_cam=-1,
@@ -2099,6 +2030,56 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
                          displaying_soil_surface=True,
                          recording_plot=True,
                          plot_name="plot.png"):
+    """
+    This function enables to plot a PlantGL scene with distinct plants arranged according to a specific design,
+    both with shoots and roots.
+
+    Parameters
+    ----------
+    genotype_names_list: a list containing the names of the distinct plant genotypes in the population
+    parameters_dict: a dictionary where each plant genotype name is associated to one dictionary of genotype-specific parameters
+    shoot_MTG_dict: a dictionary where each plant genotype name is associated to one shoot MTG
+    root_MTG_dict: a dictionary where each plant genotype name is associated to one root MTG
+    numbers_of_plants_per_square_meter_dict: a dictionary where each plant genotype name is associated to a specific plant density (plants per square meter)
+    sowing_depths_dict: a dictionary where each plant genotype name is associated to a specific positive sowing depth (meters)
+    inter_row_distances_dict: a dictionary where each plant genotype name is associated to an inter-row distance (meters)
+    number_of_rows_to_show_dict: a dictionary where each plant genotype name is associated to the number of rows to show in the scene
+    scene_lengths_dict: a dictionary where each plant genotype name is associated to a specific scene length (meters)
+    scene_widths_dict: a dictionary where each plant genotype name is associated to a specific scene width (meters)
+    width: the width of the plot image
+    height: the height of the plot image
+    x_center: the x-coordinate of the center at which the camera looks
+    y_center: the y-coordinate of the center at which the camera looks
+    z_center: the z-coordinate of the center at which the camera looks
+    x_cam: the x-coordinate of the camera position
+    y_cam: the y-coordinate of the camera position
+    z_cam: the z-coordinate of the camera position
+    upscaling_factor: a factor by which all dimensions should be multiplied (e.g. 100 to convert dimensions from meters to centimeters)
+    grid: if True, a grid showing the three axes of the graph will be shown
+    background_color: a list containing RGB code of the background color
+    single_color_shoot: a list containing the RGB code of the single to be used for showing shoots (if None, a specific property will be mapped)
+    single_color_root: a list containing the RGB code of the single to be used for showing roots (if None, a specific property will be mapped)
+    property_name_shoot: the name of the MTG property to be color-mapped on shoots
+    cmap_shoot: the name of the color map for shoots
+    vmin_shoot: the minimum value to show on the color map for shoots
+    vmax_shoot: the maximum value to show on the color map for shoots
+    lognorm_shoot: if True, a logarithmic scale will be used for mapping shoots
+    property_name_root: the name of the MTG property to be color-mapped on roots
+    cmap_root: the name of the color map for roots
+    vmin_root: the minimum value to show on the color map for roots
+    vmax_root: the maximum value to show on the color map for roots
+    lognorm_root: if True, a logarithmic scale will be used for mapping roots
+    plotting_leaf_shape: the name of the leaf shape to be shown, e.g. "complex_shape"
+    simplified_leaf_shape_for_surface_calculation: the name of the leaf shape to be used for computation, e.g. "diamond_shape"
+    displaying_soil_surface: if True, a square soil surface will be shown
+    recording_plot: if True, the plot image will be saved
+    plot_name: the name of the plot image to save
+
+    Returns
+    -------
+    [Nothing; the plot has been displayed and/or saved]
+
+    """
 
     # We initialize the final scene:
     final_scene = pgl.Scene()
@@ -2120,7 +2101,6 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
         final_scene += square
 
     # ADDING THE PLANTS:
-    # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
     # We create an updated list containing one shoot MTG of each type copied and distributed over the scene:
     scene_information, list_of_all_shoot_MTG, list_of_all_root_MTG = prepare_heterogeneous_plants_population(
         genotype_names_list=genotype_names_list,
@@ -2199,10 +2179,9 @@ def plotting_whole_scene(genotype_names_list=["rapeseed", "faba_bean"],
         # print("    The plot has been saved!")
 
     return
-
 #-----------------------------------------------------------------------------------------------------------------------
-# Modification of a process according to soil temperature:
-# --------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------
+# Function for modifying a process according to soil temperature:
 def temperature_modification(temperature_in_Celsius, process_at_T_ref=1., T_ref=0., A=-0.05, B=3., C=1.):
     """
     This function calculates how the value of a process should be modified according to temperature (in degrees Celsius).
@@ -2249,49 +2228,21 @@ def temperature_modification(temperature_in_Celsius, process_at_T_ref=1., T_ref=
     return modified_process
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-def buildDic(dict_scenario, dic=None):
-    """
-    Function that build a nested dictionary (dict of dict), e.g. buildDic({'a:b:c': 1, 'a:b:d': 2})
-    returns {'a': {'b': {'c': 1, 'd': 2}}}
-    """
-
-    def is_int(dt):
-        """
-        Returns True if dt is an integer, False in other cases.
-        """
-        try:
-            num = int(dt)
-        except ValueError:
-            return False
-        return True
-
-    def _buildDic(keyList, val, dic):
-        if len(keyList) == 1:
-            dic[keyList[0]] = val
-            return
-
-        newDic = dic.get(keyList[0], {})
-        dic[keyList[0]] = newDic
-        _buildDic(keyList[1:], val, newDic)
-
-    if not dic:
-        dic = {}
-
-    for k, v in dict_scenario.items():
-        if not pd.isnull(v):
-            keyList = k.split(':')
-            keyList_converted = []
-            for kk in keyList:
-                if is_int(kk):
-                    keyList_converted.append(int(kk))
-                else:
-                    keyList_converted.append(kk)
-            _buildDic(keyList_converted, v, dic)
-
-    return dic
-
+# Function for loading parameters from external files:
 def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
                                  outputs_path = "outputs"):
+    """
+    This function allows to load parameters from a .csv or .xlsx external file.
+
+    Parameters
+    ----------
+    parameters_filepath: the filepath of the .csv or .xlsx file
+    outputs_path: the path of the outputs folder where a copy of the transformed parameter file will be saved
+
+    Returns
+    -------
+    A dataframe containing the values of the parameters
+    """
 
     # We read the scenario to be run:
     scenarios_df = pd.read_excel(parameters_filepath, header=0, sheet_name="scenarios_as_columns")
@@ -2309,6 +2260,7 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
 
     # We convert the dataframe into a dictionnary:
     scenario = new_scenarios_df.to_dict(orient='records')[0]
+
     # # We finally update the parameters from the original python file of SIMBAL with the parameters taken from this dictionnary:
     # param.__dict__.update(scenario)
     # # We do the same with the parameters of rhizodep:
@@ -2326,6 +2278,19 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
     to the required time step (higher, equal or lower than the original time step).
     If the option 'do_not_execute_if_file_with_suitable_size_exists' is set to True, a new file will be created only if
     the already-existing 'input_file.csv' does not contain the correct number of lines.
+
+    Parameters
+    ----------
+    original_input_file: the filepath to the original input file
+    final_input_file: the filepath to the final input file after transformation
+    original_time_step_in_days: the time step used in the original input file (days)
+    final_time_step_in_days: the time step eventually used in the new, final input file (days)
+    simulation_period_in_days: the simulation period to compute in the input file (days)
+    do_not_execute_if_file_with_suitable_size_exists: if True, no new input file will be computed if the original and final time steps match
+
+    Returns
+    -------
+    The new formatted input file as a dataframe
     """
 
     # We mae sure that there is an original input file to be read:
@@ -2513,10 +2478,16 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
 # This function enables to record the properties of each element of the MTG:
 def recording_MTG_properties(g, file_name='g_properties.csv'):
     """
-    This function records the properties of each node of the MTG "g" inside a csv file.
-    :param g: the MTG where properties are recorded
-    :param file_name: the name of the csv file where properties of each node will be recorded
-    :return: [no return]
+    This function records the properties of each node of a MTG inside a csv file.
+
+    Parameters
+    ----------
+    g: the MTG where properties are recorded
+    file_name: the name of the csv file where properties of each node will be recorded
+
+    Returns
+    -------
+    [Nothing is returned; the properties of the MTG have been saved]
     """
 
     # We define the list of all properties of the MTG:
@@ -2562,8 +2533,7 @@ def recording_MTG_properties(g, file_name='g_properties.csv'):
     return data_frame
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-
-# MAIN FUNCTION FOR LOADING AND DISPLAYING/EXTRACTING PROPERTIES FROM MTG FILES:
+# Main function for loading MTG files and displaying/extracting properties from them:
 def loading_MTG_files(my_path='',
                       opening_list=False,
                       file_extension='pckl',
@@ -2598,34 +2568,40 @@ def loading_MTG_files(my_path='',
 
     """
     This function opens one MTG file or a list of MTG files, displays them and record some of their properties if needed.
-    :param my_path: the general file path, in which the directory 'MTG_directory' will be located
-    :param opening_list: if True, the function opens all (or some) MTG files located in the 'MTG_directory'
-    :param MTG_directory: the name of the directory when MTG files are located
-    :param single_MTG_filename: the name of the single MTG to open (if opening_list=False)
-    :param list_of_MTG_ID: a list containing the ID number of each MTG to be opened (each MTG name is assumed to be in the format 'rootXXXXX.pckl')
-    :param property: the property of the MTG to be displayed
-    :param vmin, vmax, log_scale, cmap, width, height, x_center, y_center, z_center, z_cam, camera_distance,
+
+    Parameters
+    ----------
+    my_path: the general file path, in which the directory 'MTG_directory' will be located
+    opening_list: if True, the function opens all (or some) MTG files located in the 'MTG_directory'
+    MTG_directory: the name of the directory when MTG files are located
+    single_MTG_filename: the name of the single MTG to open (if opening_list=False)
+    list_of_MTG_ID: a list containing the ID number of each MTG to be opened (each MTG name is assumed to be in the format 'rootXXXXX.pckl')
+    property: the property of the MTG to be displayed
+    vmin, vmax, log_scale, cmap, width, height, x_center, y_center, z_center, z_cam, camera_distance,
            step_back_coefficient, camera_rotation, n_rotation_points: [cf parameters of the function plot_MTG]
-    :param adding_images_on_plot: for adding some additional features on the plots' images
-    :param recording_images: if True, images opened in PlantGL will be recorded
-    :param images_directory: the name of the directory where images will be recorded
-    :param z_classification: if True, specific properties will be integrated or averaged for different z-layers
-    :param z_min: the depth to which we start computing
-    :param z_max: the maximal depth to which we stop computing
-    :param z_interval: the thickness of each layer to consider between z_min and z_max
-    :param time_step_in_days: the time step at which is MTG file was generated (used to display time on the images)
-    :param computing_on_different_roots: if True, calculations will be done on different root classes
-    :param comparing_distance_from_tip: if True, root classes will be based not only on root orders, but also according to the distance from root tip
-    :param distance_treshold: the critical distance from root tip to consider when segregating roots according to this distance
-    :param properties_to_compute: a list containing the names of the properties to be considered by the function
-    :param summing_different_roots: if True, the function returns the sum of each property within each root class
-    :param averaging_different_roots: if True, the function returns the mean value of each property for a root element within each root class, and its standard deviation
-    :param printing_sum: if True, properties summed over the whole MTG(s) will be shown in the console
-    :param recording_sum: if True, properties summed over the whole MTG(s) will be recorded
-    :param printing_warnings: if True, warnings will be displayed
-    :param recording_g_properties: if True, all the properties of each MTG's node will be recorded in a file
-    :param MTG_properties_folder: the specific file path in which MTG properties will be recorded, if any
-    :return: The MTG file "g" that was loaded at last.
+    adding_images_on_plot: for adding some additional features on the plots' images
+    recording_images: if True, images opened in PlantGL will be recorded
+    images_directory: the name of the directory where images will be recorded
+    z_classification: if True, specific properties will be integrated or averaged for different z-layers
+    z_min: the depth to which we start computing
+    z_max: the maximal depth to which we stop computing
+    z_interval: the thickness of each layer to consider between z_min and z_max
+    time_step_in_days: the time step at which is MTG file was generated (used to display time on the images)
+    computing_on_different_roots: if True, calculations will be done on different root classes
+    comparing_distance_from_tip: if True, root classes will be based not only on root orders, but also according to the distance from root tip
+    distance_treshold: the critical distance from root tip to consider when segregating roots according to this distance
+    properties_to_compute: a list containing the names of the properties to be considered by the function
+    summing_different_roots: if True, the function returns the sum of each property within each root class
+    averaging_different_roots: if True, the function returns the mean value of each property for a root element within each root class, and its standard deviation
+    printing_sum: if True, properties summed over the whole MTG(s) will be shown in the console
+    recording_sum: if True, properties summed over the whole MTG(s) will be recorded
+    printing_warnings: if True, warnings will be displayed
+    recording_g_properties: if True, all the properties of each MTG's node will be recorded in a file
+    MTG_properties_folder: the specific file path in which MTG properties will be recorded, if any
+
+    Returns
+    -------
+    The MTG file "g" that was loaded (the last one loaded when dealing with a list of MTG files)
     """
 
     # Preparing the folders:

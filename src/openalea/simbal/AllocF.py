@@ -179,8 +179,7 @@ def ADDING_A_PHYTOMER(parent_element,
     internode.surfacic_PAR_averaged_over_time =  0.
     # We initialize a list of previously recorded light intensity shares
     # (used to calculate the average share over a certain period):
-    internode.previous_light_intensity_shares = []
-    internode.previous_PAR_intercepted_values = []
+    internode.previous_surfacic_PAR_intercepted_values = []
 
     # 2) We then create a new leaf that is actually a "branch" on the previous internode:
     # ------------------------------------------------------------------------------------
@@ -215,10 +214,6 @@ def ADDING_A_PHYTOMER(parent_element,
     # compared to the sum of light intensities of all other organs:
     leaf.light_intensity_share = 0.
     leaf.surfacic_PAR_averaged_over_time
-    # We initialize a list of previously recorded light intensity shares
-    # (used to calculate the average share over a certain period):
-    leaf.previous_light_intensity_shares = []
-    leaf.previous_PAR_intercepted_values = []
 
     # 3) We finally create an axilliary bud that is actually a "branch" on the previous internode:
     # ---------------------------------------------------------------------------------------------
@@ -255,10 +250,8 @@ def ADDING_A_PHYTOMER(parent_element,
     # compared to the sum of light intensities of all other organs:
     bud.light_intensity_share = 0.
     bud.surfacic_PAR_averaged_over_time = 0.
-    # We initialize a list of previously recorded light intensity shares
-    # (used to calculate the average share over a certain period):
-    bud.previous_light_intensity_shares = []
-    bud.previous_PAR_intercepted_values = []
+    # We initialize a list of previously recorded surfacic PAR:
+    bud.previous_surfacic_PAR_intercepted_values = []
 
     # Eventually, we redefine the starting coordinates of the internode, leaf and bud as the last point of the parent:
     for element in [internode, leaf, bud]:
@@ -342,16 +335,12 @@ def new_phytomers_emergence(shoot_system,
                     old_internode_vid = shoot_MTG.Father(apex.index(), EdgeType='<')
                     old_leaf_vid = shoot_MTG.Sons(old_internode_vid, EdgeType='+')[0]
                     # We assign the corresponding lists to the new internode and leaf:
-                    internode.previous_light_intensity_shares\
-                        = [shoot_MTG.node(old_internode_vid).previous_light_intensity_shares[-1]]
-                    internode.previous_PAR_intercepted_values\
-                        = [shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values[-1]]
-                    leaf.previous_light_intensity_shares\
-                        = [shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares[-1]]
-                    leaf.previous_PAR_intercepted_values\
-                        = [shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values[-1]]
+                    internode.previous_surfacic_PAR_intercepted_values\
+                        = shoot_MTG.node(old_internode_vid).previous_surfacic_PAR_intercepted_values
+                    leaf.previous_surfacic_PAR_intercepted_values\
+                        = shoot_MTG.node(old_leaf_vid).previous_surfacic_PAR_intercepted_values
                 except:
-                    print("ERROR: we could not access the list of previous light intensity shares below the apex", apex.index())
+                    print("ERROR: we could not access the list of previous surfacic PAR values below the apex", apex.index())
                 # And we add a new apex at the top of the new internode, of length 0:
                 new_apex = ADDING_A_CHILD_ORGAN(parent_element=internode,
                                                 edge_type="<",
@@ -398,30 +387,36 @@ def new_phytomers_emergence(shoot_system,
 # This function enables to generate an initial MTG with a certain number of leaves and corresponding internodes:
 def create_shoot_MTG(number_of_cotyledons=2,
                      number_of_phytomers=0,
+                     actual_time_since_germination=2. * (60 * 60 * 24),
                      thermal_time_since_germination = 2.*(60*60*24),
-                     actual_time_since_germination = 2.*(60*60*24),
+                     initial_hypocotyl_length=0.0001,
                      initial_cotyledon_length=0.003,
                      initial_leaf_length=0.003,
                      initial_internode_radius = 0.001,
-                     initial_hypocotyl_length = 0.0001,
                      initial_internode_height = 0.0005,
                      initial_labile_C_concentration = 0.001,
                      initial_labile_N_concentration = 0.0001,
                      struct_mass_density=1e5, minimal_leaf_thickness=1e-3,
                      sowing_depth=0.):
     """
-    This function is used to create the shoot part of a plant with a succession of different phytomers on the same branch.
+    This function is used to create the shoot part of a plant with a succession of one hypocotyl, some cotyledons,
+    and some phytomers on one unique stem.
 
     Parameters
     ----------
-    number_of_phytomers: the number of cotyledons to be created
+    number_of_cotyledons: the number of cotyledons to be created
     number_of_phytomers: the number of successive phytomers to be created
+    actual_time_since_germination: the actual time since the plant has germinated (seconds)
+    thermal_time_since_germination: the thermal time since the plant has germinated (seconds equivalent to the reference temperature)
+    initial_cotyledon_length: the length of the starting cotyledon(s) (meters)
     initial_leaf_length: the length of the leaves to be created (meters)
-    leaf_surface_max: the maximal surface that the leaves will be allowed to reach (useful for cotyledons)
     initial_internode_radius: the radius of the internodes to be created (meters)
-    initial_internode_height: the height of the internodes to be created (meters)
+    initial_internode_height: the initial height of the internodes to be created (meters)
+    initial_labile_C_concentration: the initial concentration of labile C in the shoot elements
+    initial_labile_N_concentration: the initial concentration of labile N in the shoot elements
     struct_mass_density: the density of the structural mass (gDW per cubic meter)
     minimal_leaf_thickness: the thickness of the leaves to be created (meters)
+    sowing_depth: the depth at which the seed has germinated (meters)
 
     Returns
     -------
@@ -431,6 +426,7 @@ def create_shoot_MTG(number_of_cotyledons=2,
     # We initialize an empty MTG:
     g = MTG()
 
+    # ADDING HYPOCOTYL:
     # We define the base of the shoot system, ADDING ALL THE POSSIBLE PROPERTIES THAT A SHOOT ORGAN WILL LATER CONTAIN:
     id_base = g.add_component(g.root,
                               label='Internode',
@@ -472,14 +468,12 @@ def create_shoot_MTG(number_of_cotyledons=2,
                               PAR_intercepted=0.,
                               surfacic_PAR_intercepted=0.,
                               surfacic_PAR_averaged_over_time=0.,
-                              previous_PAR_intercepted_values=[],
+                              previous_surfacic_PAR_intercepted_values=[],
                               light_intensity_share=0.,
-                              previous_light_intensity_shares=[],
                               Caribu_Eabs = 0.,
                               Caribu_Ei = 0.,
                               Caribu_area = 0.
                               )
-
     # We access this first element (hypocotyl), and consider it as an internode on which the next upper shoot elements
     # will be attached:
     new_internode = g.node(id_base)
@@ -488,13 +482,11 @@ def create_shoot_MTG(number_of_cotyledons=2,
     new_internode.volume = new_internode.radius ** 2. * pi * new_internode.length
     new_internode.struct_mass = new_internode.volume * struct_mass_density
     new_internode.photosynthetic_area = new_internode.surface
-
+    # We define the labile C and N content:
     new_internode.labile_C = initial_labile_C_concentration * new_internode.struct_mass
     new_internode.labile_N = initial_labile_N_concentration * new_internode.struct_mass
-
-    # We define the ramification order of the main stem as 0:
+    # We define the ramification order of the main stem, which is 0:
     new_internode.ramification_order = 0
-
     # We define the time since initiation and emergence of the hypocotyl and cotyledons:
     thermal_time_since_initiation = thermal_time_since_germination
     actual_time_since_initiation = actual_time_since_germination
@@ -503,16 +495,15 @@ def create_shoot_MTG(number_of_cotyledons=2,
         actual_time_since_emergence = thermal_time_since_emergence * actual_time_since_germination / thermal_time_since_germination
     else:
         actual_time_since_emergence = 0.
-
     # We set the time since initiation and emergence:
     new_internode.actual_time_since_initiation = actual_time_since_germination
     new_internode.thermal_time_since_initiation = thermal_time_since_germination
     new_internode.actual_time_since_emergence = actual_time_since_germination
     new_internode.thermal_time_since_emergence = thermal_time_since_germination
 
+    # ADDING COTYLEDONS
     # For each new cotyledon to be created:
     for i in range(0, number_of_cotyledons):
-
         # We first create an internode of zero length, and then a connected cotyledon and a fake bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
                                                                struct_mass_density=struct_mass_density,
@@ -548,9 +539,9 @@ def create_shoot_MTG(number_of_cotyledons=2,
         new_bud.node_rank = 0
         new_bud.ramification_order = 0
 
+    # ADDING PHYTOMERS ON THE MAIN STEM:
     # For each new phytomer to be created:
     for i in range(0, number_of_phytomers):
-
         # We define the time since initiation and emergence of the current phytomer:
         thermal_time_since_initiation = (number_of_phytomers - i) * param.plastochron
         thermal_time_since_emergence = (number_of_phytomers - i) * param.phyllochron
@@ -560,7 +551,6 @@ def create_shoot_MTG(number_of_cotyledons=2,
         else:
             actual_time_since_initiation = 0.
             actual_time_since_emergence = 0.
-
         # We first create an internode, and then a connected leaf and a bud:
         [new_internode, new_leaf, new_bud] = ADDING_A_PHYTOMER(parent_element=new_internode,
                                                                struct_mass_density=struct_mass_density,
@@ -574,7 +564,6 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                                                actual_time_since_emergence=actual_time_since_emergence,
                                                                thermal_time_since_emergence=thermal_time_since_emergence,
                                                                properties_identical_to_parent = True)
-
         # We set the type of the elements of this phytomer as normal:
         new_internode.type= "Normal"
         new_leaf.type = "Normal"
@@ -586,7 +575,6 @@ def create_shoot_MTG(number_of_cotyledons=2,
         if new_leaf.length > 0.:
             new_leaf.labile_C = initial_labile_C_concentration
             new_leaf.labile_N = initial_labile_N_concentration
-
     # Finally, on the last internode, we add a new apex that may continue to form new phytomers over the simulation:
     new_apex = ADDING_A_CHILD_ORGAN(parent_element=new_internode,
                                     edge_type="<",
@@ -594,11 +582,11 @@ def create_shoot_MTG(number_of_cotyledons=2,
                                     nil_properties=True)
     new_apex.length = 0.
     new_apex.node_rank = number_of_phytomers
-
     new_apex.number_of_phytomers_initiated_on_the_axis = -1
     new_apex.number_of_phytomers_left_to_emerge_on_the_axis = -1
     new_apex.number_of_phytomers_already_emerged_on_the_axis = number_of_phytomers
 
+    # ADDING EXTRA PROPERTIES FOR SPECIFIC ELEMENTS:
     # Eventually, we add special properties specific to the base of the shoot system that are not expected elsewhere
     # in the shoot system:
     base = g.node(0)
@@ -612,32 +600,6 @@ def create_shoot_MTG(number_of_cotyledons=2,
     return g
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# Function for loading a MTG from CSV file containing its properties (not working?):
-def create_MTG_from_csv_file(csv_filename='MTG_00003.csv'):
-
-    # We first read the csv file where all the properties of each vertex has been previously recorded:
-    dataframe = pd.read_csv(csv_filename, sep=',', header=0)
-    # We initialize an empty MTG:
-    g = MTG()
-
-    # We define the list of vertices and properties to be added to the MTG:
-    list_of_vid = dataframe['node_index']
-    list_of_properties = list(dataframe.columns.values)
-    list_of_properties.remove('node_index')
-
-    # We cover each new vertex to be added to the MTG:
-    for vid in list_of_vid:
-        # We get the previous element on which to add the new element:
-        n = g.node(vid-1)
-        # We now define the new element as the child of the previous element:
-        n = n.add_child()
-        # For this new element, we cover all the properties defined in the csv file:
-        for property in list_of_properties:
-            # For the specific property, we get the single value corresponding to the current vertex ID:
-            selected_series = dataframe[property].loc[dataframe['node_index'] == vid].iloc[0]
-            # NB: we need to add 'iloc[0]' as the previous expression otherwise returns a series, not a single value.
-    return g
-#-----------------------------------------------------------------------------------------------------------------------
 def geometry_evolution(shoot_MTG,
                        plant_genotype_name = "rapeseed",
                        plant_thermal_age_in_degree_days = 0.):
@@ -646,7 +608,8 @@ def geometry_evolution(shoot_MTG,
     Parameters
     ----------
     shoot_MTG: the shoot MTG containing each organ as node
-    plant_thermal_age: the thermal age of the whole plant
+    plant_genotype_name: the name of the plant genotype, e.g. "rapeseed" or "faba_bean"
+    plant_thermal_age: the thermal age of the whole plant (seconds equivalent to the reference temperature)
 
     Returns
     -------
@@ -679,15 +642,35 @@ def computing_light_interception_on_plant_population(scene,
                                                      shoot_MTG_dict={},
                                                      list_of_scene_MTG=[],
                                                      incoming_light_density = 400,
-                                                     isolated_plant=False,
                                                      zenithal_light=False,
                                                      infinite=False,
-                                                     averaging_light_intensity_share=False,
+                                                     averaging_surfacic_PAR_over_time=False,
                                                      period_of_light_intensity_averaging_in_days=1,
                                                      time_step_in_days=1/24.
                                                      ):
     """
-    This function computes the light intercepted by a plant within a specific population design defined by a scene.
+    This function computes the light intercepted by plants within a specifically-designed scene containing a population
+    of plants, using CARIBU model. The light intercepted by a representative plant of each genotype in the middle of the
+    scene will be recorded. Note that the organs belowground (i.e. z < 0) will not intercept light.
+
+    Parameters
+    ----------
+    scene: the PlantGL scene where light interception will be computed
+    scene_information: a dictionary of specific information regarding the scene, created with the function 'create_plants_population_scene'
+    genotype_names_list: a list of plant genotype names, e.g. ["rapeseed", "faba_bean"]
+    shoot_MTG_dict: a dictionary containing, for each plant genotype name, the corresponding reference shoot MTG
+    list_of_scene_MTG: a list containing all (possibly duplicated) shoot MTG present in the scene to create the population
+    incoming_light_density: the incoming light density (micromoles of photons per square meter of ground per second)
+    zenithal_light: if True, only one direction of light (vertical) will be used; if False, a dome-shaped, multidirectional light representative of one day will be applied
+    infinite: if True, the scene will be replicated to infinite
+    averaging_surfacic_PAR_over_time: if True, the function will compute the current surfacic PAR, and then the new mean surfacic PAR intercepted by each shoot organ over a definite period of time
+    period_of_light_intensity_averaging_in_days: if averaging_surfacic_PAR_over_time is True, the period over which surfacic PAR should be averaged (actual days)
+    time_step_in_days: the actual time step of the simulation (days)
+
+    Returns
+    -------
+    total_PAR_intercepted_dict: a dictionary containing the total PAR (micromol of photons per second) intercepted by one plant representative for each plant genotype name used here as a key
+    sum_of_surfacic_PAR_dict: a dictionary containing the sum of surfacic PAR (micromol of photons per square meter per second) intercepted by each organ of one representative plant for each plant genotype name used here as a key
     """
 
     # We initialize dictionaries for the total PAR intercepted by the shoot (umol of photons per second) and the sum of
@@ -719,14 +702,12 @@ def computing_light_interception_on_plant_population(scene,
         else:
             # We open the standard light input file as a dataframe:
             sky = str(data_path('Turtle16soc.light'))
-
             # # As a stupid warning linked to delim_whitespace used in read_csv occurs below, we hide it using warnings:
             # warnings.filterwarnings("ignore", message=".*The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version.*")
             reference_light_file = pd.read_csv(sky,
                                                # delim_whitespace=True,
                                                delimiter=" ",
                                                header=None)
-
             # The file is made of one line by collimated source, i.e. by direction of the sky hemisphere.
             # Each line contains the source-induced irradiance (i.e. the irradiance of a horizontal surface located just above
             # the canopy), followed by the 3D vector of the direction of light. Ex: (650,0,0,-1) for the sun located at zenith.
@@ -743,22 +724,20 @@ def computing_light_interception_on_plant_population(scene,
                 line = (reference_light_file.loc[row_index, 0], tuple(coordinates))
                 # And we add this new line to the light file:
                 LIGHT.append(line)
-
         # In case we want to replicate the scene to infinity:
         if infinite:
             # We create a pattern based on the size of the scene:
             pattern = tuple([0*unit_factor,0*unit_factor,scene_length*unit_factor,scene_width*unit_factor])
         else:
             pattern = None
-
         # Finally, we create the Caribu scene and run the light interception:
         try:
             cs = CaribuScene(scene=scene, light=LIGHT, scene_unit='cm', pattern=pattern) #,opt=opts)
             raw, agg = cs.run(infinite=infinite, simplify=True, direct=True)
             # The resulting dictionnaries "agg" contains three dictionnaries for each "active" vertex if the MTG:
             #   area (float): the individual areas (m2)
-            #   Eabs (float): the surfacic density of energy absorbed (m-2)
-            #   Ei (float): the surfacic density of energy incoming (m-2)
+            #   Eabs (float): the surfacic density of energy absorbed (micromol per m2 per second)
+            #   Ei (float): the surfacic density of energy incoming (micromol per m2 per second)
             # NOTE: The other dictionnary raw contains three similar dictionnary at the scale of each triangle.
             # Now we reallocate the properties of light interception to each MTG in the population of plants within the scene:
             list_of_plant_id = scene_information["plant_id"]
@@ -799,10 +778,21 @@ def computing_light_interception_on_plant_population(scene,
             # We access the copied MTG:
             scene_g = list_of_scene_MTG[middle_id]
 
+            # If we need to consider previous light intensity shares:
+            if averaging_surfacic_PAR_over_time:
+                # Then we will need the number of previous surfacic PAR values to include in the calculation
+                # of the average surfacic PAR:
+                number_of_previous_values = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
+
             # We cover each organ n of the original shoot MTG:
             for vid in g.vertices_iter(scale=1):
                 n = g.node(vid)
                 scene_n = scene_g.node(vid)
+
+                # We exclude organs with no length:
+                if n.length <= 0.:
+                    continue
+
                 try:
                     # If the mean z-position of the current organ is below 0, then it is belowground and cannot intercept light:
                     if np.average([n.z1, n.z2]) < 0.:
@@ -815,7 +805,20 @@ def computing_light_interception_on_plant_population(scene,
                     total_PAR_intercepted += scene_n.Caribu_Eabs * scene_n.Caribu_area
                     total_surface += scene_n.Caribu_area
                     n.surfacic_PAR_intercepted = scene_n.Caribu_Eabs
-                    sum_of_surfacic_PAR += scene_n.Caribu_Eabs
+                    # If we need to consider previous light intensity shares:
+                    if averaging_surfacic_PAR_over_time:
+                        # If the previously recorded list has already the right number of values to be averaged:
+                        if len(n.previous_surfacic_PAR_intercepted_values) >= number_of_previous_values:
+                            # We remove the first element of the list, i.e. the oldest one:
+                            n.previous_surfacic_PAR_intercepted_values.pop(0)
+                        # In any case we add the surfacic PAR intercepted:
+                        n.previous_surfacic_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
+                        # And we calculate the new mean surfacic PAR value averaged over time:
+                        n.surfacic_PAR_averaged_over_time = np.mean(n.previous_surfacic_PAR_intercepted_values)
+                    else:
+                        n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
+                    # We add the surfacic PAR value to the computed sum:
+                    sum_of_surfacic_PAR += n.surfacic_PAR_averaged_over_time
                 except:
                     print("WATCH OUT: the intercepted PAR of the shoot element", vid, "could not be calculated!")
                     print("We therefore set it to 0 umol m-2 s-1.")
@@ -828,94 +831,52 @@ def computing_light_interception_on_plant_population(scene,
 
    # Otherwise, if there was no light input:
     else:
-        # We set the sum of surfacic PAR to 0:
-        sum_of_surfacic_PAR = 0.
         # And we assign 0 to the intercepted PAR for each genotype:
         for genotype_name in genotype_names_list:
             total_PAR_intercepted_dict[genotype_name] = 0.
             sum_of_surfacic_PAR_dict[genotype_name] = 0.
 
-    # COMPUTING LIGHT INTENSITY SHARE AND AVERAGE SURFACIC PAR OVER TIME:
-    #####################################################################
+    # COMPUTING LIGHT INTENSITY SHARE:
+    ##################################
 
-    # With or without light input, we cover the distinct shoot MTG for which we want to compute "light intensity"
-    # and the corresponding share for each organ within the plant:
+    # With or without light input, we cover the distinct shoot MTG for which we want to compute the fraction of light
+    # intensity for each organ within the plant:
     for genotype_name in genotype_names_list:
 
         # We access the corresponding original MTG:
         g = shoot_MTG_dict[genotype_name]
-
-        # We initialize a counter for checking that the sum of light intensity share of each organ will be equal to 1:
+        # We get the previously computed sum of surfacic PAR:
+        sum_of_surfacic_PAR = sum_of_surfacic_PAR_dict[genotype_name]
+        # We initialize a counter for checking that the sum of surfacic PAR will be equal to 1:
         sum_of_light_fractions = 0.
-
-        # If we need to consider previous light intensity shares:
-        if averaging_light_intensity_share:
-            # Then we will need the number of previous actual shares to include in the calculation of the average share:
-            number_of_previous_shares = round(period_of_light_intensity_averaging_in_days / time_step_in_days)
+        # We check whether the shoot system has emerged from the ground:
+        hypocotyl = g.node(1)
+        if hypocotyl.actual_time_since_aboveground_emergence > 0.:
+            shoot_MTG_has_emerged = True
+        else:
+            shoot_MTG_has_emerged = False
 
         # We cover each organ n of the shoot:
         for vid in g.vertices_iter(scale=1):
             n = g.node(vid)
-
             # We exclude organs with no length:
             if n.length <= 0.:
                 continue
-
             # We first compute the actual share of light intensity for this time step, based on surfacic PAR:
             if sum_of_surfacic_PAR > 0.:
-                new_light_intensity_share = n.surfacic_PAR_intercepted / sum_of_surfacic_PAR
+                n.light_intensity_share = n.surfacic_PAR_averaged_over_time / sum_of_surfacic_PAR
             else:
-                new_light_intensity_share = 0.
-
-            # If we do not take into account previous light intensity share:
-            if not averaging_light_intensity_share:
-                # Then the light intensity share is directly the one that has just been determined
-                # based on the light intercepted at this time step:
-                n.light_intensity_share = new_light_intensity_share
-                n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
-            # Otherwise, if we need to consider previous light intensity shares:
-            else:
-                # If the previously recorded list does not contain yet the right number of shares to be averaged:
-                if len(n.previous_light_intensity_shares) < number_of_previous_shares:
-                    # If light was intercepted at this time step:
-                    if sum_of_surfacic_PAR > 0.:
-                        # Then we just add the current actual share to the list:
-                        n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    if len(n.previous_PAR_intercepted_values) >= number_of_previous_shares:
-                        # We remove the first element of the list:
-                        n.previous_PAR_intercepted_values.pop(0)
-                    # Whether light was present or not at this time step, we add the surfacic PAR intercepted:
-                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
-                else:
-                    # If light was intercepted at this time step:
-                    if sum_of_surfacic_PAR > 0.:
-                        # We remove the first element of the list of previous actual light intensity shares (i.e. the oldest one):
-                        n.previous_light_intensity_shares.pop(0)
-                        # And we add at the end of the list the new actual share of light intensity for this time step:
-                        n.previous_light_intensity_shares.append(new_light_intensity_share)
-                    # Whether light was present or not at this time step:
-                    n.previous_PAR_intercepted_values.pop(0)
-                    n.previous_PAR_intercepted_values.append(n.surfacic_PAR_intercepted)
-
-                # Finally, we calculate the new average light intensity share based on previously computed shares:
-                if len(n.previous_light_intensity_shares) > 0.:
-                    n.light_intensity_share = np.mean(n.previous_light_intensity_shares)
-                    n.surfacic_PAR_averaged_over_time = np.mean(n.previous_PAR_intercepted_values)
-                else:
-                    n.light_intensity_share = new_light_intensity_share
-                    n.surfacic_PAR_averaged_over_time = n.surfacic_PAR_intercepted
-
+                n.light_intensity_share = 0.
             # We add this share to the sum of fractions for eventually checking that the sum is equal to 1:
             sum_of_light_fractions += n.light_intensity_share
 
         # CONTROL & ADJUSTMENTS:
-        if abs(sum_of_light_fractions - 1) > 2:
-            print("PROBLEM!!!")
-
-        # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
-        if abs(sum_of_light_fractions - 1) > 1e-14:
-            print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was", sum_of_light_fractions, "and not 1!")
-            print("We therefore adjusted each light intensity share to correct this!")
+        if incoming_light_density > 0. and shoot_MTG_has_emerged:
+            # If the sum of all light fractions is not equal to 1 (this may particularly occur when new elements are created):
+            if abs(sum_of_light_fractions - 1) > 1e-14:
+                print("!!! WATCH OUT: the sum of the light intensities perceived by each shoot organ was",
+                      "{:.2E}".format(sum_of_light_fractions), "and not 1!")
+                print("We therefore adjusted each light intensity share to correct this!")
             # We will adjust the light intensity share of each organ so that their sum is now equal to 1.
             # We cover each organ n of the shoot:
             for vid in g.vertices_iter(scale=1):
@@ -934,7 +895,7 @@ def computing_photosynthesis_rate(shoot_system, shoot_MTG, air_temperature_in_de
     """
     This function calculates the actual photosythesis rate (in gC per second) for each organ of the shoot MTG, based on
     its intercepted PAR (micromol of photons per m2 per second), its photosynthetic surface (m2)
-    and a temperature-dependent parameter SCA, i.e. its specific carbon assimilation (gC per micromol of photons).
+    and the temperature-dependent specific carbon assimilation (gC per micromol of photons).
 
     Parameters
     ----------
@@ -990,6 +951,20 @@ def computing_photosynthesis_rate(shoot_system, shoot_MTG, air_temperature_in_de
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing the supply of resources from the seed to the new seedling after germination:
 def computing_supply_from_seed_rate(shoot_system, air_temperature_in_degree_Celsius=10.):
+    """
+    This function computes the rate of labile C and N supply corresponding to the mobilization of resource from the
+    germinated seed.
+
+    Parameters
+    ----------
+    shoot_system: the object containing the main properties of the shoot system (not the shoot MTG!)
+    air_temperature_in_degree_Celsius: the average temperature of the air experienced by the shoots
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with the property 'C_supply_from_seed_rate'
+    and 'C_supply_from_seed_rate' in each organ (gC or gN per second per plant)]
+    """
 
     # We compute a modifying factor based on temperature:
     temperature_modifier = temperature_modification(temperature_in_Celsius=air_temperature_in_degree_Celsius,
@@ -1060,50 +1035,7 @@ def computing_maintenance_rate(shoot_MTG, air_temperature_in_degree_Celsius=10.)
     return total_maintenance_rate
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
-# # TODO: Complete or delete this function
-# def computing_shoot_N_remobilization(shoot_MTG, k_N_mobilization):
-#     """
-#     This function calculates the rate of N mobilization (gN per second) from the N labile pool in each shoot organ,
-#     based on first-order kinetics.
-#     :param g: the MTG corresponding to the shoot system
-#     :param k_N_mobilization: the time constant associated to the first order decay (second-1)
-#     :return: [no return - the MTG g has been updated with the property 'N_mobilization_rate']
-#     """
-#
-#     # We cover each organ of the shoot:
-#     for vid in shoot_MTG.vertices_iter(scale=1):
-#         # We access the current organ"n":
-#         n = shoot_MTG.node(vid)
-#
-#         # We exclude elements where a deficit of labile N has been previously recorded:
-#         if n.labile_N_deficit >= 0.:
-#             n.shoot_N_mobilization_rate = 0.
-#             continue
-#
-#         # We compute the rate of N mobilization:
-#         n.shoot_N_mobilization_rate = k_N_mobilization * n.labile_N
-#
-#     return
-# #-----------------------------------------------------------------------------------------------------------------------
-# #-----------------------------------------------------------------------------------------------------------------------
-# # TODO: Complete or delete this function - only relevant if labile N is disintguished from reserve N...
-# def computing_shoot_N_immobilization(shoot_MTG):
-#     """
-#     This function calculates the rate of N immobilization (gN per second) in each shoot organ.
-#     :param shoot_MTG: the MTG corresponding to the shoot system
-#     :return: [no return - the MTG g has been updated with the property 'shoot_N_immobilization_rate']
-#     """
-#
-#     # We cover each organ of the shoot:
-#     for vid in shoot_MTG.vertices_iter(scale=1):
-#         # We access the current organ"n":
-#         n = shoot_MTG.node(vid)
-#         # We compute the rate N mobilization:
-#         n.net_shoot_N_immobilization_rate = 0.
-#
-#     return
-#-----------------------------------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------------------------------------
+# Function for computing the potential extension of shoot organs:
 def potential_shoot_growth(shoot_MTG,
                            leaf_potential_growth_option="by_SFQN",
                            leaf_minimal_thickness = 1e-3,
@@ -1115,14 +1047,27 @@ def potential_shoot_growth(shoot_MTG,
                            time_step_in_seconds = 60.*60.*24.,
                            air_temperature_in_degree_Celsius = 10.):
     """
-    This function computes the potential increase in volume of each organ in the shoot system.
-    :param shoot_MTG: the MTG corresponding to the shoot system
-    :param SFQN: the slope of the relationship of Leaf area = f(labile_N) (m2 per gN)
-    :param leaf_minimal_thickness: the minimal thickness of a leaf (meter)
-    :param elong_internode: a potential rate of elongation (meter per second)
-    :param time_step_in_seconds: the time step of the simulation (seconds)
-    :param air_temperature_in_degree_Celsius: the mean temperature experienced by the shoots (degree Celsius)
-    :return:
+    This function computes the potential increase in volume of each existing organ in the shoot system.
+    It does not include the emergence of new phytomers or lateral axes.
+
+    Parameters
+    ----------
+    shoot_MTG: the MTG corresponding to the shoot system
+    leaf_potential_growth_option: either 'by_SFQN' for calculating the increase in leaf surface from SFQN relationship, or 'by_light_intensity' when calculating it as a function of the relative surfacic PAR intercepted
+    leaf_minimal_thickness: the minimal thickness of a leaf (meter)
+    leaf_shape: the leaf shape used for converting leaf surface into new length and width (e.g. "diamond_shape")
+    elong_hypocotyl: the potential rate of elongation for the hypocotyl (meter of new length per meter of radius per second)
+    elong_internode_slow: the potential rate of elongation for the internodes during the "slow phase" (meter of new length per meter of radius per second)
+    elong_internode_fast: the potential rate of elongation for the internodes during the "fast phase" (meter of new length per meter of radius per second)
+    plant_age: the thermal age of the plant (seconds equivalent to the reference temperature)
+    time_step_in_seconds: the time step of the simulation (seconds)
+    air_temperature_in_degree_Celsius: the average temperature of the air experienced by the shoots
+
+    Returns
+    -------
+    [Nothing is returned; the MTG has been updated with the properties 'potential_length' (m), 'potential_radius' (m),
+    and 'potential_volume_increment' (m3)]
+
     """
 
     # We rename the MTG for simplification:
@@ -1152,11 +1097,10 @@ def potential_shoot_growth(shoot_MTG,
         if n.label == "Leaf":
 
             if leaf_potential_growth_option == "by_SFQN":
-                # We calculate the potential surface based on the available N in the leaf:
-                potential_leaf_surface = n.labile_N * param.SFQN
+                potential_leaf_surface = n.surface + n.labile_N * param.SFQN
             elif leaf_potential_growth_option == "by_light_intensity":
                 # We define a coefficient of surface increase per day at 20°C as a function of PAR:
-                potential_leaf_surface = n.surface * (1 + param.relative_leaf_surface_increase_rate * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days/(60.*60.*24.))
+                potential_leaf_surface = n.surface * (1 + param.relative_leaf_surface_increase_rate * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days*(60.*60.*24.))
             # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
 
@@ -1169,6 +1113,7 @@ def potential_shoot_growth(shoot_MTG,
             # The potential volume increment is based on a minimal thickness:
             n.potential_volume_increment = min(potential_surface_increase, maximal_surface_increase) * leaf_minimal_thickness
             #TODO: what happens if the leaf has already a thickness higher than the minimal one?
+
 
             if leaf_shape == "diamond_shape":
                 # We consider the leaf as a diamond characterized by its length and its width, which is calculated as
@@ -1275,6 +1220,10 @@ def potential_shoot_growth(shoot_MTG,
             # Then we set the potential volume increment to 0:
             n.potential_volume_increment = 0.
 
+        # VERIFICATION:
+        if n.potential_volume_increment < 0.:
+            print("!!! ERROR! The new potential volume increment for the element", vid, "was negative!")
+
     return
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1305,9 +1254,20 @@ def actual_shoot_growth(shoot_MTG,
     Returns
     -------
     total_actual_C_consumption_rate_by_shoot_growth: the rate of labile C consumption for producing the actual new
-                                                     structural mass (including the respiratory cost)
+                                                     structural mass (including respiration cost) (gC per second per plant)
     total_actual_N_consumption_rate_by_shoot_growth: the rate of labile N consumption for producing the actual new
-                                                     structural mass
+                                                     structural mass (gN per second per plant)
+    [The MTG has been updated in each emerged organ for properties:
+    'length' (m),
+    'radius' (m),
+    'surface' (m2),
+    'volume' (m3),
+    'struct_mass' (gDW),
+    'actual_elongation_rate' (meter per second),
+    'actual_C_consumption_rate_by_shoot_growth' (gC per second),
+    'actual_N_consumption_rate_by_shoot_growth' (gN per second),
+    'actual_time_since_emergence' (seconds),
+    'thermal_time_since_emergence' (seconds at reference temperature)]
     """
 
     # We rename the shoot MTG for simplification:
@@ -1426,7 +1386,7 @@ def actual_shoot_growth(shoot_MTG,
                 length_increment = sqrt(n.surface * 4 / (param.leaf_width_to_length_ratio)) - n.length
                 # The length is incremented with the corresponding result:
                 n.length += length_increment
-                # The radius, which is half of the width, is also calculated based on the allometric coefficient
+                # The radius, which is half of the width, is also calculated based on the allometric coefficient:
                 new_radius = n.length * param.leaf_width_to_length_ratio / 2.
             else:
                 # We assume that the leaf is an ellipse characterized by its length and its width, which is calculated as
@@ -1475,10 +1435,11 @@ def actual_shoot_growth(shoot_MTG,
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for computing the ageing of each shoot organ:
-def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_degree_Celsius=20, zoom_factor = 1.):
+def ageing(shoot_MTG, time_step_in_seconds=24*60.*60., air_temperature_in_degree_Celsius=20.):
     """
-    This functions increases the age of each organ in the shoot MTG. The age is expressed in seconds, either as actual
-    time or as time equivalent to the reference growth temperature.
+    This functions increases the age (since initiation or actual emergence) of each organ in the shoot MTG. In the case
+    of hypocotyl, the time since the hypocotyl has emerged from belowground is also computed. The age is expressed in
+    seconds, either as actual time or as time equivalent to the reference growth temperature.
 
     Parameters
     ----------
@@ -1488,8 +1449,11 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
 
     Returns
     -------
-    [Nothing is returned; the MTG has been updated with the properties 'actual_time_since_emergence' (seconds)
-    and 'thermal_time_since_emergence' (seconds at reference temperature)]
+    [Nothing is returned; the MTG has been updated with the properties:
+    'actual_time_since_initiation' (seconds)
+    'actual_time_since_emergence' (seconds)
+    'thermal_time_since_initiation' (seconds at reference temperature)
+    'thermal_time_since_emergence' (seconds at reference temperature)]
     """
 
     # We consider a temperature-modifier of time, in order to calculate the equivalent of thermal time:
@@ -1543,50 +1507,39 @@ def ageing(shoot_MTG, time_step_in_seconds=24 * 60. * 60., air_temperature_in_de
 # ----------------------------------------------------------------------------------------------------------------------
 # Function for computing shoot ramification:
 
-# On part sur une structure potentielle maximale paramétrée.
-# Le virage floral est atteint au bout d'un certain temps thermique (entre mi-décembre et mi-janvier).
-
-# Au virage floral, le méristème principal ne fera plus de feuilles et que une fleur (ou plusieurs).
-# Le nombre total de phytomères sur la tige principal sera:
-# n_phytomers_formés (y compris non émergés) = k * (n_feuilles_rosette_émergées au virage floral)
-# Modèle "sapin" pour définir le nombre d'entre-noeuds sur les ramifs primaires (+1 en descendant du haut de la tige vers le bas)
-# Pour les secondaires : plutôt en haut...
-
-# Le profil de longueur d'entre-noeuds sur la tige principale est plutôt ventru (max au milieu de la tige, pas en bas).
-# Elongation forcée + limitation trophique + dominance apicale (depuis le haut)
-
-# La date d'élongation est différente du virage floral (vers février-mars). Temps thermique constant ?
-
-# ***
-
-# La floraison est indéterminée. A partir du virage floral, on a élongation tige principale, puis apparition
-# inflorescence à la fin des axes + élongation des ramifications.
-# Idée de l’archi potentielle : x feuilles au virage floral conditionnent un nombre total de feuilles n
-# (sachant que les entrenoeuds courts ne donnent pas de ramifications). A partir du premier entrenoeud qui ramifie,
-# tous les entrenoeuds au-dessus vont former des ramifications. Chaque axe latéral va avoir un nombre max d’entrenoeud :
-# 1 au sommet, puis 2 sur l’axe latéral en dessous, puis 3, etc. Pour les secondaires, en théorie on aurait la même chose.
-# Comment est régulé le numéro de la ramification la plus basse ? Les axes ramifiés démarrent à peu près tous en même temps,
-# donc on les fait partir en même temps, à partir du moment où une part. Le RC/RS diminue en partant du haut dans le couvert.
-# Il y aurait donc un seuil critique qui déclenche la ramif à partir de cet entrenoeud  ça détermine donc
-# la position de l’entrenoeud de départ.
-# Quand déclencher ? Avec un temps thermique donné de départ pour la plante, ou pour l’entrenoeud de départ.
-# Ou photopériode ? Ou température critique ? Faut-il tenir compte aussi de l’ensoleillement global ?
-# Pourquoi les ramif du haut s’allongeraient plus lentement ? Dominance apicale à coder en dur par rapport à la distance
-# à l’inflorescence de l’axe principal ?
+# NOTE ON RAMIFICATION AND FLOWERING FOR OILSEED RAPE:
+# 1) Flowering transition is acheived for winter oilseed rape between mid-December and mid-January. After that, the
+# main stem meristem at the tip of the axis will produce flowers instead of new leaves. The number of phytomers initiated
+# in the main stem at the start of flowering transition is proportional to the number of already-emerged phytomers.
+# 2) The number of phytomers on each primary ramification follows a "Christmas tree" pattern, where one phytomer is on
+# the first ramification on the top, then one more phytomer can be counted per ramification when moving from top to bottom.
+# It should theoretically be the same principle for secondary ramifications.
+# 2bis) The Ref:Far Red ratio decreases from top to bottom. We assume that there is a minimal age and R:FR treshold for
+# which one ramification can emerge, triggering ramification. It could also depend on a critical temperature? photoperiod?
+# 3) The elongation of internodes on the main stem starts later than flowering transition, around February-March. All
+# existing internodes above the starting one start elongating at the same time. The profile of internodes length on the
+# main stem follows a bell-shape, i.e. is maximal in the middle of the stem. Short internodes at the base of the stem do
+# not elongate, then all internodes above the starting internode elongate.
+# 3bis) Why do upper ramifications elongate more slowly? Should we code an apical dominance as a function of the distance
+# with the flowers from the main stem?
 
 def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_leaf_length=0.001,
                            time_step_in_seconds=60.*60.):
     """
+    This function allows buds to be transformed into active apices, therefore creating new axes.
 
     Parameters
     ----------
-    shoot_MTG
-    initial_internode_length
-    initial_leaf_length
+    shoot_MTG: the shoot MTG containing all shoot organs
+    initial_internode_length: the initial internode length of the first phytomer created on a new emerged axis
+    initial_leaf_length: the initial leaf length of the first phytomer created on a new emerged axis
+    time_step_in_seconds: the actual time step of the simulation (seconds)
 
     Returns
     -------
-
+    total_C_costs_for_new_phytomers, total_N_costs_for_new_phytomers: the rate of labile C and N consumption (gC or gN per plant)
+    for producing the actual new structural mass corresponding to the new phytomers corresponding to the new axes.
+    [The MTG has been updated in each newly emerged element]
     """
     # We rename the shoot_MTG for simplification:
     g = shoot_MTG
@@ -1682,19 +1635,14 @@ def computing_ramification(shoot_MTG, initial_internode_length=0.0005, initial_l
                 # We get the index of the parent internode and leaf of the new ramification:
                 old_leaf_vid = shoot_MTG.Father(apex.index(), EdgeType='+')
                 old_internode_vid = shoot_MTG.Father(old_leaf_vid, EdgeType='+')
-                # We assign the last element of the corresponding lists to the new internode and leaf:
-                internode.previous_light_intensity_shares \
-                    = [shoot_MTG.node(old_internode_vid).previous_light_intensity_shares[-1]]
-                internode.previous_PAR_intercepted_values \
-                    = [shoot_MTG.node(old_internode_vid).previous_PAR_intercepted_values[-1]]
-                leaf.previous_light_intensity_shares\
-                    = [shoot_MTG.node(old_leaf_vid).previous_light_intensity_shares[-1]]
-                leaf.previous_PAR_intercepted_values\
-                    = [shoot_MTG.node(old_leaf_vid).previous_PAR_intercepted_values[-1]]
+                # We assign the corresponding list to the new internode and leaf:
+                internode.previous_surfacic_PAR_intercepted_values \
+                    = shoot_MTG.node(old_internode_vid).previous_surfacic_PAR_intercepted_values
+                leaf.previous_surfacic_PAR_intercepted_values\
+                    = shoot_MTG.node(old_leaf_vid).previous_surfacic_PAR_intercepted_values
             except:
-                print("ERROR: we could not access the list of previous light intensity shares below the apex",
+                print("!!! ERROR: we could not access the list of previous light intensity shares below the apex",
                       apex.index())
-
             # By default, we set the bud as dormant:
             bud.emergence_possibility = False
             # And we add a new apex at the top of the new internode, of length 0:
@@ -1776,7 +1724,7 @@ def computing_senescence(shoot_MTG,
         # We define the current element as n:
         n = shoot_MTG.node(vid)
         # We make sure that the current element has a positive length and is not an axilliary bud:
-        if n.length<=0. or n.label=="Bud":
+        if n.length <= 0.:
             continue
         # We verify whether the current element shoud start senescing:
         if n.senescence_status == False:
@@ -1839,9 +1787,9 @@ def computing_leaf_fall(shoot_system,
 def shoot_CN_redistribution_within_organs(shoot_MTG,
                                           time_step_in_seconds=60.*60,
                                           shoot_available_C=0., shoot_available_N=0.,
-                                          distribution_option="by_light_density"):
+                                          distribution_option="by_light_intensity"):
     """
-    This function allocated available resources (labile C and labile N at the scale of the shoot system) into existing
+    This function allocates available resources (labile C and labile N at the scale of the shoot system) into existing
     shoot organs, based either on their relative light density interception, or on their relative potential growth.
 
     Parameters
@@ -1850,7 +1798,7 @@ def shoot_CN_redistribution_within_organs(shoot_MTG,
     time_step_in_seconds: the time step of the simulation (seconds)
     shoot_available_C: the amount of labile C to be distributed among shoot organs (gC per plant)
     shoot_available_N: the amount of labile N to be distributed among shoot organs (gN per plant)
-    distribution_option: distribution can be computed either "by_light_density" or "by_growth_demand", or else is
+    distribution_option: distribution can be computed either "by_light_intensity" or "by_growth_demand", or else is
                          relative to the structural mass of the organ
 
     Returns
@@ -1858,11 +1806,10 @@ def shoot_CN_redistribution_within_organs(shoot_MTG,
     [Nothing - the shoot MTG labile C and N have been updated, as well as the corresponding rates of distribution]
     """
 
-    # We make sure that the option is known:
-    if distribution_option == "by_growth_demand":
-        total_shoot_potential_volume_increment = sum(shoot_MTG.properties()["potential_volume_increment"].values())
-    elif distribution_option != "by_light_density":
-        print("ERROR: the option for shoot labile C & N redistribution among organs is unknow!")
+    # We calculate sums that may be necessary for computing the fraction allocated to a specific organ:
+    sum_of_potential_volume_increments = sum(shoot_MTG.properties()["potential_volume_increment"].values())
+    sum_of_light_intensity_shares = sum(shoot_MTG.properties()["light_intensity_share"].values())
+    sum_of_struct_masses = sum(shoot_MTG.properties()["struct_mass"].values())
 
     # SPECIAL CASE: if the tip of hypocotyl is belowground, it can grow and therefore receives
     # all available labile C & N:
@@ -1888,15 +1835,15 @@ def shoot_CN_redistribution_within_organs(shoot_MTG,
             if n.surface <= 0. or n.length <= 0.:
                 continue
             # FRACTION: We define the fraction of available resources allocated to this organ:
-            if distribution_option == "by_light_density":
+            if distribution_option == "by_light_intensity" and sum_of_light_intensity_shares > 0.:
                 # We define the fraction of shoot available C and N allocated to this organ based
                 # on the previously computed light intensity share:
                 fraction = n.light_intensity_share
             # Otherwise we compute it according to growth demand, based on the relative increment in volume of the organ:
-            elif distribution_option == "by_growth_demand" and total_shoot_potential_volume_increment > 0.:
-                fraction = n.potential_volume_increment / total_shoot_potential_volume_increment
+            elif distribution_option == "by_growth_demand" and sum_of_potential_volume_increments > 0.:
+                fraction = n.potential_volume_increment / sum_of_potential_volume_increments
             else:
-                fraction = n.struct_mass / sum(shoot_MTG.properties()["struct_mass"].values())
+                fraction = n.struct_mass / sum_of_struct_masses
             # We increment the sum check:
             sum_check += fraction
             # CARBON: If there is no labile C to be distributed, the labile C in the shoot element will remain 0:
@@ -1939,7 +1886,7 @@ def shoot_CN_redistribution_within_organs(shoot_MTG,
                 n.labile_N_deficit = 0.
         # We verify that the sum of all fractions is equal to 1, otherwise there will be a problem of C&N balance:
         if abs(sum_check - 1) > 1e-9:
-            print("ERROR: the sum of organ fractions for C&N distribution is not equal to 1!")
+            print("!!! ERROR: the sum of organ fractions for C&N distribution is not equal to 1!")
 
     return
 #-----------------------------------------------------------------------------------------------------------------------
@@ -1955,10 +1902,12 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     shoot_system: the shoot system object (not the MTG)
     shoot_MTG: the shoot MTG containing each shoot organ
     time_step_in_seconds: the time step of the simulation (seconds)
+    resetting_local_amounts: if True, local amounts (e.g. labile C and N) will be set to 0 in each organ
+    resetting_local_rates: if True, local rates (e.g. extension, C & N exchange) will be set to 0 in each organ
 
     Returns
     -------
-
+    [Nothing; the shoot system and the shoot MTG properties have been updated in terms of labile C and N pools/deficits]
     """
 
     # We rename the shoot system as "s" and the shoot MTG as "g":
@@ -2088,13 +2037,15 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # Function for resetting rates and other temporary variables in the shoot MTG to 0:
-def shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=False):
+def shoot_MTG_reinitializing(shoot_g, reinitializing_amounts=False, reinitializing_rates=True):
     """
-    This function resets all temporary variables to 0 in each element of the MTG.
+    This function can reset all non-geometrical variables to 0 in each element of the MTG.
 
     Parameters
     ----------
     shoot_g: the shoot MTG to be reinitialized
+    resetting_amounts: if True, local amounts (e.g. labile C and N) will be set to 0 in each organ
+    resetting_rates: if True, local rates (e.g. extension, C & N exchange) will be set to 0 in each organ
 
     Returns
     -------
@@ -2143,41 +2094,41 @@ def shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_
 # MAIN SIMULATION:
 ##################
 
-if __name__ == '__main__':
-
-    # We create a reference MTG:
-    shoot_g = create_shoot_MTG(number_of_phytomers=3,
-                               initial_internode_height=0.001,
-                               initial_internode_radius=0.0006,
-                               initial_leaf_length=0.003)
-
-    # PLOTTING ONE SINGLE PLANT:
-    x_cam = 0.1
-    y_cam = 0.1
-    z_cam = 0.
-    zoom_factor = 100.
-    plotting_shoot_MTG(shoot_g,
-                       plant_species="rapeseed",
-                       # plant_species="faba_bean",
-                       # leaf_shape="diamond_shape",
-                       leaf_shape="rapeseed_leaf_shape",
-                       # leaf_shape="faba_bean_leaf_shape",
-                       petiole_showing=False,
-                       width=1200, height=900,
-                       upscaling_factor=zoom_factor,
-                       x_center = 0. * zoom_factor,
-                       y_center = 0. * zoom_factor,
-                       z_center = 0. * zoom_factor,
-                       x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
-                       grid=False,
-                       # background_color=[0, 0, 0],
-                       # single_color=[50,0,0],
-                       property_name='length', cmap='jet', vmin=0, vmax=6e-3, lognorm=False,
-                       # property_name='labile_C', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
-                       # property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
-                       # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
-                       # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
-                       recording_plot=True
-                       # plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step)
-                       )
-    print("Plot done!")
+# if __name__ == '__main__':
+#
+#     # We create a reference MTG:
+#     shoot_g = create_shoot_MTG(number_of_phytomers=3,
+#                                initial_internode_height=0.001,
+#                                initial_internode_radius=0.0006,
+#                                initial_leaf_length=0.003)
+#
+#     # PLOTTING ONE SINGLE PLANT:
+#     x_cam = 0.1
+#     y_cam = 0.1
+#     z_cam = 0.
+#     zoom_factor = 100.
+#     plotting_shoot_MTG(shoot_g,
+#                        plant_species="rapeseed",
+#                        # plant_species="faba_bean",
+#                        # leaf_shape="diamond_shape",
+#                        leaf_shape="rapeseed_leaf_shape",
+#                        # leaf_shape="faba_bean_leaf_shape",
+#                        petiole_showing=False,
+#                        width=1200, height=900,
+#                        upscaling_factor=zoom_factor,
+#                        x_center = 0. * zoom_factor,
+#                        y_center = 0. * zoom_factor,
+#                        z_center = 0. * zoom_factor,
+#                        x_cam=x_cam * zoom_factor, y_cam=y_cam * zoom_factor, z_cam=z_cam * zoom_factor,
+#                        grid=False,
+#                        # background_color=[0, 0, 0],
+#                        # single_color=[50,0,0],
+#                        property_name='length', cmap='jet', vmin=0, vmax=6e-3, lognorm=False,
+#                        # property_name='labile_C', cmap='jet', vmin=1e-5, vmax=1e1, lognorm=True,
+#                        # property_name='PAR_intercepted', cmap='jet', vmin=0, vmax=600, lognorm=False,
+#                        # property_name='Caribu_Eabs', cmap='jet', vmin=0., vmax=1., lognorm=False,
+#                        # property_name='z1', cmap='jet', vmin=0., vmax=0.5, lognorm=False,
+#                        recording_plot=True
+#                        # plot_name = os.path.join(plot_directory, 'plot_%.5d.png' % step)
+#                        )
+#     print("Plot done!")
