@@ -1100,7 +1100,7 @@ def potential_shoot_growth(shoot_MTG,
                 potential_leaf_surface = n.surface + n.labile_N * param.SFQN
             elif leaf_potential_growth_option == "by_light_intensity":
                 # We define a coefficient of surface increase per day at 20°C as a function of PAR:
-                potential_leaf_surface = n.surface * (1 + param.relative_leaf_surface_increase_rate * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days*(60.*60.*24.))
+                potential_leaf_surface = n.surface * (1 + param.relative_leaf_surface_increase_rate_with_light * n.surfacic_PAR_averaged_over_time * thermal_time_step_in_days*(60.*60.*24.))
             # We calculate the potential surface increase (m2), knowing that the surface cannot become higher than a max:
             potential_surface_increase = min(potential_leaf_surface - n.surface, n.surface_max - n.surface)
 

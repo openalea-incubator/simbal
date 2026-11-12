@@ -139,7 +139,7 @@ leaflet_angle = 60
 leaf_potential_growth_option = "by_light_intensity"
 
 # Leaf surface potential increase as a function of light (m2 per m2 of leaf per second at optimal temperature per micro-Einstein):
-relative_leaf_surface_increase_rate = 0.1 / (60. * 60. * 24.) / 400
+relative_leaf_surface_increase_rate_with_light = 0.1 / (60. * 60. * 24.) / 400
 # We assume a potential increase by 10% of surface per day at 20 degrees for a PAR of 400 µmol m-2 s-1
 
 # Potential rate of internode elongation (meter per second):
