@@ -7,13 +7,13 @@
     :license: see LICENSE for details.
 """
 
-import openalea.simbal.AllocF as AllocF
+import openalea.simbal.simbal_shoot_model as simbal_shoot_model
 import openalea.simbal.RootSimple as RootSimple
 import openalea.simbal.simbal_parameters as param
 import openalea.rhizodep.parameters as rhizodep_param
 import openalea.plantgl.all as pgl
 
-from openalea.simbal.tools import (loading_parameters_from_file, buildDic, formatted_inputs, temperature_modification,
+from openalea.simbal.tools import (loading_parameters_from_file, formatted_inputs, temperature_modification,
                                    recording_MTG_properties, circle_coordinates, updating_coordinates,
                                    prepare_plants_population, prepare_heterogeneous_plants_population,
                                    create_plants_population_scene, plotting_whole_plant, plotting_whole_scene)
@@ -93,6 +93,7 @@ class whole_plant(object):
         self.N_rhizodeposition_rate = 0. # gN per plant per second
 
         self.root_mortality_rate = 0. # gram of structural mass per second
+        self.thermal_time_since_germination = 0. # seconds equivalent to the reference temperature
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 # We define a function that computes C & N exchanges between shoot and root systems:
@@ -136,8 +137,12 @@ def computing_shoot_root_exchange_rates(plant,
         net_shoot_C = (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
         net_root_C = (plant.root_labile_C_pool - plant.root_labile_C_deficit)
 
+        # We first check that at least one compartment has C:
+        if net_shoot_C <= 0. and net_root_C <= 0.:
+            print("WATCH OUT: no C is present in the plant, so no shoot-root C transfer can exist!")
+            net_C_transfer_from_shoot_to_root_rate = 0.
         # If C is to be exchanged by diffusion based on the labile pools in shoots and roots:
-        if C_option == "by_diffusion":
+        elif C_option == "by_diffusion":
             # Then the net C exchange rate is calculated using a gradient of concentration, a diffusion coefficient,
             # and the section of exchange between shoot and root. We first make sure that there is an exchange surface:
             if plant.exchange_section is None or plant.exchange_section == 0.:
@@ -164,7 +169,7 @@ def computing_shoot_root_exchange_rates(plant,
         expected_C_exchange = net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds
 
         # CASE 1: The expected C transfered from shoot to root is positive, but there is not enough C in the shoot:
-        if expected_C_exchange > net_shoot_C:
+        if expected_C_exchange > 0. and expected_C_exchange > net_shoot_C:
             # Then the amount of C exchanged is limited to a fraction of the amount of C available in shoots:
             fraction = param.fraction_of_shoot_C_leftover_remaining_in_shoots
             net_final_C_exchange = net_shoot_C * fraction
@@ -190,8 +195,12 @@ def computing_shoot_root_exchange_rates(plant,
         net_shoot_N = (plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)
         net_root_N = (plant.root_labile_N_pool - plant.root_labile_N_deficit)
 
+        # We first check that at least one compartment has C:
+        if net_shoot_N <= 0. and net_root_N <= 0.:
+            print("WATCH OUT: no N is present in the plant, so no shoot-root N transfer can exist!")
+            net_N_transfer_from_root_to_shoot_rate = 0.
         # If N is to be exchanged by diffusion based on the labile pools in shoots and roots:
-        if N_option == "by_diffusion":
+        elif N_option == "by_diffusion":
             # Then the net N exchange rate is calculated using a gradient of concentration, a diffusion coefficient,
             # and the section of exchange between shoot and root:
             if plant.exchange_section is None or plant.exchange_section == 0.:
@@ -764,7 +773,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
         # Otherwise we initiate the properties of the MTG "shoot_g":
         else:
             # We create the shoot MTG and store it in a dictionary under the corresponding genotype name:
-            shoot_g = AllocF.create_shoot_MTG(
+            shoot_g = simbal_shoot_model.create_shoot_MTG(
                 number_of_cotyledons=2,  # We start with two cotyledones by default
                 number_of_phytomers=0,
                 initial_internode_radius=param.initial_internode_radius,
@@ -808,7 +817,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
         # In case we only want to simulate the behavior of the roots, keeping the shoot properties constant over time:
         if param.simulation_option == "roots_only":
             # We create a corresponding simple shoot MTG, without any dimensions (it will not be shown in the graph):
-            shoot_g = AllocF.create_shoot_MTG(number_of_cotyledons=2,
+            shoot_g = simbal_shoot_model.create_shoot_MTG(number_of_cotyledons=2,
                                                                     number_of_phytomers=0,
                                                                     initial_internode_height=0.,
                                                                     initial_internode_radius=0.,
@@ -1098,6 +1107,17 @@ def run_simulation_for_a_plant_cover(my_path=None):
             if growth_stages_dict[plant_genotype_name] == 0:
                 # If the plant is absent for this genotype, we move to the next genotype:
                 continue
+            else:
+                # If this is the first time step where the plant has emerged:
+                if plant.thermal_time_since_germination == 0.:
+                    # We get the dataframe of results:
+                    plant_data_frame = plant_data_frame_dict[plant_genotype_name]
+                    # And we modify the first line so that the correct starting times and steps are registered:
+                    plant_data_frame["Final time (days)"][0] = initial_time_in_days
+                    plant_data_frame["Final thermal time (degree-days)"] = thermal_time_in_degree_days - (thermal_time_step_in_seconds_shoots)/(24.*60.*60.) * param.T_ref_growth
+                    plant_data_frame["Step"][0] = step-1
+                # In any case, we increase the time since germination:
+                plant.thermal_time_since_germination += thermal_time_step_in_seconds_roots
 
             # ACCESSING THE CURRENT PLANT:
             plant = plant_objects[plant_genotype_name]
@@ -1144,47 +1164,54 @@ def run_simulation_for_a_plant_cover(my_path=None):
             # available in the source compartment.
             # We first calculate the expected amount of C that should be exchanged based on the flux:
             expected_C_exchange = plant.net_C_transfer_from_shoot_to_root_rate * time_step_in_seconds
-
             # CASE 1: The flux from shoot to root is positive, but there is not enough C in the shoot to sustain it:
-            if expected_C_exchange > 0. and expected_C_exchange > (
-                    plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit):
+            if (expected_C_exchange > 0.
+                    and expected_C_exchange > (plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)):
                 # Then the amount of C exchanged is limited to the amount of C available in shoots:
                 final_C_exchange = plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit
-                #  The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                if final_C_exchange >= 0.:
-                    plant.shoot_labile_C_pool -= final_C_exchange
-                    plant.shoot_labile_C_deficit = 0.
-                    plant.root_labile_C_pool += final_C_exchange
-                else:
-                    print("ERROR: the shoot-to-root C exchange is wrong!")
-                    plant.shoot_labile_C_pool = 0.
-                    plant.shoot_labile_C_deficit = -final_C_exchange
-                    plant.root_labile_C_pool += -final_C_exchange
-
             # CASE 2: The flux from root to shoot is positive but there is not enough C in the root to sustain it:
-            elif expected_C_exchange < 0. and abs(expected_C_exchange) > (
-                    plant.root_labile_C_pool - plant.root_labile_C_deficit):
+            elif (expected_C_exchange < 0.
+                  and abs(expected_C_exchange) > (plant.root_labile_C_pool - plant.root_labile_C_deficit)):
+                # Then the amount of C exchanged is limited to the amount of C available in roots:
                 final_C_exchange = plant.root_labile_C_pool - plant.root_labile_C_deficit
-                # The amount of labile C in shoots and roots is updated according to the new computed exchange:
-                if final_C_exchange >= 0.:
-                    plant.shoot_labile_C_pool += final_C_exchange
-                    plant.root_labile_C_pool -= final_C_exchange
-                    plant_root_labile_C_deficit = 0.
-                else:
-                    print("ERROR: the root-to-shoot C exchange is wrong!")
-                    plant.shoot_labile_C_pool = -final_C_exchange
-                    plant.root_labile_C_pool = 0.
-                    plant_root_labile_C_deficit = final_C_exchange
-
             # CASE 3 (EXPECTED CASE): There is enough C in the source compartment to sustain the transfer:
             else:
+                # So the final C transfer is equal to that expected:
                 final_C_exchange = expected_C_exchange
-                # Then the amount of labile C in shoots and roots is updated according to the initial computed exchange:
-                plant.shoot_labile_C_pool -= expected_C_exchange
-                plant.root_labile_C_pool += expected_C_exchange
-                # We reset the deficit to 0 since it has been acounted for in the calculation of the exchange rate:
-                plant.shoot_labile_C_deficit = 0.
+            # We now compute the new amounts of labile C in shoots and roots:
+            # FOR SHOOTS - If there is no C deficit in the shoots:
+            if plant.shoot_labile_C_deficit == 0:
+                # Then the shoot labile C pool is modified and the shoot labile C deficit remains 0:
+                plant.shoot_labile_C_pool -= final_C_exchange # NOTE: valid both for shoot-to-root and for root-to-shoot transfers
+            # Else, there is a deficit of C in the shoots (and necessarily, a transfer to the shoots, or no transfer at all):
+            else:
+                # If there is enough C to cover the initial shoot C deficit:
+                if -final_C_exchange > plant.shoot_labile_C_deficit:
+                    # Then the situation is returning to normal:
+                    plant.shoot_labile_C_pool = -final_C_exchange - plant.shoot_labile_C_deficit
+                    plant.shoot_labile_C_deficit = 0.
+                else:
+                    # Otherwise, the deficit is partly decreased thanks to the new input of C to the shoots:
+                    plant.shoot_labile_C_pool = 0.
+                    plant.shoot_labile_C_deficit -= -final_C_exchange
+            # FOR ROOTS - If there is no C deficit in the roots:
+            if plant.root_labile_C_deficit == 0:
+                # Then the root labile C pool is modified and the root labile C deficit remains 0:
+                plant.root_labile_C_pool += final_C_exchange  # NOTE: valid both for shoot-to-root and for root-to-shoot transfers
+            # Else, there is a deficit of C in the roots (and necessarily a transfer from shoots to roots, or no transfer at all):
+            else:
+                # If there is enough C to cover the initial root C deficit:
+                if final_C_exchange > plant.root_labile_C_deficit:
+                    # Then the situation is returning to normal:
+                    plant.root_labile_C_pool = final_C_exchange - plant.root_labile_C_deficit
+                    plant.root_labile_C_deficit = 0.
+                else:
+                    # Otherwise, the deficit is partly decreased thanks to the new input of C to the shoots:
+                    plant.root_labile_C_pool = 0.
+                    plant.root_labile_C_deficit -= final_C_exchange
             print("    ... The net transfer of C was eventually", "{:.2E}".format(Decimal(final_C_exchange)), "gC.")
+            # In all cases, we recompute the rate of C exchange from the final amount of C exchanged:
+            plant.net_C_transfer_from_shoot_to_root_rate = final_C_exchange / time_step_in_seconds
 
             # TRANSFER OF N FROM ROOTS TO SHOOTS:
             #####################################
@@ -1207,41 +1234,49 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     plant.root_labile_N_pool - plant.root_labile_N_deficit):
                 # Then the amount of N exchanged is limited to the amount of N available in roots:
                 final_N_exchange = plant.root_labile_N_pool - plant.root_labile_N_deficit
-                # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                if final_N_exchange >= 0.:
-                    plant.shoot_labile_N_pool += final_N_exchange
-                    plant.root_labile_N_pool -= final_N_exchange
-                    plant.root_labile_N_deficit = 0.
-                else:
-                    print("ERROR: the root-to-shoot N exchange is wrong!")
-                    plant.shoot_labile_N_pool += -final_N_exchange
-                    plant.root_labile_N_pool = 0.
-                    plant.root_labile_N_deficit += -final_N_exchange
-
             # CASE 2: The flux from shoot to root is positive but there is not enough N in the shoot to sustain it:
             elif expected_N_exchange < 0. and abs(expected_N_exchange) > (
                     plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit):
                 # Then the amount of N exchanged is limited to the amount of N available in shoots:
                 final_N_exchange = plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit
-                # The amount of labile N in shoots and roots is updated according to the new computed exchange:
-                if final_N_exchange >= 0.:
-                    plant.shoot_labile_N_pool -= final_N_exchange
-                    plant.shoot_labile_N_deficit = 0.
-                    plant.root_labile_N_pool += final_N_exchange
-                else:
-                    print("ERROR: the shoot-to-root N exchange is wrong!")
-                    plant.shoot_labile_N_pool = 0.
-                    plant.shoot_labile_N_deficit += -final_N_exchange
-                    plant.root_labile_N_pool += -final_N_exchange
-
             # CASE 3 (EXPECTED CASE): There is enough N in the source compartment to sustain the transfer.
             else:
                 # Then the amount of labile N in shoots and roots is updated according to the computed exchange:
                 final_N_exchange = expected_N_exchange
-                plant.shoot_labile_N_pool += expected_N_exchange
-                plant_shoot_labile_N_pool = 0.
-                plant.root_labile_N_pool -= expected_N_exchange
+            # We know compute the new amounts of labile N in shoots and roots:
+            # FOR SHOOTS - If there is no N deficit in the shoots:
+            if plant.shoot_labile_N_deficit == 0:
+                # Then the shoot labile N pool is modified and the shoot labile N deficit remains 0:
+                plant.shoot_labile_N_pool += final_N_exchange # NOTE: valid both for shoot-to-root and for root-to-shoot transfers
+            # Else, there is a deficit of N in the shoots (and necessarily, a transfer to the shoots, or no transfer at all):
+            else:
+                # If there is enough N to cover the initial shoot N deficit:
+                if final_N_exchange > plant.shoot_labile_N_deficit:
+                    # Then the situation is returning to normal:
+                    plant.shoot_labile_N_pool = final_N_exchange - plant.shoot_labile_N_deficit
+                    plant.shoot_labile_N_deficit = 0.
+                else:
+                    # Otherwise, the deficit is partly decreased thanks to the new input of N to the shoots:
+                    plant.shoot_labile_N_pool = 0.
+                    plant.shoot_labile_N_deficit -= final_N_exchange
+            # FOR ROOTS - If there is no N deficit in the roots:
+            if plant.root_labile_N_deficit == 0:
+                # Then the root labile N pool is modified and the root labile N deficit remains 0:
+                plant.root_labile_N_pool -= final_N_exchange  # NOTE: valid both for shoot-to-root and for root-to-shoot transfers
+            # Else, there is a deficit of N in the roots (and necessarily a transfer from shoots to roots, or no transfer at all):
+            else:
+                # If there is enough N to cover the initial root N deficit:
+                if -final_N_exchange > plant.root_labile_N_deficit:
+                    # Then the situation is returning to normal:
+                    plant.root_labile_N_pool = -final_N_exchange - plant.root_labile_N_deficit
+                    plant.root_labile_N_deficit = 0.
+                else:
+                    # Otherwise, the deficit is partly decreased thanks to the new input of N to the shoots:
+                    plant.root_labile_N_pool = 0.
+                    plant.root_labile_N_deficit -= -final_N_exchange
             print("    ... The net transfer of N was eventually", "{:.2E}".format(Decimal(final_N_exchange)), "gN.")
+            # In all cases, we recompute the rate of C exchange from the final amount of N exchanged:
+            plant.net_N_transfer_from_root_to_shoot_rate = final_N_exchange / time_step_in_seconds
 
             # CALLING SUCCESSIVELY THE DIFFERENT ROOT MODULES:
             ##################################################
@@ -1351,7 +1386,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # We access the shoot MTG:
                 shoot_g = shoot_MTG_dict[plant_genotype_name]
                 # We reset all local properties to 0:
-                AllocF.shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=False)
+                simbal_shoot_model.shoot_MTG_reinitializing(shoot_g, reinitializing_rates=True, reinitializing_amounts=False)
         #///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         # LIGHT INTERCEPTION:
@@ -1388,7 +1423,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
             print("    Intercepting light...")
             # We compute the light interception on the whole scene, and collect the intercepted PAR for each distinct plant type:
             total_PAR_intercepted_dict, sum_of_surfacic_PAR_dict = \
-                AllocF.computing_light_interception_on_plant_population(scene=scene,
+                simbal_shoot_model.computing_light_interception_on_plant_population(scene=scene,
                                                                         scene_information=scene_information,
                                                                         genotype_names_list=genotype_names_list,
                                                                         shoot_MTG_dict=shoot_MTG_dict,
@@ -1443,7 +1478,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
                 # DISTRIBUTING C & N IN EACH SHOOT ORGAN:
                 #****************************************
-                AllocF.shoot_CN_redistribution_within_organs(
+                simbal_shoot_model.shoot_CN_redistribution_within_organs(
                     shoot_MTG=shoot_g,
                     time_step_in_seconds=time_step_in_seconds,
                     shoot_available_C=plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit,
@@ -1454,9 +1489,10 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # POSSIBLE SUPPLY OF RESOURCES FROM THE GERMINATING SEED:
                 #########################################################
                 # If the elapsed thermal time is lower than the prescribed duration of supply from the seed:
-                if thermal_time_in_degree_days * (60.*60.*24.) <= param.seed_supply_duration * param.T_ref_growth:
+                # if plant.thermal_time_since_germination <= param.seed_supply_duration:
+                if thermal_time_in_degree_days * 60.*60.*24. / param.T_ref_growth <= param.seed_supply_duration:
                     # Then we allow to compute the supply of C and N resources from the germinating seed to the new seedling:
-                    AllocF.computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius = air_temperature)
+                    simbal_shoot_model.computing_supply_from_seed_rate(plant, air_temperature_in_degree_Celsius = air_temperature)
                     print("    The seed will generate",
                           "{:.2E}".format(Decimal(plant.C_supply_from_seed_rate*time_step_in_seconds)), "gC and",
                           "{:.2E}".format(Decimal(plant.N_supply_from_seed_rate*time_step_in_seconds)),"gN over this time step...")
@@ -1466,7 +1502,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 #################
                 # We calculate the rate of C production of each organ based on the PAR intercepted by the plant:
                 total_PAR_intercepted, total_photosynthesis_rate = \
-                    AllocF.computing_photosynthesis_rate(plant, shoot_g,
+                    simbal_shoot_model.computing_photosynthesis_rate(plant, shoot_g,
                                                          air_temperature_in_degree_Celsius=air_temperature)
                 # We record this total photosynthesis rate into the plant object:
                 plant.photosynthesized_C_rate = total_photosynthesis_rate
@@ -1478,7 +1514,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # MAINTENANCE IN THE SHOOT ORGANS:
                 ##################################
                 # We calculate the C respiration cost associated to maintenance in each organ:
-                total_maintenance_rate = AllocF.computing_maintenance_rate(shoot_g,
+                total_maintenance_rate = simbal_shoot_model.computing_maintenance_rate(shoot_g,
                                                                            air_temperature_in_degree_Celsius=air_temperature)
                 plant.shoot_maintenance_respiration_rate = total_maintenance_rate
                 print("    The maintenance will consume",
@@ -1489,7 +1525,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 #############################
 
                 # EXTENSION: We calculate the possible increase in volume for each organ:
-                AllocF.potential_shoot_growth(shoot_g,
+                simbal_shoot_model.potential_shoot_growth(shoot_g,
                                               # leaf_potential_growth_option="by_SFQN",
                                               leaf_potential_growth_option=param.leaf_potential_growth_option,
                                               leaf_minimal_thickness=param.leaf_minimal_thickness,
@@ -1502,7 +1538,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                 # We calculate the actual increase in size and the corresponding C & N costs, as well as the ageing of each
                 # organ, based on the local amounts of labile C:
                 C_consumption_rate_for_extension, N_consumption_rate_for_extension = \
-                    AllocF.actual_shoot_growth(shoot_g,
+                    simbal_shoot_model.actual_shoot_growth(shoot_g,
                                                yield_growth=param.yield_growth,
                                                structural_mass_density=param.struct_mass_density,
                                                structural_C_content=param.structural_C_content,
@@ -1550,7 +1586,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
                         # TODO: WATCH OUT BELOW - may not be correct!
                         actual_time_since_initiation = thermal_time_since_initiation / temperature_time_adjustment_shoot
                         # We add a set of new phytomers in the shoot system:
-                        C_cost_for_new_phytomers, N_cost_for_new_phytomers = AllocF.new_phytomers_emergence(
+                        C_cost_for_new_phytomers, N_cost_for_new_phytomers = simbal_shoot_model.new_phytomers_emergence(
                             shoot_system=plant,
                             shoot_MTG=shoot_g,
                             thermal_time_since_initiation=thermal_time_since_initiation,
@@ -1574,7 +1610,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
                 # RAMIFICATION - We consider the possibility of ramification:
                 C_cost_for_new_ramification, N_cost_for_new_ramification \
-                    = AllocF.computing_ramification(shoot_MTG=shoot_g,
+                    = simbal_shoot_model.computing_ramification(shoot_MTG=shoot_g,
                                                     initial_internode_length=param.initial_internode_length,
                                                     initial_leaf_length=param.initial_leaf_length,
                                                     time_step_in_seconds=time_step_in_seconds)
@@ -1593,30 +1629,35 @@ def run_simulation_for_a_plant_cover(my_path=None):
                     = (N_consumption_rate_for_extension
                        + (N_cost_for_new_ramification + total_N_costs_for_new_phytomers) / time_step_in_seconds)
 
-
                 # C&N BALANCE both within each organ and at the shoot system scale
                 ##################################################################
-
-                AllocF.shoot_CN_balance_at_organ_and_system_scales(shoot_system=plant,
-                                                                   shoot_MTG=shoot_g,
-                                                                   time_step_in_seconds=time_step_in_seconds)
+                print("Before shoot C & N balance, shoot labile C is", plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
+                simbal_shoot_model.shoot_CN_balance_at_organ_and_system_scales(
+                    shoot_system=plant,
+                    shoot_MTG=shoot_g,
+                    time_step_in_seconds=time_step_in_seconds,
+                    # TODO: WATCH OUT HERE, we reset local pools and deficits of labile C and N to 0, so that everything
+                    #  is pooled back at the shoot system scale. However, we won't see the local pools of each element
+                    #  in the output files anymore (e.g. impossible to plot)! Change this in the future...
+                    resetting_local_amounts=True,
+                    resetting_local_rates=False)
                 print("    The shoot system now contains", shoot_g.nb_vertices()-1, "different shoot elements.")
                 print("    Shoot labile C pool is now",
                       "{:.2E}".format(Decimal(plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)),
                       "gC and labile N pool is",
                       "{:.2E}".format(Decimal(plant.shoot_labile_N_pool - plant.shoot_labile_N_deficit)), "gN.")
+                print("After shoot C & N balance, shoot labile C is", plant.shoot_labile_C_pool - plant.shoot_labile_C_deficit)
 
                 # AGEING:
                 #########
                 # We increase the age of each organ:
-                AllocF.ageing(shoot_MTG=shoot_g,
-                              time_step_in_seconds=time_step_in_seconds,
-                              air_temperature_in_degree_Celsius=air_temperature,
-                              zoom_factor=zoom_factor)
+                simbal_shoot_model.ageing(shoot_MTG=shoot_g,
+                                          time_step_in_seconds=time_step_in_seconds,
+                                          air_temperature_in_degree_Celsius=air_temperature)
                 # We update the geometry with plant / organ age, e.g. insertion angles:
-                AllocF.geometry_evolution(shoot_MTG = shoot_g,
-                                          plant_genotype_name = plant_genotype_name,
-                                          plant_thermal_age_in_degree_days = thermal_time_in_degree_days)
+                simbal_shoot_model.geometry_evolution(shoot_MTG = shoot_g,
+                                                      plant_genotype_name = plant_genotype_name,
+                                                      plant_thermal_age_in_degree_days = thermal_time_in_degree_days)
 
             # CHECKING WHOLE PLANT C & N BALANCE:
             #####################################
@@ -1855,7 +1896,19 @@ if __name__ == '__main__':
     run_simulation_for_a_plant_cover(my_path=main_simbal_folder)
     print("Simulation done!")
 
+#TODO: allow multiple processing for running scenarios in parallel
+#TODO: finish the function for loading and plotting an existing MTG
+#TODO: develop a new function for plotting (on Pyvista?)
 #TODO: add reserve management
 #TODO: improve the architecture of faba bean
 #TODO: perform a reference scenario based on IMPULSE or SILIGOOT for oilseed rape and faba bean
+#TODO: introduce a soil object containing soil properties evolving along the simulation
+#TODO: introduce flowers, pods and grains
 #TODO: check the compatibility with Root-BRIDGES
+
+# FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+# You are setting values through chained assignment. Currently this works in certain cases, but when using Copy-on-Write (which will become the default behaviour in pandas 3.0) this will never work to update the original DataFrame or Series, because the intermediate object on which we are setting values will behave as a copy.
+# A typical example is when you are setting values in a column of a DataFrame, like:
+# df["col"][row_indexer] = value
+# Use `df.loc[row_indexer, "col"] = values` instead, to perform the assignment in a single step and ensure this keeps updating the original `df`.
+# See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy

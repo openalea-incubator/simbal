@@ -353,10 +353,10 @@ if __name__ == "__main__":
 
     # FROM ORIGINAL GRAPHS - classic:
     resizing_and_film_making(
-        outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/',
-        images_folder='population_plots',
-        # outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/outputs_rapeseed/',
-        # images_folder='plots',
+        # outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/',
+        # images_folder='population_plots',
+        outputs_path='C:/Users/frees/fspm/simbal/simulation/outputs/outputs_rapeseed/',
+        images_folder='plots',
         resized_images_folder='plots_resized',
         film_making=True,
         film_name="plant_movie.gif",

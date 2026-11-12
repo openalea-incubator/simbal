@@ -20,7 +20,7 @@ from openalea.caribu.data_samples import data_path
 from openalea.simbal import simbal_parameters as param
 from openalea.simbal.tools import (loading_parameters_from_file, temperature_modification, recording_MTG_properties,
                                    circle_coordinates, updating_coordinates, leaf_insertion_angle_evolution,
-                                   plotting_shoot_MTG, plotting_shoots_with_pyvista)
+                                   plotting_shoot_MTG)
 
 import os
 import warnings
@@ -1846,15 +1846,12 @@ def shoot_CN_redistribution_within_organs(shoot_MTG,
                 fraction = n.struct_mass / sum_of_struct_masses
             # We increment the sum check:
             sum_check += fraction
-            # CARBON: If there is no labile C to be distributed, the labile C in the shoot element will remain 0:
+            # CARBON: If there is no labile C to be distributed:
             if shoot_available_C <= 0.:
-                labile_C_target = 0.
-                # We calculate the rate of net C input to this organ corresponding to this redistribution:
-                n.shoot_C_distribution_rate = (labile_C_target - (
-                        n.labile_C - n.labile_C_deficit)) / time_step_in_seconds
-                # We now redefine the local pool of labile C according to this target level:
-                n.labile_C_deficit = -labile_C_target
+                # The labile C in the shoot element is set to 0 and the rate of net C input to this organ is 0:
                 n.labile_C = 0.
+                n.labile_C_deficit = 0.
+                n.shoot_C_distribution_rate = 0.
             # Otherwise, if there is labile C in the shoot to be redistributed:
             else:
                 # The eventual shoot labile C to be targeted after redistribution is:
@@ -1951,21 +1948,21 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
         net_N_increase_rate = - n.actual_N_consumption_rate_by_shoot_growth
 
         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE C:
-        n.labile_C += net_C_increase_rate * time_step_in_seconds
+        n.labile_C += net_C_increase_rate * time_step_in_seconds - n.labile_C_deficit
         if n.labile_C < 0.:
             print("    !!! Warning: for the shoot element", n.index(),
                   "a deficit in labile C was obtained! We therefore set this pool to 0 gC and will record its deficit for the next time!")
-            n.labile_C_deficit += - n.labile_C
+            n.labile_C_deficit = - n.labile_C
             n.labile_C = 0.
         else:
             n.labile_C_deficit = 0.
 
         # COMPUTING THE NEW RESULTING NET GAIN IN LABILE N:
-        n.labile_N += net_N_increase_rate * time_step_in_seconds
+        n.labile_N += net_N_increase_rate * time_step_in_seconds - n.labile_N_deficit
         if n.labile_N < 0.:
             print("    !!! Warning: for the shoot element", n.index(),
                   "a deficit in labile N was obtained! We therefore set this pool to 0 gN and will record its deficit for the next time!")
-            n.labile_N_deficit += - n.labile_N
+            n.labile_N_deficit = - n.labile_N
             n.labile_N = 0.
         else:
             n.labile_N_deficit = 0.
@@ -2003,24 +2000,24 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     shoot_labile_N += s.N_supply_from_seed_rate * time_step_in_seconds
 
     # If the net shoot labile C of the whole shoot system is positive:
-    if (shoot_labile_C - s.shoot_labile_C_deficit) >= 0.:
+    if shoot_labile_C >= 0.:
         # Then we assign it to the shoot labile C and reset the deficit to 0:
-        s.shoot_labile_C_pool = (shoot_labile_C - s.shoot_labile_C_deficit)
+        s.shoot_labile_C_pool = shoot_labile_C
         s.shoot_labile_C_deficit = 0.
     else:
         # Otherwise, we record the deficit in labile C:
         s.shoot_labile_C_pool = 0.
-        s.shoot_labile_C_deficit = -(shoot_labile_C - s.shoot_labile_C_deficit)
+        s.shoot_labile_C_deficit = -shoot_labile_C
 
     # If the net shoot labile N of the whole shoot system is positive:
-    if (shoot_labile_N - s.shoot_labile_N_deficit) >= 0.:
+    if shoot_labile_N >= 0.:
         # Then we assign it to the shoot labile C and reset the deficit to 0:
-        s.shoot_labile_N_pool = (shoot_labile_N - s.shoot_labile_N_deficit)
+        s.shoot_labile_N_pool = shoot_labile_N
         s.shoot_labile_N_deficit = 0.
     else:
         # Otherwise, we record the deficit in labile C:
         s.shoot_labile_N_pool = 0.
-        s.shoot_labile_N_deficit = -(shoot_labile_N - s.shoot_labile_N_deficit)
+        s.shoot_labile_N_deficit = -shoot_labile_N
 
     # We update the shoot structural mass as well:
     s.shoot_struct_mass = shoot_structural_mass
@@ -2028,7 +2025,7 @@ def shoot_CN_balance_at_organ_and_system_scales(shoot_system, shoot_MTG, time_st
     # We also record the summed rates:
     s.photosynthesized_C_rate = total_photosynthesized_C_rate
     s.shoot_maintenance_respiration_rate = total_shoot_maintenance_respiration_rate
-    # #TODO: WATCH OUT - we do not compute plants' actual growth costs since they are calculated elsewhere
+    #TODO: WATCH OUT - we do not compute plants' actual growth costs since they are calculated elsewhere
     #  based on the call of each growth function:
     # s.actual_C_consumption_rate_by_shoot_growth = total_actual_C_consumption_rate_by_shoot_growth
     # s.actual_N_consumption_rate_by_shoot_growth = total_actual_N_consumption_rate_by_shoot_growth
