@@ -1,7 +1,7 @@
-from openalea.simbal import AllocF
+from openalea.simbal import simbal_shoot_model
 
 def test_simple():
-    shoot_g = AllocF.create_shoot_MTG(number_of_phytomers=2,
+    shoot_g = simbal_shoot_model.create_shoot_MTG(number_of_phytomers=2,
                                       initial_internode_height=0.0001,
                                       initial_internode_radius=0.0003,
                                       initial_leaf_length=0.003,
