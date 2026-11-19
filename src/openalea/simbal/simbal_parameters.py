@@ -134,8 +134,22 @@ number_of_leaflets = 3
 # Angle of insertion of the leaflet on the main petiole of one faba bean leaf (degrees):
 leaflet_angle = 60
 
+# Option for computing the potential increase in leaf surface (either "by_SFQN", based on the amount of labile N present
+# in the leaf, or "by_light_intensity", as a function of the surfacic PAR intercepted by the leaf):
+leaf_potential_growth_option = "by_light_intensity"
+
+# Leaf surface potential increase as a function of light (m2 per m2 of leaf per second at optimal temperature per micro-Einstein):
+relative_leaf_surface_increase_rate_with_light = 0.1 / (60. * 60. * 24.) / 400
+# We assume a potential increase by 10% of surface per day at 20 degrees for a PAR of 400 µmol m-2 s-1
+
 # Potential rate of internode elongation (meter per second):
-elong_internode = 2.89351851851852E-07
+elong_hypocotyl = 2.89351851851852E-07
+
+# Potential rate of internode elongation during phase 1 (meter per second):
+elong_internode_phase_1 = 2.89351851851852E-08
+
+# Potential rate of internode elongation during phase 2 (meter per second):
+elong_internode_phase_2 = 2.89351851851852E-07
 
 # Proportionality coefficient between the section area of the internode and the sum of distal section areas
 # (dimensionless, 0 = no radial growth):
@@ -165,6 +179,12 @@ phyllochron = 5. * (60.*60.*24.)
 
 # We define the plastochron, i.e. the period separating two leaf primordia formation (seconds at the reference growth temperature):
 plastochron = 3. * (60.*60.*24.)
+
+# Option to limit the emergence of shoot ramification above a specific order (True/False):
+shoot_order_limitation = True
+
+# Maximal order of shoot ramification that can emerge:
+shoot_order_treshold = 1
 
 # We define a maximal duration of "youth", above which the organ will start senescing
 # (seconds at the reference growth temperature):
