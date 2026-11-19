@@ -5,8 +5,8 @@ def test_simple():
                                       initial_internode_height=0.0001,
                                       initial_internode_radius=0.0003,
                                       initial_leaf_length=0.003,
-                                      initial_labile_C_content=0,
-                                      initial_labile_N_content=0
+                                      initial_labile_C_concentration=0,
+                                      initial_labile_N_concentration=0
                                       )
 
     d = shoot_g.property('potential_radius')
