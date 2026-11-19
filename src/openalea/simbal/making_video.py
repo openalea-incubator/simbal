@@ -69,18 +69,19 @@ def resizing_and_film_making(outputs_path='outputs',
     :return:
     """
 
-    images_directory=os.path.join(outputs_path, images_folder)
-    resized_images_directory = os.path.join(outputs_path, resized_images_folder)
+    outputs_path = Path(outputs_path)
+    images_directory = outputs_path / images_folder
+    resized_images_directory = outputs_path / resized_images_folder
 
     # Getting a list of the names of the images found in the directory "video":
-    filenames = Path(images_directory).glob('*.png')
+    filenames = images_directory.glob('*.png')
     filenames = sorted(filenames)
 
     # We define the final number of images that will be considered, based on the "sampling_frequency" variable:
     number_of_images = floor(len(filenames) / float(sampling_frequency))
 
     if colorbar_option:
-        path_colorbar = os.path.join(outputs_path, 'colorbar.png')
+        path_colorbar = outputs_path / 'colorbar.png'
         # We create the colorbar:
         bar = colorbar(title=colorbar_title,
                        cmap=colorbar_cmap,
@@ -111,15 +112,15 @@ def resizing_and_film_making(outputs_path='outputs',
     # 1. COMPRESSING THE IMAGES:
     if image_transforming:
         # If this directory doesn't exist:
-        if not os.path.exists(resized_images_directory):
+        if not resized_images_directory.exists():
             # Then we create it:
             print(resized_images_directory)
-            os.mkdir(resized_images_directory)
+            resized_images_directory.mkdir(parents=True, exist_ok=True)
         else:
             # Otherwise, we delete all the images that are already present inside:
-            for root, dirs, files in os.walk(resized_images_directory):
-                for file in files:
-                    os.remove(os.path.join(root, file))
+            for items in resized_images_directory.iterdir():
+                if items.is_file():
+                    items.unlink()
 
         # We modify each image:
         print("Transforming the images and copying them into the directory 'root_images_resized'...")
@@ -203,8 +204,8 @@ def resizing_and_film_making(outputs_path='outputs',
                 # We get the last characters of the path of the file, which correspond to the actual name 'rootXXXXX':
                 name = filename[-13:-4] + '.png'
                 # Saving the new image:
-                image_name = os.path.join(resized_images_directory, name)
-                im_to_print.save(image_name, quality=20, optimize=True)
+                image_name = resized_images_directory / name
+                im_to_print.save(str(image_name), quality=20, optimize=True)
 
                 # We update the local counts:
                 number = number + 1
@@ -217,13 +218,13 @@ def resizing_and_film_making(outputs_path='outputs',
 
         print("Making the video...")
 
-        with imageio.get_writer(os.path.join(outputs_path, film_name), mode='I', fps=fps) as writer:
+        with imageio.get_writer(str(outputs_path / film_name), mode='I', fps=fps) as writer:
             if image_transforming:
-                filenames = Path(resized_images_directory).glob('*.png')
+                filenames = resized_images_directory.glob('*.png')
                 filenames = sorted(filenames)
                 sampling_frequency = 1
             else:
-                filenames = Path(images_directory).glob('*.png')
+                filenames = images_directory.glob('*.png')
                 filenames = sorted(filenames)
                 sampling_frequency = sampling_frequency
             remaining_images = floor(len(filenames) / float(sampling_frequency)) + 1
@@ -278,12 +279,12 @@ def resizing_and_film_making_for_scenarios(general_outputs_folder='outputs',
     :param scenario_numbers: a list of numbers corresponding to the different tutorial to consider
     :[other parameters]: [cf the parameters from the function 'resizing_and_film_making']
     """
-
+    general_outputs_folder = Path(general_outputs_folder)
     # We cover each scenario:
     for i in scenario_numbers:
 
         scenario_name = 'Scenario_%.4d' % i
-        scenario_path = os.path.join(general_outputs_folder, scenario_name)
+        scenario_path = general_outputs_folder / scenario_name
 
         print("")
         print("Creating a movie for", scenario_name,"..." )
