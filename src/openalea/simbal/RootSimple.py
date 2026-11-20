@@ -6,21 +6,19 @@
     :copyright: see AUTHORS.
     :license: see LICENSE for details.
 """
+# General imports
+from math import sqrt, pi, floor, exp, isnan
+from decimal import Decimal
 
 from openalea.mtg import *
 from openalea.mtg.traversal import pre_order, post_order
-from openalea.rhizodep.model import (volume_and_external_surface_from_radius_and_length,
-                                     summing_and_possibly_homogenizing,
-                                     update_distance_from_tip, update_surfaces_and_volumes,
-                                     potential_growth, segmentation_and_primordia_formation, root_hairs_dynamics,
-                                     initiate_mtg)
 
-import openalea.simbal.simbal_parameters as param
+from openalea.rhizodep.model import volume_and_external_surface_from_radius_and_length
 
+# Loacal or global imports?
+from openalea.simbal import simbal_parameters as param
 from openalea.simbal.tools import temperature_modification
 
-from math import sqrt, pi, floor, exp, isnan
-from decimal import Decimal
 
 ########################################################################################################################
 ########################################################################################################################

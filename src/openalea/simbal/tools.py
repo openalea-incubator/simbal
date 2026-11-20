@@ -6,24 +6,28 @@
     :copyright: see AUTHORS.
     :license: see LICENSE for details.
 """
+# Pure Python imports
+import os
+from pathlib import Path
+from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
+from decimal import Decimal
+
+import numpy as np
+import pandas as pd
 
 from openalea.mtg import turtle as turt
 from openalea.mtg.plantframe import color
 from openalea.mtg.traversal import pre_order, post_order
+
 import openalea.plantgl.all as pgl
 from openalea.plantgl.all import surface
-from openalea.caribu.plantgl_adaptor import scene_to_cscene, pgl_to_triangles
 
-import openalea.simbal.simbal_parameters as param
-import openalea.rhizodep.model as rhizodep_param
+from openalea.caribu.plantgl_adaptor import pgl_to_triangles #, scene_to_cscene
 
-import os
-import numpy as np
-import pandas as pd
-from math import sqrt, pi, floor, trunc, exp, isnan, cos, sin, acos
-from decimal import Decimal
-import ast
-from openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
+from openalea.rhizodep import model as rhizodep_param
+from openalea.simbal import simbal_parameters as param
+
+#from openalea.simbal.simbal_parameters import simplified_leaf_shape_for_surface_calculation
 
 try:
     import pyvista as pv
@@ -2244,6 +2248,8 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
     A dataframe containing the values of the parameters
     """
 
+    outputs_path = Path(outputs_path)
+
     # We read the scenario to be run:
     scenarios_df = pd.read_excel(parameters_filepath, header=0, sheet_name="scenarios_as_columns")
     # We remove the columns containing unnecessary details about parameters:
@@ -2255,8 +2261,8 @@ def loading_parameters_from_file(parameters_filepath = "simbal_parameters.xlsx",
     # dataframe, record it as a CSV file in the outputs folder, and reload it with the proper type for each
     # parameter:
     transposed_df = scenarios_df.T
-    transposed_df.to_csv(os.path.join(outputs_path, 'scenarios_list.csv'), na_rep='NA', header=False)
-    new_scenarios_df = pd.read_csv(os.path.join(outputs_path, 'scenarios_list.csv'), index_col='Scenario', header=0)
+    transposed_df.to_csv(str(outputs_path / 'scenarios_list.csv'), na_rep='NA', header=False)
+    new_scenarios_df = pd.read_csv(str(outputs_path / 'scenarios_list.csv'), index_col='Scenario', header=0)
 
     # We convert the dataframe into a dictionnary:
     scenario = new_scenarios_df.to_dict(orient='records')[0]
@@ -2299,6 +2305,8 @@ def formatted_inputs(original_input_file=None, final_input_file='updated_input_f
     else:
 
         # We first define the path and the file to read as a .csv:
+        # CPL : Be carefull : no way to know where you are. The model will not be installed in develop mode.
+        # CPL : Local path (../..) will not work anymore.
         PATH1 = os.path.join('../../..', original_input_file)
         # Then we read the file and copy it in a dataframe "df":
         df = pd.read_csv(PATH1,
@@ -2607,9 +2615,10 @@ def loading_MTG_files(my_path='',
     # Preparing the folders:
     # -----------------------
 
+    my_path = Path(my_path)
     if opening_list:
         # We define the directory "MTG_files":
-        g_dir = os.path.join(my_path, MTG_directory)
+        g_dir = my_path / MTG_directory
         print("Loading MTG files located in", g_dir, "...")
     else:
         g_dir = my_path
@@ -2617,29 +2626,14 @@ def loading_MTG_files(my_path='',
 
     if recording_images:
         # We define the directory "video"
-        video_dir = os.path.join(my_path, images_directory)
-        # If this directory doesn't exist:
-        if not os.path.exists(video_dir):
-            # Then we create it:
-            os.mkdir(video_dir)
-        else:
-            # Otherwise, we delete all the images that are already present inside:
-            for root, dirs, files in os.walk(video_dir):
-                for file in files:
-                    os.remove(os.path.join(root, file))
+        video_dir = my_path / images_directory
+        create_or_empty_dir(video_dir)
 
     if recording_g_properties:
         # We define the directory "MTG_properties_dir"
-        properties_dir = os.path.join(my_path,MTG_properties_folder)
+        properties_dir = my_path / MTG_properties_folder
         # If this directory doesn't exist:
-        if not os.path.exists(properties_dir):
-            # Then we create it:
-            os.mkdir(properties_dir)
-        else:
-            # Otherwise, we delete all the files that are already present inside:
-            for root, dirs, files in os.walk(properties_dir):
-                for file in files:
-                    os.remove(os.path.join(root, file))
+        create_or_empty_dir(properties_dir)
 
     # Depending on the extension of the file, we may either consider pickle files or csv files containing
     # all the properties of the MTG:
@@ -2679,16 +2673,16 @@ def loading_MTG_files(my_path='',
     ID = list_of_MTG_numbers[-1]
     if file_extension == 'pckl':
         filename = 'root%.5d.pckl' % ID
-        MTG_path = os.path.join(g_dir, filename)
-        f = open(MTG_path, 'rb')
+        MTG_path = g_dir / filename
+        f = MTG_path.open(mode='rb')
         g = pickle.load(f)
         f.close()
     else:
         filename = 'root%.5d.csv' % ID
-        MTG_path = os.path.join(g_dir, filename)
+        MTG_path = g_dir / filename
         g = create_MTG_from_csv_file(csv_filename=MTG_path)
     # And we define the final list of properties to record according to all the properties of this MTG:
-    list_of_properties = list(g.properties().keys())
+    list_of_properties = list(g.properties())
     # We sort it alphabetically:
     list_of_properties.sort(key=str.lower)
 
@@ -2721,15 +2715,15 @@ def loading_MTG_files(my_path='',
         ID = list_of_MTG_numbers[MTG_position]
         print("Dealing with MTG", ID, "-", MTG_position+1,"out of", len(list_of_MTG_numbers), "MTGs to consider...")
 
+        ext = '.pckl' if file_extension == 'pckl' else '.csv'
+        filename = 'root%.5d' % ID + ext
+        MTG_path = g_dir / filename
+
         if file_extension == 'pckl':
-            filename = 'root%.5d.pckl' % ID
-            MTG_path = os.path.join(g_dir, filename)
-            f = open(MTG_path, 'rb')
+            f = MTG_path.open(mode = 'rb')
             g = pickle.load(f)
             f.close()
         else:
-            filename = 'root%.5d.csv' % ID
-            MTG_path = os.path.join(g_dir, filename)
             g = create_MTG_from_csv_file(csv_filename=MTG_path)
         print("   > New MTG opened!")
 
@@ -2737,7 +2731,7 @@ def loading_MTG_files(my_path='',
         # ------------------
         if recording_images:
             # We define the name of the image:
-            image_name = os.path.join(video_dir, 'root%.5d.png' % ID)
+            image_name = video_dir / ('root%.5d.png' % ID)
         else:
             image_name = "plot.png"
 
@@ -2873,10 +2867,10 @@ def loading_MTG_files(my_path='',
         # ------------------------------------------------
         if recording_g_properties:
             # We define the final list of properties to record according to all the properties of this MTG:
-            list_of_properties = list(g.properties().keys())
+            list_of_properties = list(g.properties())
             # We sort it alphabetically:
             list_of_properties.sort(key=str.lower)
-            prop_file_name = os.path.join(properties_dir, 'root%.5d.csv')
+            prop_file_name = str(properties_dir / ('root%.5d.csv'))
             recording_MTG_properties(g, file_name=prop_file_name % ID, list_of_properties=list_of_properties)
 
         # For integrating root variables on the z axis:
@@ -2913,7 +2907,7 @@ def loading_MTG_files(my_path='',
         col = data_frame_z.pop('time_in_days')
         data_frame_z.insert(0, col.name, col)
         # We save the data_frame in a CSV file:
-        z_file_path = os.path.join(my_path, 'z_classification.csv')
+        z_file_path = str(my_path / 'z_classification.csv')
         data_frame_z.to_csv(z_file_path, na_rep='NA', index=False, header=True)
         print("   > A new file 'z_classification.csv' has been saved.")
 
@@ -2925,8 +2919,29 @@ def loading_MTG_files(my_path='',
         col = data_frame_computing.pop('time_in_days')
         data_frame_computing.insert(0, col.name, col)
         # We save the data_frame in a CSV file:
-        computing_file_path = os.path.join(my_path, 'computing_different_root_classes.csv')
+        computing_file_path = str(my_path / 'computing_different_root_classes.csv')
         data_frame_computing.to_csv(computing_file_path, na_rep='NA', index=False, header=True)
         print("   > A new file 'computing_different_root_classes.csv' has been saved.")
 
     return g
+
+
+def create_or_empty_dir(dir: Path):
+    """
+    This function create a dir or erases all the files in it.
+
+    Parameters
+    ----------
+    dir: the path of the directory to be cleaned
+
+    Returns
+    -------
+    [Nothing is returned; all the files in the directory have been erased]
+    """
+    if not dir.exists():
+        # Then we create it:
+        dir.mkdir()
+    else:
+        for item in dir.iterdir:
+            if item.is_file():
+                item.unlink()
