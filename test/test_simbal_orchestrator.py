@@ -1,13 +1,13 @@
 import sys
 
 import openalea.simbal.simbal_parameters as param
-from openalea.simbal.simbal_orchestrator import Whole_plant, computing_shoot_root_exchange_rates
+from openalea.simbal.simbal_orchestrator import Wholeplant, computing_shoot_root_exchange_rates
 
 EPS = sys.float_info.epsilon
 
 def test_computing_shoot_root_exchange_rates():
 
-    plant = Whole_plant()
+    plant = Wholeplant()
     param.C_diffusion_coefficient = 2.5e-6
     plant.shoot_labile_C_pool = 0.1
     plant.shoot_labile_C_deficit = 0.05
