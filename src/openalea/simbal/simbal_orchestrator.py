@@ -34,7 +34,7 @@ from openalea.simbal.simbal_parameters import plastochron
 ########################################################################################################################
 
 # We define a class that will contain the properties of the interface between shoot and roots (amounts and rates):
-class Whole_plant():
+class Wholeplant:
     """
     This class defines a whole plant, defined with general properties for shoots and roots. It does not correspond to
     a MTG, and can be used to store generic plant properties that both shoot MTG or root MTG can access over time.
@@ -265,7 +265,7 @@ def computing_shoot_root_exchange_rates(plant,
 
 # # EXAMPLE:
 #
-# i = whole_plant()
+# i = Wholeplant()
 # i.shoot_struct_mass = 2.
 # i.root_struct_mass = 0.5
 #
@@ -812,7 +812,7 @@ def run_simulation_for_a_plant_cover(my_path=None):
 
         # INITIALIZING THE WHOLE PLANT:
         # We create a "plant", i.e. a shoot-root interface without structure that will store variables at the scale of the plant:
-        plant = Whole_plant()
+        plant = Wholeplant()
         plant_objects[plant_genotype_name] = plant
 
         # INITIALIZING WHOLE SHOOT PROPERTIES:
