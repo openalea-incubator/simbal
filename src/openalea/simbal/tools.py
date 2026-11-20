@@ -2631,7 +2631,7 @@ def loading_MTG_files(my_path='',
 
     if recording_g_properties:
         # We define the directory "MTG_properties_dir"
-        properties_dir = my_path /MTG_properties_folder
+        properties_dir = my_path / MTG_properties_folder
         # If this directory doesn't exist:
         create_or_empty_dir(properties_dir)
 
@@ -2867,10 +2867,10 @@ def loading_MTG_files(my_path='',
         # ------------------------------------------------
         if recording_g_properties:
             # We define the final list of properties to record according to all the properties of this MTG:
-            list_of_properties = list(g.properties().keys())
+            list_of_properties = list(g.properties())
             # We sort it alphabetically:
             list_of_properties.sort(key=str.lower)
-            prop_file_name = os.path.join(properties_dir, 'root%.5d.csv')
+            prop_file_name = str(properties_dir / ('root%.5d.csv'))
             recording_MTG_properties(g, file_name=prop_file_name % ID, list_of_properties=list_of_properties)
 
         # For integrating root variables on the z axis:
@@ -2907,7 +2907,7 @@ def loading_MTG_files(my_path='',
         col = data_frame_z.pop('time_in_days')
         data_frame_z.insert(0, col.name, col)
         # We save the data_frame in a CSV file:
-        z_file_path = os.path.join(my_path, 'z_classification.csv')
+        z_file_path = str(my_path / 'z_classification.csv')
         data_frame_z.to_csv(z_file_path, na_rep='NA', index=False, header=True)
         print("   > A new file 'z_classification.csv' has been saved.")
 
@@ -2919,7 +2919,7 @@ def loading_MTG_files(my_path='',
         col = data_frame_computing.pop('time_in_days')
         data_frame_computing.insert(0, col.name, col)
         # We save the data_frame in a CSV file:
-        computing_file_path = os.path.join(my_path, 'computing_different_root_classes.csv')
+        computing_file_path = str(my_path / 'computing_different_root_classes.csv')
         data_frame_computing.to_csv(computing_file_path, na_rep='NA', index=False, header=True)
         print("   > A new file 'computing_different_root_classes.csv' has been saved.")
 
