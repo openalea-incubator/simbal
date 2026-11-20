@@ -26,7 +26,7 @@ from decimal import Decimal
 ########################################################################################################################
 
 # We define a class "root_system" that will be used to contain the properties of the root system:
-class root_system:
+class RootSystem:
     """
     This class defines a whole root system, defined with general root properties. It does not correspond to
     a MTG, and can be used to store generic root properties at the scale of the whole root system.
